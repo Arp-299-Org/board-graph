@@ -1,0 +1,6 @@
+# Pictures saved from the view for sharing; each is a moment of the graph, not a source.
+*.png
+# The page's live data: every write to the graph's database rewrites it, so each checkout keeps its own.
+# The copy in git is snapshot.js, which a full snapshot writes and the page loads when opened from disk.
+view.json
+view.json.*.tmp

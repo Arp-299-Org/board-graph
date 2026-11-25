@@ -1,0 +1,75 @@
+# The tool's own tests, on a GitHub-hosted machine: the manifest check, then every test file the manifest lists, with
+# no KiCad and no Mac (the KiCad cases skip unless BOARD_GRAPH_TEST_KICAD=1, which is not set here). Python 3.9 is
+# the KiCad machine's; the semantic snapshot's audit parses 3.10 syntax, so it runs on the newer Python only.
+name: test
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        # Python 3.9 has no build for the newest Ubuntu image, so it runs on an older one.
+        include:
+          - python: "3.9"
+            os: ubuntu-24.04
+          - python: "3.12"
+            os: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+
+      - name: The manifest
+        run: python scripts/board_graph_tool.py check
+
+      - name: The upgrade notes
+        run: python scripts/board_graph_tool.py notes
+
+      - name: Workflow acceptance on disposable projects
+        run: python .github/scripts/audit_workflow.py .
+
+      - name: Script hygiene guardrails
+        run: python .github/scripts/check_hygiene.py
+
+      - name: Dev workflow tests
+        run: python dev/test_tool_dev.py
+
+      - name: Wheel install smoke
+        run: |
+          python -m venv /tmp/bg-wheel-smoke
+          /tmp/bg-wheel-smoke/bin/pip install --quiet .
+          mkdir -p /tmp/bg-wheel-proj
+          /tmp/bg-wheel-smoke/bin/board-graph version
+          /tmp/bg-wheel-smoke/bin/board-graph --project /tmp/bg-wheel-proj init
+          /tmp/bg-wheel-smoke/bin/board-graph --project /tmp/bg-wheel-proj board-description
+          /tmp/bg-wheel-smoke/bin/board-graph --project /tmp/bg-wheel-proj check
+
+      - name: The tool's tests
+        run: |
+          failed=""
+          for test in $(python -c 'import json; print("\n".join(f for f in json.load(open("tools/board_graph_tool.json"))["files"] if f.rsplit("/", 1)[-1].startswith("test_") and f.endswith(".py")))'); do
+            if [ "$test" = tools/kicad/test_kicad_semantic_snapshot.py ] && python -c 'import sys; sys.exit(sys.version_info >= (3, 10))'; then
+              echo "$test: not run, it needs Python 3.10 or newer"
+              continue
+            fi
+            echo "::group::$test"
+            python "$test" || failed="$failed $test"
+            echo "::endgroup::"
+          done
+          if [ -n "$failed" ]; then
+            echo "failed:$failed"
+            exit 1
+          fi

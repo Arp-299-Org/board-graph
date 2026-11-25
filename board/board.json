@@ -1,0 +1,46 @@
+{
+  "name": "example",
+  "project": "Example",
+  "folder": "board",
+  "schematic": "board/example.kicad_sch",
+  "pcb": "board/example.kicad_pcb",
+  "kicad_project": "board/example.kicad_pro",
+  "rules": "board/example.kicad_dru",
+  "footprint_table": "board/fp-lib-table",
+  "footprint_library": "board/example.pretty",
+  "model_folders": [
+    "board/models"
+  ],
+  "bom_export": "board/exports/example-bom.csv",
+  "schematic_export": "board/exports/example-schematic.pdf",
+  "owner_placement": "board/owner_placement.json",
+  "reports": "board/reports",
+  "production": "board/production",
+  "drc_exclusions": "board/reports/documented-drc-exclusions.json",
+  "package_name": "EXAMPLE",
+  "parts_data": "hardware/reference/parts.json",
+  "datasheets": "hardware/reference",
+  "decisions": "board/DECISIONS.md",
+  "electrical_audit": null,
+  "board_audit": null,
+  "hand_solder_notes": {
+    "manual": {},
+    "factory_parts": [],
+    "when_unpopulated": [],
+    "when_factory": []
+  },
+  "part_models": null,
+  "manual_joints": {
+    "names": {},
+    "clearance_note": "The repository records no recommended pin-to-hole clearance. The maker's recommended hole is printed where its datasheet gives one"
+  },
+  "routing_agent": {
+    "provider": "gemini",
+    "docs": [
+      "AGENTS.md",
+      "docs/PRODUCT_TRUTH.md"
+    ],
+    "recipe": ".agents/skills/kicad-10-operator/references/recipe-routing.md",
+    "recipe_skill": "kicad-10-operator"
+  }
+}

@@ -1,0 +1,54 @@
+name: linux-kicad-smoke
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "docker/**"
+      - "tools/kicad/kicad_install.py"
+      - "scripts/editor_step_kicad.py"
+      - "scripts/kicad_reload_board.py"
+      - "scripts/mac.py"
+      - "scripts/mac_screen.sh"
+      - "scripts/kicad_lay.py"
+      - "scripts/kicad_ipc.py"
+      - ".github/workflows/linux-kicad-smoke.yml"
+  pull_request:
+    paths:
+      - "docker/**"
+      - "tools/kicad/kicad_install.py"
+      - "scripts/editor_step_kicad.py"
+      - "scripts/kicad_reload_board.py"
+      - "scripts/mac.py"
+      - "scripts/mac_screen.sh"
+      - "scripts/kicad_lay.py"
+      - "scripts/kicad_ipc.py"
+      - ".github/workflows/linux-kicad-smoke.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  linux-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Linux KiCad 10 runner image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/Dockerfile
+          load: true
+          tags: board-graph-linux
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Run live Xvfb + KiCad 10 IPC smoke
+        run: docker run --rm board-graph-linux /opt/board-graph/.venv-kicad-ipc/bin/python /opt/board-graph/docker/smoke_linux_ipc.py

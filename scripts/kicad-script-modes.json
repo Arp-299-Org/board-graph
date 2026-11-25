@@ -1,0 +1,63 @@
+{
+  "schema_version": 1,
+  "scripts": {
+    "scripts/kicad_check_connection.py": [
+      "Offline"
+    ],
+    "scripts/kicad_compare_board_semantics.py": [
+      "Offline"
+    ],
+    "scripts/kicad_finalize_jlc_outputs.py": [
+      "Offline"
+    ],
+    "scripts/kicad_footprints_to_library.py": [
+      "Offline"
+    ],
+    "scripts/kicad_generate_fabrication_archive.py": [
+      "Offline"
+    ],
+    "scripts/kicad_generate_jlc_source_files.py": [
+      "Offline"
+    ],
+    "scripts/kicad_ipc_status.py": [
+      "Live"
+    ],
+    "scripts/kicad_package_production.py": [
+      "Offline"
+    ],
+    "scripts/kicad_refill_zones.py": [
+      "Live"
+    ],
+    "scripts/kicad_reload_board.py": [
+      "Live"
+    ],
+    "scripts/kicad_report_freshness.py": [
+      "Offline"
+    ],
+    "scripts/kicad_report_pad_mask.py": [
+      "Offline"
+    ],
+    "scripts/kicad_report_thermal_relief.py": [
+      "Offline"
+    ],
+    "scripts/kicad_route.py": [
+      "Live"
+    ],
+    "scripts/kicad_route_elegance.py": [
+      "Offline"
+    ],
+    "scripts/kicad_route_quality.py": [
+      "Live",
+      "Offline"
+    ],
+    "scripts/kicad_silk_readability.py": [
+      "Live"
+    ],
+    "tools/kicad/check_track_craft.py": [
+      "Offline"
+    ],
+    "tools/kicad/kicad_semantic_snapshot.py": [
+      "Live"
+    ]
+  }
+}

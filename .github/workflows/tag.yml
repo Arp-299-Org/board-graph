@@ -1,0 +1,31 @@
+# The release tag, made here so nobody pushes one by hand. Every push to main: when the manifest names a version
+# that has no tag yet, the tag v<version> is put on the commit of main that set that version, and pushed. A push
+# that does not change the version finds the tag there and does nothing. It can also be run by hand (Actions, tag,
+# Run workflow), which does the same thing.
+name: tag
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency: tag
+
+jobs:
+  tag:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: The version's tag
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          .github/scripts/release_tag.sh

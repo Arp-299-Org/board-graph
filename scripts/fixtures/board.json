@@ -1,0 +1,84 @@
+{
+  "name": "demo",
+  "project": "DemoBoard",
+  "folder": "board",
+  "schematic": "board/demo.kicad_sch",
+  "pcb": "board/demo.kicad_pcb",
+  "kicad_project": "board/demo.kicad_pro",
+  "rules": "board/demo.kicad_dru",
+  "footprint_table": "board/fp-lib-table",
+  "footprint_library": "board/demo.pretty",
+  "model_folders": ["board/models", "board/vendor_models", "hardware/enclosure/step"],
+  "bom_export": "board/exports/demo-bom.csv",
+  "schematic_export": "board/exports/demo-schematic.pdf",
+  "owner_placement": "board/owner_placement.json",
+  "reports": "board/reports",
+  "production": "board/production",
+  "drc_exclusions": "board/reports/documented-drc-exclusions-final.json",
+  "package_name": "DEMO_REV1?",
+  "parts_data": "hardware/reference/parts.json",
+  "datasheets": "hardware/reference",
+  "decisions": "board/DECISIONS.md",
+  "part_models": "scripts/demo_part_models.py",
+  "manual_joints": {
+    "names": {
+      "U8": "the controller module",
+      "J1": "the power jack",
+      "J4": "the serial jack",
+      "J5": "the sensor jack",
+      "SW1": "the left key",
+      "SW2": "the right key",
+      "R14": "the rotary trimmer",
+      "J6": "the debug header",
+      "JP3": "the power jumper"
+    },
+    "clearance_note": "The repository records no recommended pin-to-hole clearance. The maker's recommended hole is printed where its datasheet gives one"
+  },
+  "routing_agent": {
+    "docs": ["AGENTS.md", "docs/PRODUCT_TRUTH.md"],
+    "recipe": ".agents/skills/kicad-10-operator/references/recipe-routing.md",
+    "recipe_skill": "kicad-10-operator",
+    "sensitive_nets": "analog signals, the storage clock, the display clock"
+  },
+  "electrical_audit": {
+    "script": "scripts/kicad_demo_electrical_audit.py",
+    "waivers": "board/audit_waivers.json",
+    "check": "Electrical audit, R1 to R14 (G4)"
+  },
+  "board_audit": {
+    "script": "scripts/kicad_demo_board_audit.py",
+    "args": ["--profile", "demo"],
+    "check": "Full board audit, demo profile (G6)"
+  },
+  "hand_solder_notes": {
+    "manual": {
+      "U8": "Controller module through its pin strips from the back, soldered on the front. Two 20-pin socket strips may be fitted on first articles.",
+      "J1": "Power output jack. Panel-mount 3.5 mm connector. Solder on front.",
+      "J4": "Serial input jack. Panel-mount 3.5 mm connector. Solder on front.",
+      "J5": "Sensor input jack, two pads. Panel-mount 3.5 mm connector. Solder on front.",
+      "SW1": "Tactile switch; positioning bosses enter the two plain holes. Solder on back.",
+      "SW2": "Tactile switch; positioning bosses enter the two plain holes. Solder on back."
+    },
+    "factory_parts": [
+      {
+        "ref": "R14",
+        "part": "TRIM_WHEEL_10K",
+        "pads": ["7", "7"],
+        "pads_suffix": " shield tabs",
+        "note": "The factory places the wheel and solders its seven lands. Solder paste covers the two peg slots, so the pegs may arrive partly soldered. The builder solders the two pegs at the bench from the back."
+      }
+    ],
+    "when_unpopulated": [
+      {
+        "refs": ["J6", "JP3"],
+        "line": "J6 with JP3 is the debug header. Its footprints remain, but it is excluded from this build, as marked on the schematic."
+      }
+    ],
+    "when_factory": [
+      {
+        "refs": ["J2"],
+        "line": "The display latch J2 is planned for factory SMT placement."
+      }
+    ]
+  }
+}

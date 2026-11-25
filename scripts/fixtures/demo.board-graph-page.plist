@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- The graph page's server on the KiCad machine: scripts/board_graph_serve.py, started at login and kept running,
+     with no window. The script's install option copies this file into ~/Library/LaunchAgents and loads it. It answers on
+     kicad-host; while that name does not resolve, the script exits and launchd starts it again ten seconds later. -->
+<plist version="1.0">
+<dict>
+	<key>Label</key>
+	<string>demo.board-graph-page</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>/usr/bin/python3</string>
+		<string>/Users/builder/demo-board/scripts/board_graph_serve.py</string>
+	</array>
+	<key>WorkingDirectory</key>
+	<string>/Users/builder/demo-board</string>
+	<key>KeepAlive</key>
+	<true/>
+	<key>RunAtLoad</key>
+	<true/>
+	<key>ThrottleInterval</key>
+	<integer>10</integer>
+	<key>ProcessType</key>
+	<string>Background</string>
+	<key>StandardOutPath</key>
+	<string>/dev/null</string>
+	<key>StandardErrorPath</key>
+	<string>/Users/builder/demo-board/logs/board-graph/page.err</string>
+</dict>
+</plist>

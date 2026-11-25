@@ -1,0 +1,11 @@
+__pycache__/
+.venv-kicad-ipc/
+*.egg-info/
+build/
+dist/
+logs/
+*.kicad_prl
+*.lck
+~*.lck
+*-backups/
+fp-info-cache

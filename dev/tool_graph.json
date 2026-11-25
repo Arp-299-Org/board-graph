@@ -1,0 +1,182 @@
+{
+  "version": 1,
+  "approval_mode": "enforce",
+  "milestone": "board-graph release",
+  "docs": [
+    "dev/TOOL_DEV_PROCESS.md",
+    "docs/KICAD_10_INVARIANTS.md"
+  ],
+  "stop": {
+    "minutes": 30,
+    "repeat_failures": 3
+  },
+  "stay_outcomes": {
+    "more_work": "stay; continue the same card under its stop guard",
+    "needs_owner": "stay; present the decision to the owner with a recommendation",
+    "needs_lead": "stay; record what stopped or failed so the lead inspects it",
+    "needs_skill": "stay; practice the missing operation on a disposable copy"
+  },
+  "move_outcomes": {
+    "pass": "move to the next card named by pass; done when done",
+    "returned": "send work back to an earlier card on the track"
+  },
+  "tracks": [
+    {
+      "id": "tool",
+      "label": "Tool Release",
+      "start": "triage",
+      "ordered": true
+    }
+  ],
+  "stages": [
+    {
+      "id": "plan",
+      "label": "Triage and implement"
+    },
+    {
+      "id": "verify",
+      "label": "Checks, cold review, and live smoke"
+    },
+    {
+      "id": "ship",
+      "label": "Release"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "triage",
+      "track": "tool",
+      "stage": "plan",
+      "label": "Triage",
+      "who": "agent",
+      "task": "Probe affected KiCad/OS/CLI boundaries first; record root-cause class, affected sibling modules/contracts, and required realistic integration tests.",
+      "pass_when": "Triage note records root-cause class, sibling blast radius, and concrete test requirements.",
+      "owns": [],
+      "action": null,
+      "outcomes": {
+        "pass": "implement",
+        "returned": []
+      }
+    },
+    {
+      "id": "implement",
+      "track": "tool",
+      "stage": "plan",
+      "label": "Implement",
+      "who": "agent",
+      "task": "Implement unified clean fix without duplicate parsers or N+1 IPC loops, plus realistic contract tests.",
+      "pass_when": "Changes follow AGENTS.md and check_hygiene rules with realistic tests committed or ready.",
+      "owns": [],
+      "action": null,
+      "outcomes": {
+        "pass": "tool_checks",
+        "returned": [
+          "triage"
+        ]
+      }
+    },
+    {
+      "id": "tool_checks",
+      "track": "tool",
+      "stage": "verify",
+      "label": "Tool Checks",
+      "who": "auto",
+      "task": "Run fail-fast hygiene preflight, workflow audit, dev graph tests, and all unit/integration suites in parallel (release metadata is verified at Release).",
+      "pass_when": "Hygiene preflight, workflow audit, dev tests, and all unit/integration suites pass in clean separate Python processes.",
+      "owns": [],
+      "action": "tool_checks",
+      "approval_source": "tool_code",
+      "outcomes": {
+        "pass": "cold_review",
+        "returned": [
+          "implement",
+          "triage"
+        ]
+      }
+    },
+    {
+      "id": "cold_review",
+      "track": "tool",
+      "stage": "verify",
+      "label": "Cold Review",
+      "who": "agent",
+      "task": "Review the full diff since the last release tag; reject band-aids, duplicate parsers, N+1 IPC loops, toy fixtures, and stale claims in README.md, AGENTS.md, docs/ROUTING_NOTES.md, or UPGRADING.md.",
+      "pass_when": "Cold reviewer verifies architecture, cross-module contracts, realistic test depth, and doc-drift alignment (README.md, AGENTS.md, docs/ROUTING_NOTES.md, UPGRADING.md) on current code SHA.",
+      "owns": [],
+      "action": null,
+      "approval_source": "tool_code",
+      "requires": [
+        "tool_checks"
+      ],
+      "requires_current": [
+        "tool_checks"
+      ],
+      "outcomes": {
+        "pass": "live_smoke",
+        "returned": [
+          "implement",
+          "triage"
+        ]
+      }
+    },
+    {
+      "id": "live_smoke",
+      "track": "tool",
+      "stage": "verify",
+      "label": "Live KiCad Smoke",
+      "who": "agent",
+      "task": "Check Mac idle state first (never interrupt active KiCad/routing runs); run disposable KiCad 10 IPC smoke if IPC/routing changed.",
+      "pass_when": "Mac was idle and disposable KiCad 10 IPC smoke passed (or cleanly skipped when no IPC/routing file changed).",
+      "owns": [],
+      "action": "live_smoke",
+      "approval_source": "tool_code",
+      "requires": [
+        "tool_checks"
+      ],
+      "requires_current": [
+        "tool_checks"
+      ],
+      "outcomes": {
+        "pass": "release",
+        "returned": [
+          "implement",
+          "tool_checks"
+        ]
+      }
+    },
+    {
+      "id": "release",
+      "track": "tool",
+      "stage": "ship",
+      "label": "Release",
+      "who": "agent",
+      "task": "Bump pyproject.toml version, update UPGRADING.md, run manifest, commit, tag, push origin main + tag, and sync idle Mac checkout.",
+      "pass_when": "Clean main matches annotated release tag and manifest; Mac synced only while idle; upstream approvals remain current.",
+      "owns": [],
+      "action": null,
+      "pass_check": "release_gate",
+      "approval_source": "tool_code",
+      "requires": [
+        "tool_checks",
+        "cold_review",
+        "live_smoke"
+      ],
+      "requires_current": [
+        "tool_checks",
+        "cold_review",
+        "live_smoke"
+      ],
+      "outcomes": {
+        "pass": "done",
+        "returned": [
+          "triage",
+          "implement",
+          "tool_checks",
+          "cold_review",
+          "live_smoke"
+        ]
+      }
+    }
+  ],
+  "open_issues": []
+}

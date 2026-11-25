@@ -1,0 +1,8 @@
+{
+  "pack": "none",
+  "reports": "logs/tool-dev/reports",
+  "actions": "dev/tool_actions.py",
+  "upkeep": "local",
+  "branch_folders": [],
+  "written": ["logs/tool-dev"]
+}

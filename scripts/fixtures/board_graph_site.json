@@ -1,0 +1,17 @@
+{
+  "kicad_machine": {
+    "ssh_host": "builder@kicad-host",
+    "ssh_key": "~/.ssh/id_ed25519_kicad",
+    "checkout": "~/demo-board",
+    "steps": "~/demo-steps",
+    "editor_lock": "~/demo-steps/EDITOR_BUSY.d",
+    "worktree_prefix": "~/demo-",
+    "cache": "~/.cache/demo-kicad",
+    "disposable_copies": "/tmp/demo-"
+  },
+  "graph_page": {
+    "address": "http://kicad-host:8000",
+    "launchd_label": "demo.board-graph-page"
+  },
+  "state_database": "logs/board-graph/state.sqlite3"
+}
