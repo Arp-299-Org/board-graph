@@ -27,8 +27,8 @@ downstream PCB repositories never receive it.
 
 ## Release Cycling
 
-Start a new release cycle with `python dev/tool_dev.py cycle v0.29.1` (creates isolated state
-and records under `logs/tool-dev/releases/v0.29.1/`). Check status with `python dev/tool_dev.py where`.
+Start a new release cycle with `python dev/tool_dev.py cycle v0.33.2` (creates isolated state
+and records under `logs/tool-dev/releases/v0.33.2/`). Check status with `python dev/tool_dev.py where`.
 
 ## Friction and Slow-Check Signal
 

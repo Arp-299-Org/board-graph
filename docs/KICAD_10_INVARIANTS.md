@@ -22,7 +22,7 @@ Before editing code that crosses a KiCad file format, IPC (`kipy`), X11/macOS GU
 
 ## KiCad 10 IPC (`kipy`) Contracts
 
-- **Thermal zone defaults:** `kipy` `Zone()` writes `0 mm` thermal spoke gap and bridge width when optional fields are left unset (`v0.29.10`), causing through-hole thermal pads to connect solid. `plan_pour` in `scripts/kicad_lay_plan.py` defaults `thermal_gap` and `thermal_bridge_width` to `0.5 mm` for `thermal` / `pth_thermal`.
+- **Thermal zone defaults:** `kipy` `Zone()` writes `0 mm` thermal spoke gap and bridge width when optional fields are left unset, causing through-hole thermal pads to connect solid. `plan_pour` in `scripts/kicad_lay_plan.py` defaults `thermal_gap` and `thermal_bridge_width` to `0.5 mm` for `thermal` / `pth_thermal`.
 - **Timeout:** Use `60000` ms (`60 s`) IPC timeouts for dense board zone refills and saves (`5000 ms` times out on loaded boards).
 - **O(1) session queries:** Read footprints, enabled layers, and netclasses once per session via `KipyBoardCacheMixin` (`scripts/kicad_ipc.py`), using bulk `get_netclass_for_nets()` instead of per-pad RPC loops.
 - **Sockets:** Primary server binds `/tmp/kicad/api.sock`; secondary instances bind `/tmp/kicad/api-<pid>.sock`. Match `board.document.project.path` and `board.document.board_filename` before mutating.

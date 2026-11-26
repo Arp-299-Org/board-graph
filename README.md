@@ -42,9 +42,9 @@ Recent bugs from real boards that became permanent engine invariants:
 
 | Failure observed | Root cause found in triage | Engine invariant added |
 |---|---|---|
-| Through-hole pads shorted solid to inner copper planes | `kipy.Zone()` wrote `0 mm` thermal spoke gap/width when left unset (`v0.29.10`) | `plan_pour()` defaults `0.5 mm` spokes + Linux Docker smoke check |
-| Clean KiCad 10 first save broke approved placement diffs | KiCad 10 rewrote angles (`270` -> `-90`), `.0` floats, UUIDs, and setup blocks (`v0.32.2`) | Unified `canonicalize_guard_node()` across placement, copper, and reload checks |
-| Unsupervised autonomous runs risking factory spend | Owner-gated cards blocked overnight delegation unless guarded at checkout (`v0.33.0`) | Explicit `autonomy: delegated` mode with immutable `order` hard ceiling |
+| Through-hole pads shorted solid to inner copper planes | `kipy.Zone()` wrote `0 mm` thermal spoke gap/width when left unset | `plan_pour()` defaults `0.5 mm` spokes + Linux Docker smoke check |
+| Clean KiCad 10 first save broke approved placement diffs | KiCad 10 rewrote angles (`270` -> `-90`), `.0` floats, UUIDs, and setup blocks | Unified `canonicalize_guard_node()` across placement, copper, and reload checks |
+| Unsupervised autonomous runs risking factory spend | Owner-gated cards blocked overnight delegation unless guarded at checkout | Explicit `autonomy: delegated` mode with immutable `order` hard ceiling |
 
 ## Two ways to use `board-graph`
 
@@ -370,7 +370,7 @@ choose to upgrade:
 pip install --upgrade git+https://github.com/Arp-299-Org/board-graph.git@v<version>
 ```
 
-Before bumping a minor version (`0.31.x` -> `0.32.0`), read `UPGRADING.md` (or
+Before bumping a minor version (`0.33.x` -> `0.34.0`), read `UPGRADING.md` (or
 `git tag -n99 v<version>`) to see if any project-owned files or task headers
 need updates, and run `board-graph init` in your project if you want any newly
 added starter files (existing files are never overwritten).
