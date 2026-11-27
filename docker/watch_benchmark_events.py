@@ -37,7 +37,7 @@ def _board_state(view: dict) -> dict:
     last = transitions[-1] if transitions else {}
     return {
         "project": view.get("project"),
-        "position": (view.get("where") or {}).get("position"),
+        "position": board_track.get("position"),
         "seq": int(last.get("seq") or 0),
         "node": last.get("node"),
         "outcome": last.get("outcome"),
@@ -62,6 +62,7 @@ def _watch_target(
     base_url: str,
     until_node: str,
     stop_outcomes: set[str],
+    min_stop_seq: int,
     wait_all: bool,
     events_q: queue.Queue,
     state_lock: threading.Lock,
@@ -72,21 +73,24 @@ def _watch_target(
         st = _board_state(_fetch_view(base_url))
         seq = st["seq"]
         emit = False
+        trigger_kind: str | None = None
+        trigger_code = 0
         with state_lock:
             if seq != last_seq.get(name, -1):
                 last_seq[name] = seq
                 emit = True
-            if st["outcome"] in stop_outcomes:
-                events_q.put(("blocked", 10, name, st))
-                return
-            if st["node"] == until_node and st["outcome"] == "pass":
+            if st["outcome"] in stop_outcomes and seq > min_stop_seq:
+                trigger_kind, trigger_code = "blocked", 10
+            elif st["node"] == until_node and st["outcome"] == "pass":
                 reached.add(name)
                 if not wait_all or len(reached) >= len(targets_global):
-                    events_q.put(("reached", 0, name, st))
-                    return
+                    trigger_kind, trigger_code = "reached", 0
         if emit:
             summary = f"{st['node']} {st['outcome']} -> {st['target']}" if st["node"] else f"pos={st['position']}"
             print(f"[{_now_hms()}] {name} ({st['project']}): seq={seq} {summary} ({st['actor']})", flush=True)
+        if trigger_kind is not None:
+            events_q.put((trigger_kind, trigger_code, name, st))
+            return
 
     sse_url = f"{base_url.rstrip('/')}/events"
     for attempt in range(2):
@@ -116,6 +120,8 @@ targets_global: dict[str, str] = {}
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--target", action="append", required=True, help="NAME=URL pair (repeatable)")
+    parser.add_argument("--after-seq", action="append", default=[],
+                        help="NAME=SEQ pair; ignore stop outcomes at or below SEQ (repeatable)")
     parser.add_argument("--until", default="quote_files", help="Completion node id (default: quote_files)")
     parser.add_argument("--stop-outcomes", default="needs_owner,needs_lead,needs_skill",
                         help="Comma-separated outcomes that trigger immediate exit 10")
@@ -133,6 +139,17 @@ def main(argv: list[str] | None = None) -> int:
         name, url = item.split("=", 1)
         targets[name.strip()] = url.strip()
     targets_global.update(targets)
+    after_seq: dict[str, int] = {}
+    for item in args.after_seq:
+        if "=" not in item:
+            print(f"invalid --after-seq {item!r}: expected NAME=SEQ", file=sys.stderr)
+            return 2
+        name, raw_seq = item.split("=", 1)
+        try:
+            after_seq[name.strip()] = int(raw_seq.strip())
+        except ValueError:
+            print(f"invalid --after-seq {item!r}: SEQ must be an integer", file=sys.stderr)
+            return 2
     stop_outcomes = {s.strip() for s in args.stop_outcomes.split(",") if s.strip()}
 
     events_q: queue.Queue = queue.Queue()
@@ -143,7 +160,8 @@ def main(argv: list[str] | None = None) -> int:
     for name, url in targets.items():
         t = threading.Thread(
             target=_watch_target,
-            args=(name, url, args.until, stop_outcomes, args.wait_all, events_q, state_lock, reached, last_seq),
+            args=(name, url, args.until, stop_outcomes, after_seq.get(name, 0),
+                  args.wait_all, events_q, state_lock, reached, last_seq),
             daemon=True,
         )
         t.start()
