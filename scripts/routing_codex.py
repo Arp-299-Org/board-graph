@@ -430,7 +430,10 @@ def _valid_editor_look(after: list[str], output: str, exit_code, status: str, bo
             if app != "PCB Editor":
                 return False
             if board_stem and title.removeprefix("*") not in (
-                    f"{board_stem} \u2014 PCB Editor", f"{board_stem} [Read Only] \u2014 PCB Editor"):
+                    f"{board_stem} \u2014 PCB Editor",
+                    f"{board_stem} [Read Only] \u2014 PCB Editor",
+                    f"{board_stem} - PCB Editor",
+                    f"{board_stem} [Read Only] - PCB Editor"):
                 return False
         elif "px of window #" in line and "(PCB Editor:" not in line:
             return False

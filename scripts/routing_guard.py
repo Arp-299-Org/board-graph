@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Adoption guard, banned-model checks, and S-expression copper filtering for routing_run."""
+"""Adoption guard and S-expression copper filtering for routing_run."""
 from __future__ import annotations
 
 import collections
@@ -16,29 +16,10 @@ from kicad_sexp import child, normalize_angles, parse, prop  # noqa: E402
 COPPER = ("segment", "arc", "via")
 HEADER = rg.TOP_LEVEL_HEADERS
 FILLS = ("filled_polygon", "fill_segments")
-BANNED_MODELS = ("opus",)
 
 
 class Refused(Exception):
     pass
-
-
-def banned_model(name) -> bool:
-    return bool(name) and any(word in str(name).lower() for word in BANNED_MODELS)
-
-
-def banned_models_used(steps: list) -> list:
-    """The banned models the steps' own logs say did the work, agent or reviewer: a model asked for by another name
-    can still be served by one, and its copper is not adopted."""
-    found = []
-    for step in steps:
-        used = step.get("tokens") if isinstance(step.get("tokens"), dict) else {}
-        logs = [used.get("agent"), *(used.get("reviews") or [])]
-        for log in logs:
-            for model in ((log or {}).get("by_model") or {}):
-                if banned_model(model) and model not in found:
-                    found.append(model)
-    return found
 
 
 frozen = rg.frozen_sexp

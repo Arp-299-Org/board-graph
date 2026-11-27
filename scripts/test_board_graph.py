@@ -549,7 +549,8 @@ class RecordTests(unittest.TestCase):
         with self.gated([]):
             self.assertIn("  WARNING, read first.\n", board_graph.brief(self.graph, self.state, "inventory", root=self.root))
             self.assertEqual(self.rec("inventory", "pass")["target"], "decisions")
-        self.assertIn("Opus models are banned from routing", board_graph.PACK.gates["routing_run"].warning)
+        self.assertIn("Copper is laid in the editor by this card's routing run", board_graph.PACK.gates["routing_run"].warning)
+        self.assertNotIn("banned from routing", board_graph.PACK.gates["routing_run"].warning)
         text = board_graph.brief(self.graph, self.state, "decisions", root=self.root)
         self.assertNotIn("Not through this card's tool", text)
         self.assertIn(board_graph.BROKEN_CARD, text)

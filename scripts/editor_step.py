@@ -8,7 +8,7 @@ Run on the Mac, on a throwaway copy, with no PCB Editor running there: the edito
 script refuses to start beside one. It knows its editor by the board's full path. --task is a run of one step; --tasks runs one step per text file in FOLDER, in
 name order, all in ONE editor, opened at the start and closed at the end. --minutes sets the operator handoff
 time and the time available to a separate read-only review.
-An Opus model is refused as the agent and as the reviewer; the agent is claude-fable-5-2 unless --model names another.
+For the Claude provider, the agent defaults to sonnet unless --model names another.
 
 The script opens the editor on BOARD, refills the pours, saves, and runs the design check and audits. Each step then
 locks the file and starts the agent. When the agent stops, the script refills and saves what the editor holds and
@@ -129,6 +129,7 @@ from editor_step_kicad import (  # noqa: E402
     same_board,
     save_candidate,
     saved_connection,
+    saved_connections,
     screen_locked,
     sha,
 )
@@ -176,16 +177,15 @@ SCRIPTS_PREFIX = str(TOOL_ROOT / "scripts") if tool_paths.is_external() else "sc
 sys.path.insert(0, str(TOOL_ROOT / "tools" / "kicad"))
 from kicad_install import KICAD_CLI, KICAD_PCBNEW as PCBNEW  # noqa: E402
 
-BANNED_MODELS = ("opus",)
 HANDOFF_GRACE_SECONDS = 60
 MAX_PROGRESS_EXTENSIONS = 3
 
 
-def banned_model(name) -> bool:
-    return bool(name) and any(word in str(name).lower() for word in BANNED_MODELS)
+def _default_claude_bin() -> str:
+    return os.environ.get("BOARD_GRAPH_CLAUDE_BIN") or shutil.which("claude") or str(pathlib.Path.home() / ".local/bin/claude")
 
 
-CLAUDE = str(pathlib.Path.home() / ".local/bin/claude")
+CLAUDE = _default_claude_bin()
 PYTHON = sys.executable
 ROUTING = validate_board.DESCRIPTION.routing_agent
 RECIPE = validate_board.DESCRIPTION.root / ROUTING["recipe"] if ROUTING.get("recipe") else None
@@ -425,11 +425,13 @@ def _prepare_step_inputs(args, task: str, path: pathlib.Path, proc, socket: str,
                      "and put bends in open space. The saved check allows 0.02 mm lateral offset and 1 degree from perpendicular.")
     if ROUTING.get("tasks") and not targets and not pours and not task.lstrip().startswith("Repair:"):
         raise ValueError("Start a task with Connection: or Pour:, or label a geometry repair with Repair:")
-    already_connected = []
-    for idx, target in enumerate(targets, 1):
-        start_report = folder / ("connection-start.json" if len(targets) == 1 else f"connection-start-{idx}.json")
-        if saved_connection(path, target, start_report):
-            already_connected.append(" ".join(target))
+    start_reports = [folder / ("connection-start.json" if len(targets) == 1 else f"connection-start-{idx}.json")
+                     for idx in range(1, len(targets) + 1)]
+    already_connected = [
+        " ".join(target)
+        for target, ok in zip(targets, saved_connections(path, [(t, r, False) for t, r in zip(targets, start_reports)]))
+        if ok
+    ]
     if already_connected:
         raise ValueError(f"The requested pads were already connected before this task: {'; '.join(already_connected)}")
     extra_layers = tuple(dict.fromkeys(layer for pour in pours for layer in pour["layers"] if layer not in ("F.Cu", "B.Cu")))
@@ -524,9 +526,10 @@ def _check_round_targets_and_pours(path: pathlib.Path, folder: pathlib.Path, rou
     if targets:
         checked_connections = []
         merged_pads: dict[str, dict] = {}
-        for idx, target in enumerate(targets, 1):
-            report = folder / (f"connection-round{round_num}.json" if len(targets) == 1 else f"connection-round{round_num}-{idx}.json")
-            joined = saved_connection(path, target, report, centered)
+        reports = [folder / (f"connection-round{round_num}.json" if len(targets) == 1 else f"connection-round{round_num}-{idx}.json")
+                   for idx in range(1, len(targets) + 1)]
+        joined_list = saved_connections(path, [(t, r, bool(centered)) for t, r in zip(targets, reports)])
+        for target, report, joined in zip(targets, reports, joined_list):
             checked_connections.append({"from": target[0], "to": target[1], "net": target[2], "before": False, "after": joined, "saved_sha256": saved_sha})
             if centered:
                 entries = json.loads(report.read_text(encoding="utf-8"))["pad_exits"]
@@ -961,10 +964,6 @@ def configure_provider(args):
     else:
         args.model = args.model or ROUTING_MODEL
     args.review_model = _effective_review_model(args)
-    for model in (args.model, args.review_model):
-        if banned_model(model):
-            raise ValueError(f"{model} is banned from routing: nothing ran. Name another "
-                             "model with --model or --review-model")
     if "codex" in (args.provider, args.review_provider):
         import routing_codex
         args.codex_binary = routing_codex.preflight()

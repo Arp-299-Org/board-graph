@@ -26,7 +26,7 @@ reads whole, in order (`docs`; the graph's own list, the product truth, comes
 first for every card), and a script's card names none.
 `python scripts/board_graph.py check` validates the file and refuses what an
 agent could not read whole: a line over 2000 characters (a Read cuts it) and a
-named doc, or AGENTS.md or CLAUDE.md, that is missing or over the smallest
+named doc, or AGENTS.md, that is missing or over the smallest
 loader's cut, 30,000 characters or 2000 lines, and cards that wait on each
 other in a loop; `graph` prints it in Mermaid form.
 

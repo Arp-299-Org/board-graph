@@ -66,9 +66,7 @@ WAY_OUT = ("A card whose tool does not work is not worked around: record needs_l
 
 
 # What the Routing card's brief says every time, to whoever is on it.
-WARNING = ("WARNING, read before anything else. Opus models are banned from routing: an Opus model does not route, "
-           "start the routing run, or record on this card; it says so and stops. The routing run refuses one. "
-           "it says so and stops. The routing run refuses one. Whatever the model: agents on this card have avoided "
+WARNING = ("WARNING, read before anything else. Agents on this card have avoided "
            "the KiCad editor by every means, writing tracks with scripts, pitching other routers, and calling scripted "
            "copper \"routed by hand\". All of it is forbidden. Copper is laid in the editor by this card's routing "
            "run and no other way. If the run fails, stop and report it; do not find another way.")

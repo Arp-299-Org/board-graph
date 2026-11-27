@@ -6,8 +6,15 @@ can import cleanly under Python 3.9+.
 """
 from __future__ import annotations
 
+import hashlib
+import json
+import os
 import pathlib
+import shutil
+import subprocess
 import sys
+import tempfile
+import uuid
 
 HERE = pathlib.Path(__file__).resolve().parent
 if str(HERE) not in sys.path:
@@ -23,6 +30,83 @@ INVOKE_KICAD_CLI = TOOL_ROOT / "tools" / "kicad" / "invoke_kicad_cli.py"
 def invoke_kicad_cli_path() -> pathlib.Path:
     """Return the path to `tools/kicad/invoke_kicad_cli.py` under `TOOL_ROOT`."""
     return INVOKE_KICAD_CLI
+
+
+def cached_drc_report(
+    project_dir: pathlib.Path,
+    board_name: str,
+    pcb_text: str,
+    cli_path: pathlib.Path,
+    *,
+    cache_dir: pathlib.Path | None = None,
+) -> dict:
+    """Run `kicad-cli pcb drc --refill-zones` or return a cached JSON report keyed by inputs SHA-256."""
+    project_dir = pathlib.Path(project_dir)
+    hasher = hashlib.sha256()
+    hasher.update(f"{cli_path}\0{board_name}\0".encode("utf-8"))
+    for suffix in (".kicad_pro", ".kicad_dru"):
+        src = project_dir / f"{board_name}{suffix}"
+        hasher.update(suffix.encode("ascii") + b"\0")
+        if src.is_file():
+            hasher.update(src.read_bytes())
+        hasher.update(b"\0")
+    hasher.update(pcb_text.encode("utf-8"))
+    key = hasher.hexdigest()
+
+    resolved_cache = (
+        pathlib.Path(cache_dir)
+        if cache_dir is not None
+        else pathlib.Path(tempfile.gettempdir()) / "board-graph-drc-cache"
+    )
+    cache_file = resolved_cache / f"{key}.json"
+    if cache_file.is_file():
+        try:
+            cached = json.loads(cache_file.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            cached = None
+        if isinstance(cached, dict) and "violations" in cached and "unconnected_items" in cached:
+            return cached
+
+    with tempfile.TemporaryDirectory(prefix="board-graph-lay-drc-") as folder:
+        tmp_dir = pathlib.Path(folder)
+        for suffix in (".kicad_pro", ".kicad_dru"):
+            src = project_dir / f"{board_name}{suffix}"
+            if src.exists():
+                shutil.copy(src, tmp_dir / src.name)
+        pcb = tmp_dir / f"{board_name}.kicad_pcb"
+        pcb.write_text(pcb_text, encoding="utf-8")
+        out = tmp_dir / "drc.json"
+        done = subprocess.run(
+            [
+                sys.executable,
+                str(cli_path),
+                "pcb",
+                "drc",
+                "--format",
+                "json",
+                "--severity-all",
+                "--refill-zones",
+                "--output",
+                str(out),
+                str(pcb),
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=600,
+        )
+        if not out.is_file():
+            raise RuntimeError("kicad-cli DRC failed: " + (done.stderr or done.stdout).strip()[-300:])
+        report = json.loads(out.read_text(encoding="utf-8"))
+
+    try:
+        resolved_cache.mkdir(parents=True, exist_ok=True)
+        staged = resolved_cache / f".{key}.{uuid.uuid4().hex}.tmp"
+        staged.write_text(json.dumps(report), encoding="utf-8")
+        os.replace(staged, cache_file)
+    except OSError:
+        pass
+    return report
 
 
 def project_identity(path: pathlib.Path) -> tuple[pathlib.Path, str]:

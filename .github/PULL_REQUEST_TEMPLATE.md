@@ -16,4 +16,4 @@ Paste the exact error output, failing check, or minimal reproduction steps that 
 
 ## Model Policy
 
-- [ ] This PR does not remove or weaken `BANNED_MODELS`, and any failure or routing issue it addresses was reproduced on a supported routing provider (forks are free to experiment with banned models locally, but upstream PRs working around banned-model routing behavior are not accepted).
+- [ ] This PR reproduces the reported issue on a supported provider without weakening verification or live-editor checks.

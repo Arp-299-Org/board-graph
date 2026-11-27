@@ -577,5 +577,54 @@ class AcceptedRouteQualityWarnings(unittest.TestCase):
                                                 "findings": [w1, self.finding("/MOTOR_A", [0, 0], "90", "hard_90_corner", "error")]})["ok"])
 
 
+class SpeedupPreflightAndZeroZone(unittest.TestCase):
+    def test_check_saved_fills_skips_refill_drc_on_zero_zone_board(self):
+        with tempfile.TemporaryDirectory() as td:
+            out = pathlib.Path(td)
+            with mock.patch.object(validate_board, "zone_fills", return_value={}), \
+                    mock.patch.object(validate_board, "run_kicad_cli", side_effect=AssertionError("should not run")) as cli:
+                row = validate_board.check_saved_fills(out)
+            self.assertTrue(row["ok"])
+            self.assertIn("0 zones", row["detail"])
+            cli.assert_not_called()
+
+    def test_kicad_offline_rejects_unregistered_and_caches_version_probe(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = pathlib.Path(td)
+            proj = root / "board"
+            proj.mkdir()
+            (proj / "demo.kicad_pro").write_text("{}", encoding="utf-8")
+            (proj / "demo.kicad_pcb").write_text("(kicad_pcb)", encoding="utf-8")
+            (proj / "demo.kicad_sch").write_text("(kicad_sch)", encoding="utf-8")
+            fake_py = root / "python.exe"
+            fake_py.write_text("", encoding="utf-8")
+            calls = []
+
+            def fake_run(cmd):
+                calls.append(cmd)
+                if len(cmd) >= 2 and cmd[1] == "-c":
+                    return subprocess.CompletedProcess(cmd, 0, stdout="3.12.0|10.0.8\n", stderr="")
+                return subprocess.CompletedProcess(cmd, 0, stdout='{"ok": true}\n', stderr="")
+
+            with mock.patch.object(validate_board, "ROOT", root), \
+                    mock.patch.object(validate_board, "PROJECT", "board"), \
+                    mock.patch.object(validate_board, "_PREFLIGHT_CACHE", set()), \
+                    mock.patch.object(validate_board, "_check_windows_remote_guard"), \
+                    mock.patch.object(validate_board, "run", side_effect=fake_run), \
+                    mock.patch.dict(os.environ, {"KICAD_PYTHON": str(fake_py)}, clear=False):
+                missing = validate_board.kicad_offline("scripts/not_registered_xyz.py")
+                self.assertEqual(missing.returncode, 1)
+                self.assertIn("does not exist", missing.stderr)
+                bad = validate_board.kicad_offline("scripts/board_graph.py")
+                self.assertEqual(bad.returncode, 1)
+                self.assertIn("not reviewed", bad.stderr)
+                r1 = validate_board.kicad_offline("scripts/kicad_report_pad_mask.py", "--board", "x")
+                r2 = validate_board.kicad_offline("scripts/kicad_report_thermal_relief.py", "--board", "x")
+            self.assertEqual(r1.returncode, 0)
+            self.assertEqual(r2.returncode, 0)
+            probe_calls = [c for c in calls if len(c) >= 2 and c[1] == "-c"]
+            self.assertEqual(len(probe_calls), 1)
+
+
 if __name__ == "__main__":
     unittest.main()

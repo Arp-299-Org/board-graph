@@ -223,6 +223,89 @@ class MacAndRoutingLinuxTests(unittest.TestCase):
             exec(compile(snippets[0], "mac_screen.sh#0", "exec"), {})
         self.assertEqual(buf.getvalue().strip(), "42\tPCB Editor\tdemo — PCB Editor")
 
+    def test_audit_commands_accepts_linux_hyphen_pcb_window_titles(self):
+        for title in (
+            "demo - PCB Editor",
+            "demo [Read Only] - PCB Editor",
+            "*demo - PCB Editor",
+            "demo — PCB Editor",
+            "demo [Read Only] — PCB Editor",
+        ):
+            with self.subTest(title=title):
+                out = f"/tmp/look.png\n1600 x 900 px of window #42 (PCB Editor: {title}); 1 px = 1.000 points.\n"
+                entries = [
+                    ("python3 scripts/kicad_lay.py route J1.1 J2.1 --layer F.Cu", '{"ok":true,"status":"laid"}', 0, "completed", 0.5),
+                    ('python3 scripts/mac.py look "PCB Editor"', out, 0, "completed", 0.2),
+                ]
+                audited = routing_codex.audit_commands(entries, board_stem="demo")
+                self.assertEqual(audited["look"], 1)
+                self.assertTrue(audited["looked_after_edit"])
+        bad_out = "/tmp/look.png\n1600 x 900 px of window #42 (PCB Editor: other - PCB Editor); 1 px = 1.000 points.\n"
+        bad = routing_codex.audit_commands([('python3 scripts/mac.py look "PCB Editor"', bad_out, 0, "completed", 0.2)], board_stem="demo")
+        self.assertEqual(bad["look"], 0)
+
+    def test_default_claude_bin_and_poll_seconds_and_linux_vm_tools(self):
+        import editor_step
+        with mock.patch.dict(os.environ, {"BOARD_GRAPH_CLAUDE_BIN": "/opt/claude/bin/claude"}, clear=False):
+            self.assertEqual(editor_step._default_claude_bin(), "/opt/claude/bin/claude")
+        with mock.patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("BOARD_GRAPH_CLAUDE_BIN", None)
+            with mock.patch.object(editor_step.shutil, "which", return_value="/usr/local/bin/claude"):
+                self.assertEqual(editor_step._default_claude_bin(), "/usr/local/bin/claude")
+            with mock.patch.object(editor_step.shutil, "which", return_value=None):
+                self.assertTrue(editor_step._default_claude_bin().endswith("claude"))
+
+        with mock.patch.object(routing_run.mac, "ONE_MACHINE", True):
+            self.assertEqual(routing_run.poll_seconds(), routing_run.LOCAL_POLL)
+        with mock.patch.object(routing_run.mac, "ONE_MACHINE", False):
+            self.assertEqual(routing_run.poll_seconds(), routing_run.POLL)
+
+        bootstrap = ROOT / "docker" / "bootstrap_linux_vm.sh"
+        self.assertTrue(bootstrap.is_file())
+        self.assertNotIn(b"\r\n", bootstrap.read_bytes())
+
+        import contextlib
+        import sqlite3
+        sys.path.insert(0, str(ROOT / "docker"))
+        import benchmark_report  # noqa: E402
+        with tempfile.TemporaryDirectory() as td:
+            repo = pathlib.Path(td)
+            rec_dir = repo / "tools" / "board_graph_records"
+            rec_dir.mkdir(parents=True)
+            (rec_dir / "01.json").write_text(json.dumps({
+                "at": "2026-11-27T10:00:00+00:00", "track": "board", "node": "inventory",
+                "outcome": "pass", "target": "decisions", "actor": "script:baseline", "note": "ok",
+                "evidence": [], "inputs": {},
+            }), encoding="utf-8")
+            (rec_dir / "02.json").write_text(json.dumps({
+                "at": "2026-11-27T10:01:30+00:00", "track": "board", "node": "routing_batch",
+                "outcome": "needs_lead", "target": "routing_batch", "actor": "agent:codex", "note": "blocked",
+                "evidence": [], "inputs": {},
+            }), encoding="utf-8")
+            db_path = repo / "logs" / "board-graph" / "state.sqlite3"
+            db_path.parent.mkdir(parents=True)
+            with contextlib.closing(sqlite3.connect(str(db_path))) as conn:
+                conn.execute("CREATE TABLE upkeep(run_id TEXT, node TEXT, why TEXT, started_at TEXT, finished_at TEXT)")
+                conn.execute("CREATE TABLE attempts(started_at TEXT, finished_at TEXT, tokens INTEGER)")
+                conn.execute("INSERT INTO upkeep VALUES('u1','inventory','start','2026-11-27T10:00:00+00:00','2026-11-27T10:00:05+00:00')")
+                conn.execute("INSERT INTO attempts VALUES('2026-11-27T10:00:10+00:00','2026-11-27T10:01:10+00:00', 1200)")
+                conn.commit()
+            rdir = repo / "board" / "routing"
+            rdir.mkdir(parents=True)
+            (rdir / "run-12345678.jsonl").write_text(json.dumps({
+                "summary": True,
+                "timing": {"total_s": 20.0, "llm_s": 12.0, "tool_s": 3.0, "review_s": 4.0, "harness_s": 1.0, "refusal_s": 0.5, "thinking_tokens": 500},
+                "tokens_total": {"input": 100, "output": 50, "cache_read": 0, "cache_write": 0},
+                "refusals": {"by_reason": {"kicad_lay: drc_failed": {"count": 2}}},
+            }) + "\n", encoding="utf-8")
+            summary = benchmark_report.summarize_run("codex", repo)
+            self.assertEqual(summary["wall_s"], 90.0)
+            self.assertEqual(summary["needs_lead"], 1)
+            self.assertEqual(summary["sqlite"]["upkeep_s"], 5.0)
+            self.assertEqual(summary["routing"]["timing"]["llm_s"], 12.0)
+            md = benchmark_report.format_markdown([summary])
+            self.assertIn("| codex |", md)
+
 
 if __name__ == "__main__":
     unittest.main()

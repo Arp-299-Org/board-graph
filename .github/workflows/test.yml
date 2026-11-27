@@ -59,17 +59,58 @@ jobs:
 
       - name: The tool's tests
         run: |
-          failed=""
-          for test in $(python -c 'import json; print("\n".join(f for f in json.load(open("tools/board_graph_tool.json"))["files"] if f.rsplit("/", 1)[-1].startswith("test_") and f.endswith(".py")))'); do
-            if [ "$test" = tools/kicad/test_kicad_semantic_snapshot.py ] && python -c 'import sys; sys.exit(sys.version_info >= (3, 10))'; then
-              echo "$test: not run, it needs Python 3.10 or newer"
-              continue
-            fi
-            echo "::group::$test"
-            python "$test" || failed="$failed $test"
-            echo "::endgroup::"
-          done
-          if [ -n "$failed" ]; then
-            echo "failed:$failed"
-            exit 1
-          fi
+          python - <<'PY'
+          import concurrent.futures, json, os, subprocess, sys, threading, time
+          manifest = json.load(open("tools/board_graph_tool.json", encoding="utf-8"))
+          tests = [
+              f for f in manifest["files"]
+              if f.rsplit("/", 1)[-1].startswith("test_") and f.endswith(".py")
+          ]
+          if sys.version_info < (3, 10):
+              skipped = "tools/kicad/test_kicad_semantic_snapshot.py"
+              if skipped in tests:
+                  print(f"{skipped}: not run, it needs Python 3.10 or newer", flush=True)
+                  tests = [t for t in tests if t != skipped]
+          stop = threading.Event()
+          lock = threading.Lock()
+          active = set()
+          def run_one(test):
+              if stop.is_set():
+                  return test, None, "", 0.0
+              t0 = time.monotonic()
+              proc = subprocess.Popen([sys.executable, test], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+              with lock:
+                  active.add(proc)
+              try:
+                  out, err = proc.communicate()
+              finally:
+                  with lock:
+                      active.discard(proc)
+              return test, proc.returncode, (out or "") + (err or ""), time.monotonic() - t0
+          failed = []
+          workers = min(4, max(1, os.cpu_count() or 2))
+          with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as pool:
+              futs = {pool.submit(run_one, t): t for t in tests}
+              for fut in concurrent.futures.as_completed(futs):
+                  test, rc, text, sec = fut.result()
+                  if rc is None:
+                      continue
+                  if stop.is_set() and rc != 0:
+                      continue
+                  if rc == 0:
+                      print(f"ok   {test} ({sec:.1f}s)", flush=True)
+                  else:
+                      print(f"::group::FAIL {test} ({sec:.1f}s)", flush=True)
+                      print(text, flush=True)
+                      print("::endgroup::", flush=True)
+                      failed.append(test)
+                      stop.set()
+                      for p in futs:
+                          p.cancel()
+                      with lock:
+                          for proc in list(active):
+                              if proc.poll() is None:
+                                  proc.terminate()
+          if failed:
+              sys.exit(1)
+          PY

@@ -1039,7 +1039,7 @@ class GeminiAndCrossProviderStep(unittest.TestCase):
         self.assertIn("disabled in review mode", rev_ev[5])
         self.assertEqual(result["tokens_total"]["input"], 20)
 
-    def test_gemini_operator_with_codex_reviewer_and_opus_ban(self):
+    def test_gemini_operator_with_codex_reviewer_and_custom_model(self):
         args = SimpleNamespace(provider="gemini", review_provider="codex", model=None, review_model=None,
                                effort="high", agent=None, keep_going=False, once=True, minutes=4)
         editor_step.configure_provider(args)
@@ -1058,8 +1058,8 @@ class GeminiAndCrossProviderStep(unittest.TestCase):
 
         opus_args = SimpleNamespace(provider="gemini", review_provider="gemini", model="claude-opus-5-5-high",
                                     review_model=None, effort=None, agent=None, keep_going=False, once=True, minutes=4)
-        with self.assertRaisesRegex(ValueError, "banned from routing"):
-            editor_step.configure_provider(opus_args)
+        editor_step.configure_provider(opus_args)
+        self.assertEqual(opus_args.model, "claude-opus-5-5-high")
 
     def test_gemini_default_models_and_explicit_overrides(self):
         cases = [
@@ -2256,6 +2256,39 @@ class V281FixesTests(unittest.TestCase):
                 with self.assertRaisesRegex(RuntimeError, "drc boom"):
                     editor_step.main()
             close_mock.assert_called_once_with(proc)
+
+    def test_saved_connections_batches_unmocked_and_respects_mocked_saved_connection(self) -> None:
+        import json
+        import tempfile
+        import editor_step_kicad
+
+        with tempfile.TemporaryDirectory() as td:
+            folder = pathlib.Path(td)
+            pcb = folder / "demo.kicad_pcb"
+            pcb.write_text("(kicad_pcb)\n", encoding="utf-8")
+            reqs = [
+                (["J1.1", "J2.1", "/D0"], folder / "c1.json", True),
+                (["J1.2", "J2.2", "/D1"], folder / "c2.json", False),
+            ]
+            offline_calls = []
+
+            def fake_offline(script, *args):
+                offline_calls.append((script, args))
+                spec = json.loads(pathlib.Path(args[2]).read_text(encoding="utf-8"))
+                for idx, entry in enumerate(spec):
+                    pathlib.Path(entry["output"]).write_text(json.dumps({"connected": idx == 0}), encoding="utf-8")
+                return SimpleNamespace(returncode=0, stdout="", stderr="")
+
+            with mock.patch.object(editor_step_kicad.validate_board, "kicad_offline", side_effect=fake_offline):
+                res = editor_step_kicad.saved_connections(pcb, reqs)
+            self.assertEqual(res, [True, False])
+            self.assertEqual(len(offline_calls), 1)
+            self.assertEqual(offline_calls[0][1][1], "--batch")
+
+            with mock.patch.object(editor_step, "saved_connection", side_effect=[False, True]) as single_mock:
+                res2 = editor_step_kicad.saved_connections(pcb, reqs)
+            self.assertEqual(res2, [False, True])
+            self.assertEqual(single_mock.call_count, 2)
 
 
 if __name__ == "__main__":

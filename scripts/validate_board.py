@@ -33,6 +33,7 @@ from __future__ import annotations
 
 import argparse
 import collections
+import concurrent.futures
 import json
 import os
 import pathlib
@@ -40,6 +41,7 @@ import re
 import shutil
 import subprocess
 import sys
+import threading
 
 _SCRIPTS = pathlib.Path(__file__).resolve().parent
 if str(_SCRIPTS) not in sys.path:
@@ -52,6 +54,7 @@ if __name__ == "__main__":
 TOOL_ROOT = tool_paths.TOOL_ROOT
 ROOT = tool_paths.project_root()
 sys.path.insert(0, str(TOOL_ROOT / "tools" / "kicad"))
+import kicad_install  # noqa: E402
 from invoke_kicad_cli import run_kicad_cli  # noqa: E402
 
 import board_copper_origin  # noqa: E402
@@ -108,12 +111,130 @@ def run(command: list[str]) -> subprocess.CompletedProcess[str]:
     return subprocess.run(command, cwd=str(ROOT), capture_output=True, text=True, check=False, env=env, **options)
 
 
+_PREFLIGHT_LOCK = threading.Lock()
+_PREFLIGHT_CACHE: set[tuple[str, str]] = set()
+_PRERELEASE_RE = re.compile(r"(?:^|[._-])(rc|alpha|beta|dev|pre)(?:\d*|[._+-]|$)", re.IGNORECASE)
+_MIN_KICAD = (10, 0, 8)
+
+
+def _resolve_offline_script(script: str) -> pathlib.Path:
+    raw = pathlib.Path(script)
+    if raw.is_absolute():
+        candidate = raw
+    elif tool_paths.is_external() and (ROOT / raw).is_file():
+        candidate = ROOT / raw
+    else:
+        candidate = TOOL_ROOT / raw
+    if not candidate.is_file():
+        raise ValueError(f"KiCad script does not exist: {candidate}")
+    script_path = candidate.resolve()
+    if script_path.suffix != ".py":
+        raise ValueError(f"The guarded runner accepts Python scripts only: {script_path}")
+
+    candidates: list[tuple[pathlib.Path, str]] = []
+    try:
+        candidates.append((TOOL_ROOT / "scripts" / "kicad-script-modes.json",
+                           script_path.relative_to(TOOL_ROOT.resolve()).as_posix()))
+    except ValueError:
+        pass
+    try:
+        candidates.append((ROOT / "scripts" / "kicad-script-modes.project.json",
+                           script_path.relative_to(ROOT.resolve()).as_posix()))
+    except ValueError:
+        pass
+    if not candidates:
+        raise ValueError(f"Refusing to run a script outside the repository: {script_path}")
+
+    found_modes = None
+    for registry_path, rel in candidates:
+        if not registry_path.is_file():
+            continue
+        registry = json.loads(registry_path.read_text(encoding="utf-8"))
+        if registry.get("schema_version") != 1:
+            raise ValueError(f"Unsupported KiCad script-mode registry schema in {registry_path}")
+        modes = (registry.get("scripts") or {}).get(rel)
+        if modes is not None:
+            if found_modes is not None:
+                raise ValueError(f"KiCad script is named in both script-mode registries: {rel}")
+            found_modes = modes
+    if found_modes is None:
+        raise ValueError(f"KiCad script is not reviewed in script-mode registries: {script}")
+    if "Offline" not in found_modes:
+        raise ValueError(f"'{script_path}' allows mode(s) {', '.join(found_modes)}, not Offline.")
+    return script_path
+
+
+def _check_windows_remote_guard() -> None:
+    if sys.platform != "win32":
+        return
+    site_env = os.environ.get("BOARD_GRAPH_SITE")
+    site_file = pathlib.Path(site_env) if site_env else (ROOT / "tools" / "board_graph_site.json")
+    if not site_file.is_file():
+        return
+    try:
+        site_data = json.loads(site_file.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return
+    if isinstance(site_data, dict) and site_data.get("one_machine") is not True:
+        ssh_host = (site_data.get("kicad_machine") or {}).get("ssh_host")
+        if ssh_host:
+            raise ValueError(
+                f"Refusing local Windows Offline KiCad Python while a remote KiCad machine ({ssh_host}) "
+                f"is configured in {site_file}."
+            )
+
+
+def _ensure_offline_preflight(kicad_python: str) -> None:
+    project_dir = (ROOT / PROJECT).resolve()
+    try:
+        rel_project = project_dir.relative_to(ROOT.resolve()).as_posix()
+    except ValueError:
+        raise ValueError(f"Refusing a project outside the repository: {project_dir}") from None
+    if rel_project == "v2-kicad":
+        raise ValueError("v2-kicad is historical/reference.")
+    if not project_dir.is_dir():
+        raise ValueError(f"Project does not exist: {project_dir}")
+    pro_files = list(project_dir.glob("*.kicad_pro"))
+    if len(pro_files) != 1:
+        raise ValueError(f"Expected exactly one .kicad_pro under '{project_dir}'; found {len(pro_files)}.")
+    stem = pro_files[0].stem
+    for req in (project_dir / f"{stem}.kicad_pcb", project_dir / f"{stem}.kicad_sch"):
+        if not req.is_file():
+            raise ValueError(f"Required KiCad source is missing: {req}")
+    if not pathlib.Path(kicad_python).is_file():
+        raise ValueError(f"KiCad Python not found at '{kicad_python}'. Set KICAD_PYTHON explicitly.")
+
+    cache_key = (str(project_dir), kicad_python)
+    with _PREFLIGHT_LOCK:
+        if cache_key in _PREFLIGHT_CACHE:
+            return
+        probe = run([
+            kicad_python, "-c",
+            "import pcbnew,sys; print(f'{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}|{pcbnew.GetBuildVersion()}')",
+        ])
+        if probe.returncode != 0:
+            raise ValueError(f"KiCad Python could not import pcbnew: {(probe.stdout + probe.stderr).strip()}")
+        parts = probe.stdout.strip().split("|")
+        pattern = r"^(\d+\.\d+\.\d+)(?:[+-].*)?$" if sys.platform.startswith("linux") else r"^(\d+\.\d+\.\d+)$"
+        match = re.match(pattern, parts[1]) if len(parts) == 2 else None
+        if not match or _PRERELEASE_RE.search(parts[1]):
+            raise ValueError(f"Expected KiCad's Python and a stable pcbnew release (X.Y.Z); got '{probe.stdout.strip()}'.")
+        ver = tuple(int(p) for p in match.group(1).split("."))
+        if ver[:2] != _MIN_KICAD[:2] or ver < _MIN_KICAD:
+            raise ValueError(f"KiCad {match.group(1)} does not satisfy minimum {_MIN_KICAD}.")
+        _PREFLIGHT_CACHE.add(cache_key)
+
+
 def kicad_offline(script: str, *script_args: object) -> subprocess.CompletedProcess[str]:
-    """A registered pcbnew script through kicad_run.ps1, so the preflight (KiCad version) runs first."""
-    quoted = ", ".join("'" + str(arg).replace("'", "''") + "'" for arg in script_args)
-    runner = str(TOOL_ROOT / "scripts" / "kicad_run.ps1").replace("'", "''")
-    return run(["pwsh", "-NoLogo", "-NoProfile", "-NonInteractive", "-Command",
-                f"& '{runner}' -Mode Offline -Project {PROJECT} -Script '{script}' -ScriptArgs @({quoted})"])
+    """Run a registered Offline pcbnew script directly on KiCad's Python after once-per-process preflight."""
+    try:
+        script_path = _resolve_offline_script(script)
+        _check_windows_remote_guard()
+        kicad_python = os.environ.get("KICAD_PYTHON") or str(kicad_install.KICAD_PYTHON)
+        _ensure_offline_preflight(kicad_python)
+    except (OSError, ValueError) as error:
+        return subprocess.CompletedProcess([], 1, stdout="", stderr=str(error))
+    return run([kicad_python, str(script_path), *(str(arg) for arg in script_args)])
 
 
 def result(name: str, ok: bool, detail: str, report: pathlib.Path | None = None) -> dict:
@@ -246,6 +367,9 @@ def check_saved_fills(out: pathlib.Path) -> dict:
     """The saved board's zone fills against a copy refilled by kicad-cli: KiCad's refill is deterministic, so any
     difference means the board was saved without its fills current. Equal DRC results would not show it."""
     name = "Saved zone fills current"
+    saved = zone_fills(BOARD)
+    if not saved:
+        return result(name, True, "all 0 zones match a fresh refill")
     copy = out / "refilled" / PROJECT
     shutil.rmtree(out / "refilled", ignore_errors=True)
     copy.mkdir(parents=True)
@@ -258,7 +382,7 @@ def check_saved_fills(out: pathlib.Path) -> dict:
                           refilled], capture_output=True)
     if done.returncode != 0 or load(report) is None:
         return tool_failure(name, done, report)
-    saved, fresh = zone_fills(BOARD), zone_fills(refilled)
+    fresh = zone_fills(refilled)
     if saved.keys() != fresh.keys():
         return result(name, False, f"the refilled copy has {len(fresh)} zones, the board {len(saved)}", report)
     vertices = lambda polygons: sum(polygon.count("(xy ") for polygon in polygons)  # noqa: E731
@@ -541,6 +665,36 @@ def parts_moved(base_commit: str | None) -> int:
     return sum(old.get(reference) != new.get(reference) for reference in old.keys() | new.keys())
 
 
+def _run_board_checks(out: pathlib.Path, base: str | None, base_commit: str | None) -> list[dict]:
+    with concurrent.futures.ThreadPoolExecutor(max_workers=4) as pool:
+        f_erc = pool.submit(check_erc, out)
+        f_drc = pool.submit(check_drc, out)
+        f_fills = pool.submit(check_saved_fills, out)
+        f_qual = pool.submit(check_route_quality, out)
+        f_mask = pool.submit(check_pad_mask, out)
+        f_rel = pool.submit(check_thermal_relief, out)
+        f_joints = pool.submit(check_manual_joints, out)
+        f_waiv = pool.submit(check_waivers, base_commit) if base else None
+        f_orig = pool.submit(check_copper_origin, base) if base else None
+
+        drc_rows = f_drc.result()
+        open_count = next((item["open"] for item in drc_rows if "open" in item), None)
+        f_elec = pool.submit(check_electrical, out, open_count)
+        f_exh = pool.submit(check_exhaustive, out, open_count)
+
+        results = [f_erc.result(), *drc_rows, f_fills.result(), f_qual.result()]
+        if base:
+            results.extend((f_waiv.result(), f_orig.result()))
+        results.extend((f_elec.result(), f_mask.result(), f_rel.result(), f_joints.result(), f_exh.result()))
+
+    base_open = None
+    if base and (open_count is None or open_count > 0 or not all(item["ok"] for item in results)):
+        failing_on_base, base_open = base_failures(base_commit, out)
+        mark_inherited(results, failing_on_base)
+    results.append(check_progress(open_count, base_open, parts_moved(base_commit) if base_open is not None else 0))
+    return results
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--out", type=pathlib.Path, required=True)
@@ -557,24 +711,7 @@ def main() -> int:
     if args.base and not board_inputs_changed(base_commit):
         results.append(result("Board checks", True, "this change touches nothing the board checks read"))
     else:
-        results.append(check_erc(out))
-        results.extend(check_drc(out))
-        open_count = next((item["open"] for item in results if "open" in item), None)
-        results.append(check_saved_fills(out))
-        results.append(check_route_quality(out))
-        if args.base:
-            results.append(check_waivers(base_commit))
-            results.append(check_copper_origin(args.base))
-        results.append(check_electrical(out, open_count))
-        results.append(check_pad_mask(out))
-        results.append(check_thermal_relief(out))
-        results.append(check_manual_joints(out))
-        results.append(check_exhaustive(out, open_count))
-        base_open = None
-        if args.base and (open_count is None or open_count > 0 or not all(item["ok"] for item in results)):
-            failing_on_base, base_open = base_failures(base_commit, out)
-            mark_inherited(results, failing_on_base)
-        results.append(check_progress(open_count, base_open, parts_moved(base_commit) if base_open is not None else 0))
+        results.extend(_run_board_checks(out, args.base, base_commit))
 
     passed = all(item["ok"] for item in results)
     (out / "summary.json").write_text(json.dumps({"pass": passed, "checks": results}, indent=2) + "\n",

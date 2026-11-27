@@ -67,7 +67,7 @@ class GeminiRoutingTests(unittest.TestCase):
                          [f"read_file({self.img_a.resolve()})", f"read_file({self.img_b.resolve()})"])
         self.assertIn("command(*)", rev_settings["permissions"]["deny"])
 
-    def test_argv_validation_and_opus_rejection(self):
+    def test_argv_validation(self):
         argv = routing._argv("/opt/bin/agy", self.model, "high", str(self.board), 42, self.root / "s.json", 30.2, "Route it")
         self.assertIn("--print", argv)
         self.assertIn("stream-json", argv)
@@ -81,7 +81,9 @@ class GeminiRoutingTests(unittest.TestCase):
                                         self.root / "s.json", 30, "Route it")
         self.assertEqual(argv_unsuffixed[argv_unsuffixed.index("--effort"):argv_unsuffixed.index("--effort") + 2],
                          ["--effort", "high"])
-        for bad_model in ("claude-opus-5-5", "", "bad model"):
+        opus_argv = routing._argv("/opt/bin/agy", "claude-opus-5-5", None, str(self.board), None, self.root / "s.json", 10, "x")
+        self.assertIn("claude-opus-5-5", opus_argv)
+        for bad_model in ("", "bad model"):
             with self.assertRaises(ValueError):
                 routing._argv("/opt/bin/agy", bad_model, None, str(self.board), None, self.root / "s.json", 10, "x")
         with self.assertRaises(ValueError):

@@ -1202,6 +1202,47 @@ class V281IpcCachingTests(unittest.TestCase):
         self.assertEqual(counts["netclasses"], 1)
         self.assertEqual(counts["begin_commit"], 0)
 
+    def test_cached_drc_report_reuses_identical_inputs_and_invalidates_on_change(self):
+        import tempfile
+        import kicad_ipc
+        from unittest import mock
+
+        with tempfile.TemporaryDirectory() as td:
+            root = pathlib.Path(td)
+            proj = root / "proj"
+            proj.mkdir()
+            cache_dir = root / "cache"
+            (proj / "demo.kicad_pro").write_text("{}", encoding="utf-8")
+            dru = proj / "demo.kicad_dru"
+            dru.write_text("(version 1)\n", encoding="utf-8")
+            cli = root / "invoke_kicad_cli.py"
+            cli.write_text("", encoding="utf-8")
+            calls = []
+
+            def fake_sub(cmd, **_kw):
+                calls.append(cmd)
+                out = pathlib.Path(cmd[cmd.index("--output") + 1])
+                out.write_text(json.dumps({
+                    "violations": [{"type": "clearance", "severity": "error", "items": []}] if "err" in dru.read_text() else [],
+                    "unconnected_items": [1] if len(calls) == 1 else [],
+                }), encoding="utf-8")
+                return mock.Mock(returncode=0, stdout="", stderr="")
+
+            with mock.patch.object(kicad_ipc.subprocess, "run", side_effect=fake_sub):
+                r1 = kicad_ipc.cached_drc_report(proj, "demo", "(kicad_pcb (a))", cli, cache_dir=cache_dir)
+                r2 = kicad_ipc.cached_drc_report(proj, "demo", "(kicad_pcb (a))", cli, cache_dir=cache_dir)
+                self.assertEqual(len(calls), 1)
+                self.assertEqual(r1, r2)
+
+                r3 = kicad_ipc.cached_drc_report(proj, "demo", "(kicad_pcb (b))", cli, cache_dir=cache_dir)
+                self.assertEqual(len(calls), 2)
+                self.assertEqual(r3["unconnected_items"], [])
+
+                dru.write_text("(version 1) ; err\n", encoding="utf-8")
+                r4 = kicad_ipc.cached_drc_report(proj, "demo", "(kicad_pcb (b))", cli, cache_dir=cache_dir)
+                self.assertEqual(len(calls), 3)
+                self.assertEqual(len(r4["violations"]), 1)
+
 
 if __name__ == "__main__":
     unittest.main()

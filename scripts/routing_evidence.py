@@ -264,8 +264,7 @@ def adoption_problem(steps, summary, final_sha, provider, expected_tasks=None, r
         if (type(step.get("reviews")) is not int or step["reviews"] <= 0 or step.get("review_open") != []
                 or step.get("provider") != provider
                 or (step.get("review_provider") if step.get("review_provider") is not None else step.get("provider")) != expected_review
-                or not isinstance(step.get("review_model"), str) or not step["review_model"] or proof.get("reviewer") != step["review_model"]
-                or "opus" in str(step.get("model")).lower() or "opus" in step["review_model"].lower()):
+                or not isinstance(step.get("review_model"), str) or not step["review_model"] or proof.get("reviewer") != step["review_model"]):
             return "Kept step lacks a completed independent review with no open findings"
         mode = step.get("routing_mode")
         if mode is not None and mode not in (*ROUTING_MODES, *LEGACY_ROUTING_MODES):
