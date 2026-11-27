@@ -54,6 +54,8 @@
   }
   .pill.auto { border-color: rgba(232, 145, 73, 0.45); color: var(--copper-soft); background: var(--copper-bg); }
   .pill.model { border-color: rgba(74, 222, 128, 0.42); color: var(--green-soft); background: var(--green-bg); font-family: var(--mono); font-size: 11.5px; }
+  .pill.timer { border-color: rgba(232, 145, 73, 0.48); color: var(--copper-soft); background: var(--copper-bg); font-family: var(--mono); font-size: 11.5px; }
+  .pill.timer.done { border-color: rgba(74, 222, 128, 0.45); color: var(--green-soft); background: var(--green-bg); }
   .pill.tool { cursor: pointer; font-family: var(--mono); font-size: 11.5px; }
   .pill.tool:hover { background: var(--surface-hover); border-color: var(--hair-strong); }
   .pill.dirty { border-color: rgba(250, 204, 21, 0.48); color: var(--amber); background: var(--amber-bg); }
@@ -193,6 +195,7 @@
       <div class="title-row">
         <h1 id="proj-title">Graph</h1>
         <span id="model-pill" class="pill model" style="display:none"></span>
+        <span id="timer-pill" class="pill timer" style="display:none"></span>
         <span id="autonomy-pill" class="pill auto" style="display:none"></span>
         <button id="tool-pill" class="pill tool" style="display:none" title="Click to view tool commits ahead of main"></button>
       </div>
@@ -328,6 +331,53 @@
     return `${Math.floor(sec / 3600)}h ago`;
   }
 
+  function formatDuration(sec) {
+    const s = Math.max(0, Math.floor(sec));
+    const h = Math.floor(s / 3600);
+    const m = Math.floor((s % 3600) / 60);
+    const rem = s % 60;
+    const pad = (n) => String(n).padStart(2, '0');
+    return h > 0 ? `${h}:${pad(m)}:${pad(rem)}` : `${pad(m)}:${pad(rem)}`;
+  }
+
+  function computeTiming(view) {
+    const t = (view && view.timing) || {};
+    const boardTrack = ((view && view.where && view.where.tracks) || []).find((tr) => tr.id === 'board') || {};
+    const transitions = boardTrack.transitions || [];
+    const logRows = (view && view.log && view.log.rows) || [];
+    let startedAt = t.started_at || null;
+    if (!startedAt) {
+      const ats = transitions.map((r) => r.at).concat(logRows.map((r) => r.at)).filter(Boolean).sort();
+      startedAt = ats[0] || null;
+    }
+    let finishedAt = t.finished_at || null;
+    if (!finishedAt && transitions.length) {
+      const last = transitions[transitions.length - 1];
+      const until = view && view.autonomy && view.autonomy.until;
+      if (boardTrack.done || (until && last.node === until && last.outcome === 'pass')) finishedAt = last.at;
+    }
+    return { startedAt, finishedAt };
+  }
+
+  function updateTimer() {
+    const el = $('timer-pill');
+    if (!el || !currentView) return;
+    const { startedAt, finishedAt } = computeTiming(currentView);
+    if (!startedAt) { el.style.display = 'none'; return; }
+    const startMs = Date.parse(startedAt);
+    if (Number.isNaN(startMs)) { el.style.display = 'none'; return; }
+    const endMs = finishedAt ? Date.parse(finishedAt) : Date.now();
+    const text = formatDuration((endMs - startMs) / 1000);
+    el.style.display = 'inline-flex';
+    if (finishedAt) {
+      el.className = 'pill timer done';
+      el.textContent = `Done ${text}`;
+    } else {
+      el.className = 'pill timer';
+      el.textContent = `Elapsed ${text}`;
+    }
+  }
+
   function cardStatus(node, st, trackPos) {
     const attempt = st && st.attempt;
     const last = st && st.last;
@@ -411,6 +461,7 @@
     }
 
     $('btn-notes').style.display = view.notes ? 'inline-block' : 'none';
+    updateTimer();
     const boardTrack = ((view.where && view.where.tracks) || []).find((t) => t.id === 'board') || {};
     const pos = boardTrack.position || (view.state && view.state.tracks && view.state.tracks.board && view.state.tracks.board.position) || 'done';
     const transitions = boardTrack.transitions || [];
@@ -722,6 +773,7 @@
 
   loadView();
   connectEvents();
+  setInterval(updateTimer, 1000);
 })();
 </script>
 </body>

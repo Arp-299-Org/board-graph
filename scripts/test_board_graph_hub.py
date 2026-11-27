@@ -204,6 +204,67 @@ class BoardGraphHubTests(unittest.TestCase):
         self.assertFalse(any("documented-drc-exclusions.json" in f for f in findings), findings)
         self.assertEqual(detail["accepted_mismatches"], [])
 
+    def test_hub_timing_and_started_at_override_plus_view_run_timing(self) -> None:
+        import types
+        import board_graph_view
+
+        view_dir = self.root / "timed_view"
+        view_dir.mkdir()
+        (view_dir / "index.html").write_text("<p>t</p>", encoding="utf-8")
+        v_done = self._make_sample_view("CodexDone", "quote")
+        v_done["autonomy"] = {"mode": "delegated", "until": "quote_files"}
+        v_done["where"]["tracks"][0]["transitions"] = [
+            {"seq": 15, "node": "quote_files", "outcome": "pass", "target": "quote",
+             "actor": "agent:codex", "note": "ok", "at": "2026-11-27T20:06:05+00:00"}
+        ]
+        (view_dir / "view.json").write_text(json.dumps(v_done), encoding="utf-8")
+        child = board_graph_serve.server("127.0.0.1", 0, view_dir)
+        threading.Thread(target=child.serve_forever, daemon=True).start()
+        self.addCleanup(child.server_close)
+        self.addCleanup(child.shutdown)
+
+        running_proj = self.root / "running_proj"
+        (running_proj / "tools" / "board_graph_view").mkdir(parents=True)
+        v_run = self._make_sample_view("ClaudeRun", "routing_batch")
+        (running_proj / "tools" / "board_graph_view" / "view.json").write_text(json.dumps(v_run), encoding="utf-8")
+
+        args = board_graph_hub.parse_args([
+            "--source", f"codex=http://127.0.0.1:{child.server_address[1]}",
+            "--project", f"claude={running_proj}",
+            "--started-at", "codex=2026-11-27T19:25:54+00:00",
+        ])
+        sources = board_graph_hub.load_sources(args)
+        hub = board_graph_hub.HubServer(("127.0.0.1", 0), sources, board_graph_hub.HubListeners())
+        threading.Thread(target=hub.serve_forever, daemon=True).start()
+        self.addCleanup(hub.server_close)
+        self.addCleanup(hub.shutdown)
+        with urllib.request.urlopen(f"http://127.0.0.1:{hub.server_port}/api/summary", timeout=5) as resp:
+            by_name = {r["name"]: r for r in json.loads(resp.read().decode("utf-8"))["sources"]}
+        self.assertEqual(by_name["codex"]["timing"], {
+            "started_at": "2026-11-27T19:25:54+00:00",
+            "finished_at": "2026-11-27T20:06:05+00:00",
+            "running": False,
+        })
+        self.assertTrue(by_name["claude"]["timing"]["running"])
+        self.assertEqual(by_name["claude"]["timing"]["started_at"], "2026-11-27T12:00:00+00:00")
+
+        fake_graph = types.SimpleNamespace(
+            data={"autonomy": {"mode": "delegated", "until": "quote_files",
+                               "authorized_by": "owner", "reason": "test"}},
+            tracks={"board": {}},
+        )
+        fake_state = types.SimpleNamespace(
+            transitions=lambda track: [
+                {"node": "inventory", "outcome": "pass", "at": "2026-11-27T19:25:55+00:00"},
+                {"node": "quote_files", "outcome": "pass", "at": "2026-11-27T20:05:00+00:00"},
+            ],
+            attempts=lambda: [{"started_at": "2026-11-27T19:25:54+00:00"}],
+            position=lambda g, t: "quote",
+        )
+        rt = board_graph_view.run_timing(fake_graph, fake_state)
+        self.assertEqual(rt, {"started_at": "2026-11-27T19:25:54+00:00",
+                              "finished_at": "2026-11-27T20:05:00+00:00", "running": False})
+
 
 if __name__ == "__main__":
     unittest.main()

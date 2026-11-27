@@ -751,6 +751,20 @@ def artifacts(graph, state, root=ROOT):
     return {"cards": cards, "bom": bom, "datasheets": datasheets}
 
 
+def run_timing(graph, state):
+    """Earliest run timestamp and completion timestamp from full SQLite history (never lost to view window caps)."""
+    board_tr = state.transitions("board")
+    ats = [r["at"] for r in board_tr if r.get("at")] + [a["started_at"] for a in state.attempts() if a.get("started_at")]
+    started_at = min(ats) if ats else None
+    until = (board_autonomy.summary(graph) or {}).get("until")
+    finished_at = None
+    if board_tr:
+        last = board_tr[-1]
+        if state.position(graph, "board") is None or (until and last.get("node") == until and last.get("outcome") == "pass"):
+            finished_at = last.get("at")
+    return {"started_at": started_at, "finished_at": finished_at, "running": bool(started_at and not finished_at)}
+
+
 def build(graph, state, section, root=ROOT):
     """The view: the graph, where it stands, each node's state, the workspace `section` and the log; with several
     boards, the name of the board it is the view of and the boards there are."""
@@ -769,6 +783,7 @@ def build(graph, state, section, root=ROOT):
         },
         "tool": tool_paths.tool_status(),
         "model": graph.data.get("model") or (graph.data.get("autonomy") or {}).get("model") or os.environ.get("BOARD_GRAPH_MODEL") or None,
+        "timing": run_timing(graph, state),
         "graph": graph.data,
         "autonomy": board_autonomy.summary(graph),
         "where": where(graph, state),

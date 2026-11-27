@@ -52,7 +52,7 @@ VALUE_FLAGS = frozenset({
     "--records", "--view", "--out", "--base", "--from", "--to", "--minutes", "--model",
     "--review-model", "--provider", "--review-provider", "--effort", "--agent",
     "--branch", "--tokens", "--reason", "--prompt", "--after", "--board-description",
-    "--board-name", "--project-title", "--source", "--config", "--bind", "--port",
+    "--board-name", "--project-title", "--source", "--config", "--bind", "--port", "--started-at",
     "--mac-tool-checkout", "--mac-tree", "--mac-steps", "--ref", "--version", "--root", "--skip",
     "--track", "--node", "--output", "--json", "--timeout", "--exclusions", "--production", "--base-name", "--name",
 })

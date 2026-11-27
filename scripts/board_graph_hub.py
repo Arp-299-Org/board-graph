@@ -60,6 +60,8 @@ HUB_HTML = """<!doctype html>
   .run-title { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
   .run-title h2 { margin: 0; font-size: 16px; }
   .model-pill { padding: 2px 9px; border-radius: 999px; font-size: 11.5px; font-weight: 600; font-family: var(--mono); border: 1px solid; }
+  .timer-pill { padding: 2px 9px; border-radius: 999px; font-size: 11.5px; font-weight: 600; font-family: var(--mono); border: 1px solid rgba(232,145,73,0.52); color: var(--copper-soft); background: var(--copper-bg); }
+  .timer-pill.done { border-color: rgba(34,197,94,0.48); color: var(--green-soft); background: var(--green-bg); }
   .badge { padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 600; border: 1px solid var(--hair); color: var(--ink-2); }
   .badge.ok { color: var(--green-soft); border-color: rgba(34,197,94,0.48); background: var(--green-bg); }
   .badge.working { color: var(--copper-soft); border-color: rgba(232,145,73,0.62); background: var(--copper-bg); }
@@ -254,6 +256,25 @@ HUB_HTML = """<!doctype html>
     return ['ahead', c.who || 'ahead'];
   }
 
+  function formatDuration(sec) {
+    const s = Math.max(0, Math.floor(sec));
+    const h = Math.floor(s / 3600);
+    const m = Math.floor((s % 3600) / 60);
+    const rem = s % 60;
+    const pad = (n) => String(n).padStart(2, '0');
+    return h > 0 ? `${h}:${pad(m)}:${pad(rem)}` : `${pad(m)}:${pad(rem)}`;
+  }
+
+  function tickTimers() {
+    document.querySelectorAll('.timer-pill[data-start]').forEach((el) => {
+      const startMs = Date.parse(el.dataset.start);
+      if (Number.isNaN(startMs)) return;
+      const endMs = el.dataset.end ? Date.parse(el.dataset.end) : Date.now();
+      const text = formatDuration((endMs - startMs) / 1000);
+      el.textContent = el.dataset.end ? `${text} done` : text;
+    });
+  }
+
   function render(data) {
     lastSummary = data;
     const sources = data.sources || [];
@@ -276,6 +297,9 @@ HUB_HTML = """<!doctype html>
               : `<span class="badge ok">${esc(src.position || 'Ready')}</span>`;
       const modelHtml = src.model
         ? `<span class="model-pill" style="color:${accent};border-color:${accent}66;background:${accent}18">${esc(src.model)}</span>` : '';
+      const tm = src.timing || {};
+      const timerHtml = tm.started_at
+        ? `<span class="timer-pill${tm.finished_at ? ' done' : ''}" data-start="${esc(tm.started_at)}" data-end="${esc(tm.finished_at || '')}">--:--</span>` : '';
       const tool = src.tool;
       const toolStr = tool ? `tool: ${tool.branch || ''}${tool.commit ? ' @' + tool.commit : ''}${tool.ahead ? ' +' + tool.ahead + ' ahead' : ''}${tool.dirty ? ' dirty' : ''}` : '';
       const toolCommits = (tool && tool.commits_ahead && tool.commits_ahead.length)
@@ -301,6 +325,7 @@ HUB_HTML = """<!doctype html>
           <div class="run-title">
             <h2>${esc(src.project || src.name)}</h2>
             ${modelHtml}
+            ${timerHtml}
             ${statusBadge}
             ${toolStr ? `<span class="pill" style="font-family:var(--mono);font-size:11.5px">${esc(toolStr)}</span>` : ''}
           </div>
@@ -320,6 +345,7 @@ HUB_HTML = """<!doctype html>
       card.querySelectorAll('[data-pcb-src]').forEach((el) => el.addEventListener('click', () => openModal(el.dataset.pcbSrc, Number(el.dataset.pcbIdx || 0))));
       wrap.appendChild(card);
     });
+    tickTimers();
   }
 
   async function refresh() {
@@ -336,6 +362,7 @@ HUB_HTML = """<!doctype html>
   es.onmessage = () => refresh();
   es.onerror = () => { $('dot').className = 'dot'; $('live-lbl').textContent = 'Reconnecting'; };
   refresh();
+  setInterval(tickTimers, 1000);
 })();
 </script>
 </body>
@@ -381,8 +408,20 @@ def parse_source_spec(raw: str, *, is_project: bool = False) -> dict:
     return {"name": name, "url": val.rstrip("/")}
 
 
+def _parse_kv_flags(raw_list: list[str], flag_name: str, expected: str) -> dict[str, str]:
+    out: dict[str, str] = {}
+    for raw in raw_list or []:
+        if "=" not in raw:
+            raise ValueError(f"invalid {flag_name} {raw!r}; expected {expected}")
+        name, val = raw.split("=", 1)
+        if not name.strip() or not val.strip():
+            raise ValueError(f"invalid {flag_name} {raw!r}; expected {expected}")
+        out[name.strip()] = val.strip()
+    return out
+
+
 def load_sources(args: argparse.Namespace) -> list[dict]:
-    """Load deduplicated Hub sources and optional --model overrides from CLI or config."""
+    """Load deduplicated Hub sources and optional --model / --started-at overrides from CLI or config."""
     sources: list[dict] = []
     if args.config:
         cfg = json.loads(pathlib.Path(args.config).read_text(encoding="utf-8"))
@@ -392,6 +431,8 @@ def load_sources(args: argparse.Namespace) -> list[dict]:
             item = {"name": str(entry["name"])}
             if entry.get("model"):
                 item["model"] = str(entry["model"])
+            if entry.get("started_at"):
+                item["started_at"] = str(entry["started_at"])
             if entry.get("project"):
                 item["project"] = str(pathlib.Path(entry["project"]).expanduser().resolve())
             elif entry.get("url"):
@@ -403,18 +444,14 @@ def load_sources(args: argparse.Namespace) -> list[dict]:
         sources.append(parse_source_spec(raw, is_project=False))
     for raw in args.project:
         sources.append(parse_source_spec(raw, is_project=True))
-    models: dict[str, str] = {}
-    for raw in getattr(args, "model", []) or []:
-        if "=" not in raw:
-            raise ValueError(f"invalid --model {raw!r}; expected NAME=MODEL")
-        name, model = raw.split("=", 1)
-        if not name.strip() or not model.strip():
-            raise ValueError(f"invalid --model {raw!r}; expected NAME=MODEL")
-        models[name.strip()] = model.strip()
+    models = _parse_kv_flags(getattr(args, "model", []), "--model", "NAME=MODEL")
+    starts = _parse_kv_flags(getattr(args, "started_at", []), "--started-at", "NAME=ISO")
     deduped: dict[str, dict] = {}
     for src in sources:
         if src["name"] in models:
             src["model"] = models[src["name"]]
+        if src["name"] in starts:
+            src["started_at"] = starts[src["name"]]
         deduped[src["name"]] = src
     return list(deduped.values())
 
@@ -453,6 +490,24 @@ def _collect_preview_images(src_name: str, view: dict) -> list[dict]:
                 "url": f"/api/source/{encoded_src}/files/{encoded_rel}",
             })
     return out
+
+
+def _compute_timing(src: dict, view: dict, board_track: dict) -> dict:
+    """Compute run start/finish timestamps from explicit override, view.timing, or transitions/log."""
+    timing = view.get("timing") or {}
+    transitions = board_track.get("transitions") or []
+    log_rows = (view.get("log") or {}).get("rows") or []
+    started_at = src.get("started_at") or timing.get("started_at")
+    if not started_at:
+        ats = [r["at"] for r in transitions if r.get("at")] + [r["at"] for r in log_rows if r.get("at")]
+        started_at = min(ats) if ats else None
+    finished_at = timing.get("finished_at")
+    if not finished_at and transitions:
+        last = transitions[-1]
+        until = (view.get("autonomy") or {}).get("until")
+        if board_track.get("done") or (until and last.get("node") == until and last.get("outcome") == "pass"):
+            finished_at = last.get("at")
+    return {"started_at": started_at, "finished_at": finished_at, "running": bool(started_at and not finished_at)}
 
 
 def summarize_source(src: dict, timeout: float = 3.0) -> dict:
@@ -508,6 +563,7 @@ def summarize_source(src: dict, timeout: float = 3.0) -> dict:
         "working": working,
         "blocked_outcome": blocked_outcome,
         "tool": view.get("tool"),
+        "timing": _compute_timing(src, view, board_track),
         "preview_images": _collect_preview_images(src["name"], view),
         "last": {
             "node": last.get("node"),
@@ -702,6 +758,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--source", action="append", default=[], help="NAME=URL of a live board-graph serve endpoint")
     parser.add_argument("--project", action="append", default=[], help="NAME=DIR of a local board-graph project")
     parser.add_argument("--model", action="append", default=[], help="NAME=MODEL label for a configured source")
+    parser.add_argument("--started-at", action="append", default=[], help="NAME=ISO start timestamp for a configured source")
     parser.add_argument("--config", help="JSON file with {\"sources\": [{\"name\": ..., \"url\"|\"project\": ...}]}")
     parser.add_argument("--bind", default="127.0.0.1", help="Address to bind (default: 127.0.0.1)")
     parser.add_argument("--port", type=int, default=8000, help="Port to listen on (default: 8000)")
