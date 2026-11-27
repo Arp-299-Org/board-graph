@@ -82,6 +82,16 @@ class DisposableCopyTests(unittest.TestCase):
         self.assertIn("practice.kicad_dru", [entry["path"] for entry in manifest["files"]])
         self.assertEqual(self.source_files(), before)
 
+    def test_schematic_only_allows_missing_pcb(self) -> None:
+        (self.source / "original.kicad_pcb").unlink()
+        with self.assertRaises(FileNotFoundError):
+            copy_project(self.source, "original", self.destination, "practice")
+        manifest = copy_project(self.source, "original", self.destination, "practice", schematic_only=True)
+        names = {entry["path"] for entry in manifest["files"]}
+        self.assertIn("practice.kicad_sch", names)
+        self.assertIn("practice.kicad_dru", names)
+        self.assertNotIn("practice.kicad_pcb", names)
+
     def test_rules_file_is_optional(self) -> None:
         (self.source / "original.kicad_dru").unlink()
         copy_project(self.source, "original", self.destination, "practice")

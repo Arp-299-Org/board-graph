@@ -42,6 +42,8 @@ def copy_project(
     source_base: str,
     destination_dir: pathlib.Path,
     destination_base: str,
+    *,
+    schematic_only: bool = False,
 ) -> dict[str, object]:
     source_dir = source_dir.resolve()
     destination_dir = destination_dir.resolve()
@@ -55,7 +57,8 @@ def copy_project(
         if name in ("", ".", "..") or any(character in name for character in "/\\:"):
             raise ValueError(f"project base name must be a single filename: {name!r}")
 
-    required = [source_dir / f"{source_base}{suffix}" for suffix in REQUIRED_PROJECT_SUFFIXES]
+    suffixes = (".kicad_pro", ".kicad_sch") if schematic_only else REQUIRED_PROJECT_SUFFIXES
+    required = [source_dir / f"{source_base}{suffix}" for suffix in suffixes]
     missing = [str(path) for path in required if not path.is_file()]
     if missing:
         raise FileNotFoundError(f"missing source project files: {missing}")
@@ -128,6 +131,7 @@ def main() -> int:
     parser.add_argument("destination_dir", type=pathlib.Path)
     parser.add_argument("destination_base")
     parser.add_argument("--manifest", type=pathlib.Path)
+    parser.add_argument("--schematic-only", action="store_true", help="Allow a starter project before its PCB exists.")
     args = parser.parse_args()
 
     manifest = copy_project(
@@ -135,6 +139,7 @@ def main() -> int:
         args.source_base,
         args.destination_dir,
         args.destination_base,
+        schematic_only=args.schematic_only,
     )
     rendered = json.dumps(manifest, indent=2) + "\n"
     if args.manifest:

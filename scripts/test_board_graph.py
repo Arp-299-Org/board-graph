@@ -3962,30 +3962,36 @@ class ReportPublicationTests(unittest.TestCase):
         report = "board/reports/automation/crlf.json"
         picture = "board/reports/automation/proof.png"
         binary_report = "board/reports/automation/binary.json"
+        export = "board/reports/automation/assembly.csv"
         source = "board/reports/automation/reproducer.py"
         design = "board/demo.kicad_sch"
         contents = {report: b'{\r\n  "proof": true\r\n}\r\n', picture: b"\x89PNG\r\n\x1a\n\0binary\r\n",
-                    binary_report: b"\x00binary\r\n", source: b"print('source')\r\n", design: b"design\r\n"}
+                    binary_report: b"\x00binary\r\n", export: b"Ref,Value\r\nJ1,Jack\r\n",
+                    source: b"print('source')\r\n", design: b"design\r\n"}
         for name, data in contents.items():
             path = self.pc / name
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_bytes(data)
+        attributes = self.pc / "board/reports/automation/.gitattributes"
+        attributes.write_text("assembly.csv -text !eol\n", encoding="utf-8")
+        git_in(self.pc, "add", "--", str(attributes))
+        git_in(self.pc, "commit", "-qm", "Preserve generated assembly file bytes")
         attr = git_in(self.pc, "check-attr", "text", "eol", "--", report)
         self.assertIn("text: auto", attr)
         self.assertIn("eol: lf", attr)
         code, out, err = self.cli("record", "inventory", "more_work", "--by", "agent:pc", "--note", "CRLF proof",
-                                  "--evidence", report, picture, binary_report, source, design)
+                                  "--evidence", report, picture, binary_report, export, source, design)
         self.assertEqual((code, err), (0, ""))
         self.assertIn("and pushed to origin", out)
         [record_path] = list(self.records.glob("*.json"))
         data = json.loads(record_path.read_text(encoding="utf-8"))
-        for name in (report, picture, binary_report):
+        for name in (report, picture, binary_report, export):
             blob = board_graph.run_git(self.pc, "show", f"HEAD:{name}")
             entry = next(e for e in data["evidence"] if e["path"] == name)
             self.assertEqual(entry["sha256"], hashlib.sha256(blob).hexdigest())
             self.assertEqual((self.pc / name).read_bytes(), blob)
         self.assertEqual((self.pc / report).read_bytes(), contents[report].replace(b"\r\n", b"\n"))
-        for name in (picture, binary_report, source, design):
+        for name in (picture, binary_report, export, source, design):
             self.assertEqual((self.pc / name).read_bytes(), contents[name])
 
     def test_branch_record_keeps_pr_and_does_not_publish_pr_head_evidence(self):

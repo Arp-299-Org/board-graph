@@ -7,7 +7,9 @@ param(
     [ValidateSet("Live", "Offline")]
     [string]$Mode,
 
-    [switch]$AllowHistoricalV2
+    [switch]$AllowHistoricalV2,
+
+    [switch]$SchematicOnly
 )
 
 Set-StrictMode -Version Latest
@@ -52,7 +54,11 @@ function Resolve-ProjectIdentity {
     $baseName = [IO.Path]::GetFileNameWithoutExtension($projectFile)
     $boardFile = Join-Path $projectDirectory "$baseName.kicad_pcb"
     $schematicFile = Join-Path $projectDirectory "$baseName.kicad_sch"
-    foreach ($required in @($boardFile, $schematicFile)) {
+    $requiredFiles = @($schematicFile)
+    if (-not $SchematicOnly) {
+        $requiredFiles += $boardFile
+    }
+    foreach ($required in $requiredFiles) {
         if (-not (Test-Path -LiteralPath $required -PathType Leaf)) {
             Stop-Preflight "source_missing" "Required KiCad source is missing: $required"
         }
@@ -72,6 +78,9 @@ $repoRoot = if ($env:BOARD_GRAPH_PROJECT) {
     (Resolve-Path -LiteralPath $env:BOARD_GRAPH_PROJECT).Path
 } else {
     $toolRoot
+}
+if ($SchematicOnly -and $Mode -ne "Offline") {
+    Stop-Preflight "invalid_mode" "SchematicOnly requires Offline mode."
 }
 $identity = Resolve-ProjectIdentity -RepositoryRoot $repoRoot -RequestedProject $Project
 $repoPrefix = $repoRoot.TrimEnd('\', '/') + [IO.Path]::DirectorySeparatorChar
@@ -135,7 +144,9 @@ if ($kicadVersion -lt $minimumKiCad) {
 }
 
 Write-Output "project=$($identity.ProjectFile)"
-Write-Output "board=$($identity.BoardFile)"
+if (-not $SchematicOnly) {
+    Write-Output "board=$($identity.BoardFile)"
+}
 Write-Output "schematic=$($identity.SchematicFile)"
 Write-Output "offline_python=$kicadPython"
 Write-Output "offline_identity=python-$($offlineParts[0]) pcbnew-$($offlineParts[1])"

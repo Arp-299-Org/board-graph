@@ -869,6 +869,15 @@ def _resume_existing_attempt(args, attempt, branch, rel):
     return provider, review_provider, meta["commit"], meta.get("tool")
 
 
+def routing_tree(override: str | None, branch: str) -> str:
+    """Use the active checkout in one_machine mode, else the site worktree for `branch`."""
+    if override:
+        return override
+    if mac.ONE_MACHINE:
+        return str(ROOT.resolve())
+    return mac.SITE.worktree(branch)
+
+
 def run(args) -> int:
     if getattr(args, "preflight", False):
         count = check_tasks(args.tasks)
@@ -888,7 +897,7 @@ def run(args) -> int:
         database=str(where_from["path"]), records=str(state.records.resolve()),
         graph=str(pathlib.Path(args.graph).resolve()),
     )
-    tree = args.mac_tree or mac.SITE.worktree(branch)
+    tree = routing_tree(args.mac_tree, branch)
     if getattr(args, "retain_only", False):
         return _handle_retain_only(args, graph, state, where_from, context, pending, marker)
     if pending:

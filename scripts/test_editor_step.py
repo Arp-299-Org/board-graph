@@ -2291,5 +2291,25 @@ class V281FixesTests(unittest.TestCase):
             self.assertEqual(single_mock.call_count, 2)
 
 
+class ReviewAnswerFormat(unittest.TestCase):
+    """Verify the review prompt states strict line-by-line formatting rules."""
+
+    def test_the_review_prompt_says_the_answer_is_parsed_line_by_line(self):
+        import editor_step_prompts
+        self.assertIn("read line by line by a script", editor_step_prompts.REVIEW)
+        self.assertIn('never "MUST FIX: none"', editor_step_prompts.REVIEW)
+        self.assertIn("Write no preamble", editor_step_prompts.REVIEW)
+
+    def test_the_gate_still_refuses_a_preamble_and_counts_must_fix_none_as_open(self):
+        import routing_evidence
+        pads = ("J1.1", "J2.1")
+        body = "PAD J1.1: straight out of the south edge.\nPAD J2.1: straight into the north edge."
+        self.assertEqual(routing_evidence.review_findings([], "NOTHING\n" + body, pads=pads), [])
+        with self.assertRaisesRegex(ValueError, "Cannot verify the review verdict"):
+            routing_evidence.review_findings([], "Done checking.\nNOTHING\n" + body, pads=pads)
+        self.assertEqual(routing_evidence.review_findings([], "MUST FIX: none.\n" + body, pads=pads),
+                         ["MUST FIX: none."])
+
+
 if __name__ == "__main__":
     unittest.main()

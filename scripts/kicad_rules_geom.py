@@ -842,10 +842,16 @@ def canonical_num_token(raw):
     return f"{val:.6f}".rstrip("0").rstrip(".") or "0"
 
 
+def _legacy_unfilled_graphic(node, parent_head):
+    return node == ["fill", "none"] and parent_head in ("fp_circle", "fp_rect", "gr_circle", "gr_rect")
+
+
 def normalize_numeric_tokens(node, parent_head: str = ""):
     """Normalize coordinate and geometry numbers in parsed S-expressions, leaving text and net names untouched."""
     if not isinstance(node, list) or not node:
         return canonical_num_token(node) if parent_head in _NUMERIC_SEXP_HEADS else node
+    if _legacy_unfilled_graphic(node, parent_head):
+        return ["fill", "no"]
     head = str(node[0])
     return [node[0], *(normalize_numeric_tokens(part, head) for part in node[1:])]
 
@@ -858,6 +864,8 @@ def canonicalize_guard_node(node, net_map: dict[str, str], parent_head: str = ""
     """Normalize KiCad 8/9 vs KiCad 10 harmless serialization diffs after angle normalization."""
     if not isinstance(node, list) or not node:
         return canonical_num_token(node) if parent_head in _NUMERIC_SEXP_HEADS else node
+    if _legacy_unfilled_graphic(node, parent_head):
+        return ["fill", "no"]
     head = node[0]
     if head == "net" and len(node) >= 3:
         return ["net", str(node[2])]
@@ -867,7 +875,14 @@ def canonicalize_guard_node(node, net_map: dict[str, str], parent_head: str = ""
             return ["net", net_map[tok]]
     cur_lib = node[1] if head == "footprint" and len(node) > 1 and isinstance(node[1], str) else fp_lib
     out = [head]
+    hidden = head == "property" and _is_hidden_property(node)
     for part in node[1:]:
+        if head == "property" and part and isinstance(part, list) and part[0] == "effects":
+            if ["hide", "yes"] in part:
+                hidden = True
+                part = [field for field in part if field != ["hide", "yes"]]
+        if head == "property" and (part == ["hide", "yes"] or part == "hide"):
+            continue
         if isinstance(part, list) and part:
             if part[0] in ("uuid", "tstamp"):
                 continue
@@ -876,7 +891,7 @@ def canonicalize_guard_node(node, net_map: dict[str, str], parent_head: str = ""
                         or part == ["duplicate_pad_numbers_are_jumpers", "no"]):
                     continue
                 if part[0] == "property" and len(part) >= 3 and _is_hidden_property(part):
-                    if part[1] == "Description" and part[2] == "":
+                    if part[1] in ("Description", "Datasheet") and part[2] == "":
                         continue
                     if part[1] == "Footprint" and part[2] == cur_lib:
                         continue
@@ -884,6 +899,8 @@ def canonicalize_guard_node(node, net_map: dict[str, str], parent_head: str = ""
                 if part == ["zone_defaults"] or part[0] == "pcbplotparams" or part in _KICAD10_SETUP_DEFAULTS:
                     continue
         out.append(canonicalize_guard_node(part, net_map, str(head), cur_lib))
+    if hidden:
+        out.append(["hide", "yes"])
     if head == "attr" and len(out) > 2:
         out = [head] + sorted(out[1:], key=repr)
     elif head == "fp_text" and len(out) > 3:
@@ -903,7 +920,9 @@ def purchasing_footprint_row(fp: list) -> list:
     lib_id = fp[1] if len(fp) > 1 else None
     fields = sorted(
         (p[1], p[2]) for p in kicad_sexp.children(fp, "property")
-        if len(p) >= 3 and not (p[1] == "Description" and p[2] == "") and not (p[1] == "Footprint" and p[2] == lib_id)
+        if len(p) >= 3 and not (p[1] == "Description" and p[2] == "")
+        and not (p[1] == "Datasheet" and p[2] == "" and _is_hidden_property(p))
+        and not (p[1] == "Footprint" and p[2] == lib_id)
     )
     attr = kicad_sexp.child(fp, "attr")
     if attr and len(attr) > 2:

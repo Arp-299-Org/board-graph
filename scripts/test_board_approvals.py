@@ -85,7 +85,7 @@ class ApprovalTests(unittest.TestCase):
     def render_files(self):
         folder = self.root / "review"
         folder.mkdir(exist_ok=True)
-        def render(saved, stage):
+        def render(saved, stage, *, quality):
             (stage / "top.png").write_bytes(b"test image of " + saved.read_bytes())
         with mock.patch.object(render_board_views, "render_views", side_effect=render):
             render_board_views.render_snapshot(self.board, folder)
@@ -355,7 +355,7 @@ class ApprovalTests(unittest.TestCase):
         self.board.write_text(self.design.replace(f'(model "{ref}")', f'(model "{ref}") (model "{second}")'))
         folder = self.root / "review"
         folder.mkdir()
-        def render(saved, stage):
+        def render(saved, stage, *, quality):
             socket.write_bytes(b"ten circuits")
             fp = children(parse(saved.read_text()), "footprint")[0]
             used = [Path(model[1]) for model in children(fp, "model")]
@@ -451,7 +451,7 @@ class ApprovalTests(unittest.TestCase):
         folder.mkdir()
         (folder / "stale.png").write_bytes(b"left over")
         before = bg.hash_path(self.board)
-        def render(saved, stage):
+        def render(saved, stage, *, quality):
             self.board.write_text(self.design.replace("end 10", "end 9"))
             self.assertEqual(bg.hash_path(saved), before)
             (stage / "top.png").write_bytes(b"fresh")

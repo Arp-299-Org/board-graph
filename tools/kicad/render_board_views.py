@@ -16,7 +16,9 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import importlib.util
 import json
+import os
 import pathlib
 import shlex
 import shutil
@@ -66,6 +68,10 @@ def cli(*args: str) -> None:
         raise SystemExit(f"kicad-cli failed: {' '.join(args)}\n{r.stdout}\n{r.stderr}")
 
 
+def has_pymupdf() -> bool:
+    return importlib.util.find_spec("fitz") is not None
+
+
 def pdf_to_png(pdf: pathlib.Path, png: pathlib.Path, dpi: int = 900) -> None:
     import fitz  # pymupdf
     doc = fitz.open(str(pdf)); page = doc[0]
@@ -77,6 +83,45 @@ def pdf_to_png(pdf: pathlib.Path, png: pathlib.Path, dpi: int = 900) -> None:
     else:
         clip = page.rect
     page.get_pixmap(dpi=dpi, clip=clip).save(str(png))
+
+
+def svg_to_png(svg: pathlib.Path, png: pathlib.Path, max_px: int = 1800) -> None:
+    """Rasterize a KiCad-exported SVG via wx.svg on hosts without PyMuPDF."""
+    code = (
+        "import sys, wx, wx.svg\n"
+        "svg_path, png_path, max_px = sys.argv[1], sys.argv[2], int(sys.argv[3])\n"
+        "app = wx.App(False)\n"
+        "img = wx.svg.SVGimage.CreateFromFile(svg_path)\n"
+        "scale = max_px / max(img.width, img.height, 1.0)\n"
+        "w = max(1, int(round(img.width * scale)))\n"
+        "h = max(1, int(round(img.height * scale)))\n"
+        "bmp = wx.Bitmap(w, h)\n"
+        "dc = wx.MemoryDC(bmp)\n"
+        "dc.SetBackground(wx.Brush(wx.WHITE))\n"
+        "dc.Clear()\n"
+        "gc = wx.GraphicsContext.Create(dc)\n"
+        "img.RenderToGC(gc, scale)\n"
+        "dc.SelectObject(wx.NullBitmap)\n"
+        "if not bmp.SaveFile(png_path, wx.BITMAP_TYPE_PNG):\n"
+        "    raise SystemExit('failed to save PNG: ' + png_path)\n"
+    )
+    r = subprocess.run([str(KICAD_PY), "-c", code, str(svg), str(png), str(max_px)], capture_output=True, text=True, **HIDDEN)
+    if r.returncode != 0 or not png.is_file():
+        raise SystemExit(f"wx.svg rasterize failed for {svg}:\n{r.stdout}\n{r.stderr}")
+
+
+def export_layer_view(board: pathlib.Path, layers: str, png: pathlib.Path) -> None:
+    if has_pymupdf():
+        pdf = png.with_suffix(".pdf")
+        cli("pcb", "export", "pdf", "--layers", layers, "--mode-single", "--output", str(pdf), str(board))
+        pdf_to_png(pdf, png)
+        pdf.unlink()
+    else:
+        svg = png.with_suffix(".svg")
+        cli("pcb", "export", "svg", "--layers", layers, "--mode-single", "--page-size-mode", "2",
+            "--exclude-drawing-sheet", "--output", str(svg), str(board))
+        svg_to_png(svg, png)
+        svg.unlink()
 
 
 def strip_zones(board: pathlib.Path, out: pathlib.Path) -> bool:
@@ -111,7 +156,7 @@ def resolve_board_arg(raw: str, root: pathlib.Path = ROOT) -> pathlib.Path:
     return board_description.load(found.description, root=root).path("pcb").resolve()
 
 
-def render_on_mac(board: pathlib.Path, out: pathlib.Path) -> None:
+def render_on_mac(board: pathlib.Path, out: pathlib.Path, *, quality: str = "high") -> None:
     """On Windows the no-pour views would need KiCad's Python, and importing pcbnew opens a window over the
     user's screen. So the whole render runs on the KiCad host, the agents' machine, from a copy of the board,
     its project file, and its local models folder in a temporary source folder, and the pictures come back here."""
@@ -142,7 +187,7 @@ def render_on_mac(board: pathlib.Path, out: pathlib.Path) -> None:
     env_prefix = 'BOARD_GRAPH_PROJECT="$PWD" ' if mac.TOOL_CHECKOUT else ""
     remote_script = mac.tool_script("tools/kicad/render_board_views.py")
     result = mac.ssh("bash -s", mac.PATH + f"""cd {mac.CHECKOUT}
-{env_prefix}python3 {remote_script} --board {remote_board} --out {remote_out} >&2; status=$?
+{env_prefix}python3 {remote_script} --board {remote_board} --out {remote_out} --quality {shlex.quote(quality)} >&2; status=$?
 rm -rf {remote_src}
 [ $status = 0 ] && tar -C {remote_out} -cf - .
 rm -rf {remote_out}
@@ -160,18 +205,21 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--board", type=str, required=True)
     ap.add_argument("--out", type=pathlib.Path, required=True)
+    default_quality = "basic" if os.environ.get("LIBGL_ALWAYS_SOFTWARE") == "1" else "high"
+    ap.add_argument("--quality", choices=("basic", "high"), default=default_quality,
+                    help="KiCad 3D render quality. Defaults to basic when LIBGL_ALWAYS_SOFTWARE=1.")
     args = ap.parse_args()
     board = resolve_board_arg(args.board)
     if not board.is_file():
         raise SystemExit(f"board file not found: {board}")
     out = args.out.resolve(); out.mkdir(parents=True, exist_ok=True)
     if sys.platform == "win32":
-        render_on_mac(board, out)
+        render_on_mac(board, out, quality=args.quality)
         return
-    render_snapshot(board, out)
+    render_snapshot(board, out, quality=args.quality)
 
 
-def render_snapshot(board, out, root=None):
+def render_snapshot(board, out, root=None, *, quality="high"):
     # Keep the source beside its models, with a private filename throughout this render.
     with tempfile.TemporaryDirectory(prefix="board-views-") as folder:
         stage = pathlib.Path(folder)
@@ -186,7 +234,7 @@ def render_snapshot(board, out, root=None):
             saved.write_bytes(frozen.encode("utf-8"))
             if board.with_suffix(".kicad_pro").is_file():
                 shutil.copyfile(board.with_suffix(".kicad_pro"), project)
-            render_views(saved, stage)
+            render_views(saved, stage, quality=quality)
             images = {p.name: hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted(stage.glob("*.png"))}
             if not images:
                 raise ValueError("The board render produced no images")
@@ -203,7 +251,7 @@ def render_snapshot(board, out, root=None):
                 path.unlink(missing_ok=True)
 
 
-def render_views(board, out):
+def render_views(board, out, *, quality="high"):
     four_layer = '"In1.Cu"' in board.read_text(encoding="utf-8")
     for name, layers in VIEWS.items():
         if not four_layer:
@@ -211,16 +259,12 @@ def render_views(board, out):
                 continue
             if name == "all_copper_stack":
                 layers = "F.Cu,B.Cu,Edge.Cuts"
-        pdf = out / f"{name}.pdf"
-        cli("pcb", "export", "pdf", "--layers", layers, "--mode-single", "--output", str(pdf), str(board))
-        pdf_to_png(pdf, out / f"{name}.png"); pdf.unlink()
+        export_layer_view(board, layers, out / f"{name}.png")
         print("wrote", out / f"{name}.png")
     nz = out / "_no_zones.kicad_pcb"
     if strip_zones(board, nz):
         for name, layers in (("front_no_pour", "F.Cu,Edge.Cuts,F.Fab"), ("back_no_pour", "B.Cu,Edge.Cuts")):
-            pdf = out / f"{name}.pdf"
-            cli("pcb", "export", "pdf", "--layers", layers, "--mode-single", "--output", str(pdf), str(nz))
-            pdf_to_png(pdf, out / f"{name}.png"); pdf.unlink()
+            export_layer_view(nz, layers, out / f"{name}.png")
             print("wrote", out / f"{name}.png")
         nz.unlink()
         for stray in (nz.with_suffix('.kicad_pro'), nz.with_suffix('.kicad_prl')):
@@ -228,7 +272,7 @@ def render_views(board, out):
                 stray.unlink()
     for side in ("top", "bottom"):
         png = out / f"3d_{side}.png"
-        cli("pcb", "render", "--side", side, "--zoom", "0.9", "--width", "1600", "--height", "1600", "--quality", "high", "--output", str(png), str(board))
+        cli("pcb", "render", "--side", side, "--zoom", "0.9", "--width", "1600", "--height", "1600", "--quality", quality, "--output", str(png), str(board))
         print("wrote", png)
 
 

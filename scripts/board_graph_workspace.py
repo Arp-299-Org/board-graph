@@ -115,7 +115,9 @@ def _collect_record_evidence(state, evidence, root, merge, pull_request):
             else:
                 normalized = data.replace(b"\r\n", b"\n") if b"\0" not in data else data
                 if normalized != data:
-                    report.write_bytes(normalized)
+                    attributes = _bg().run_git(root, "check-attr", "-z", "text", "--", name).split(b"\0")
+                    if len(attributes) < 3 or attributes[2] != b"unset":
+                        report.write_bytes(normalized)
         hashed.append({"path": name, "sha256": _bg().hash_path(path)})
     return hashed
 

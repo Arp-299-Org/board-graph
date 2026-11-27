@@ -505,6 +505,14 @@ class RunState(unittest.TestCase):
         self.assertEqual(routing_run.run_state(say("running", "", 0, "", 1))["state"], "died")
         self.assertEqual(routing_run.run_state(say("", "", 0, "", ""))["state"], "died")  # launched, never wrote
 
+    def test_one_machine_routes_from_the_existing_checkout(self):
+        branch = "build/route"
+        with mock.patch.object(routing_run.mac, "ONE_MACHINE", True):
+            self.assertEqual(routing_run.routing_tree(None, branch), str(routing_run.ROOT.resolve()))
+            self.assertEqual(routing_run.routing_tree("/explicit", branch), "/explicit")
+        with mock.patch.object(routing_run.mac, "ONE_MACHINE", False):
+            self.assertEqual(routing_run.routing_tree(None, branch), routing_run.mac.SITE.worktree(branch))
+
     def test_the_wrapper_takes_and_gives_back_the_editor(self):
         args = argparse.Namespace(mac_steps="~/demo-steps/routing-run", minutes=3, model=None, effort="low", provider=None,
                                   review_model=None, agent='eval "$TASK"')
@@ -1481,6 +1489,30 @@ class KiCad10SaveNormalizationTests(unittest.TestCase):
   )
 )"""
         self.assertEqual(routing_run.guard(sw_k8, sw_k10), [])
+
+    def test_guard_accepts_initial_save_of_unfilled_mechanical_geometry(self):
+        import board_graph_actions
+
+        before = '''(kicad_pcb
+  (gr_rect (start 0 0) (end 32 35) (fill none) (layer "Edge.Cuts"))
+  (footprint "lib:M3" (at 4 4) (layer "F.Cu")
+    (property "Reference" "H1" (at 0 0) (layer "F.Fab") (effects (font (size 0.8 0.8)) (hide yes)))
+    (fp_circle (center 0 0) (end 3 0) (fill none) (layer "F.CrtYd"))))'''
+        after = before.replace("(fill none)", "(fill no)").replace(
+            '(effects (font (size 0.8 0.8)) (hide yes))',
+            '(hide yes) (effects (font (size 0.8 0.8)))'
+            ') (property "Datasheet" "" (at 0 0) (layer "F.Fab") (hide yes)'
+        )
+        self.assertEqual(routing_run.guard(before, after), [])
+        self.assertEqual(board_graph_actions.placement_view(before), board_graph_actions.placement_view(after))
+        self.assertEqual(board_graph_actions.purchasing_view(before), board_graph_actions.purchasing_view(after))
+        self.assertEqual(routing_run.guard(before, after.replace("(fill no)", "(fill yes)")),
+                         ["footprint H1 changed", "graphic gr_rect changed"])
+        self.assertEqual(routing_run.guard(before, after.replace(
+            '(property "Datasheet" ""', '(property "Datasheet" "https://example.com"')),
+            ["footprint H1 changed"])
+        self.assertEqual(routing_run.guard(before, after.replace('(hide yes)', '(hide no)', 1)),
+                         ["footprint H1 changed"])
 
     def test_guard_and_reload_accept_kicad9_first_save_metadata_and_catch_real_diffs(self) -> None:
         import importlib

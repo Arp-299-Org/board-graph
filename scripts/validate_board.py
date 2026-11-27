@@ -194,17 +194,14 @@ def _ensure_offline_preflight(kicad_python: str) -> None:
         raise ValueError("v2-kicad is historical/reference.")
     if not project_dir.is_dir():
         raise ValueError(f"Project does not exist: {project_dir}")
-    pro_files = [p for p in project_dir.glob("*.kicad_pro") if not p.name.startswith(".")]
-    if len(pro_files) != 1:
-        raise ValueError(f"Expected exactly one .kicad_pro under '{project_dir}'; found {len(pro_files)}.")
-    stem = pro_files[0].stem
-    for req in (project_dir / f"{stem}.kicad_pcb", project_dir / f"{stem}.kicad_sch"):
+    project_file = DESCRIPTION.path("kicad_project")
+    for req in (project_file, BOARD, SCHEMATIC):
         if not req.is_file():
             raise ValueError(f"Required KiCad source is missing: {req}")
     if not pathlib.Path(kicad_python).is_file():
         raise ValueError(f"KiCad Python not found at '{kicad_python}'. Set KICAD_PYTHON explicitly.")
 
-    cache_key = (str(project_dir), kicad_python)
+    cache_key = (str(project_file), kicad_python)
     with _PREFLIGHT_LOCK:
         if cache_key in _PREFLIGHT_CACHE:
             return

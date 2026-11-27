@@ -608,6 +608,9 @@ class SpeedupPreflightAndZeroZone(unittest.TestCase):
 
             with mock.patch.object(validate_board, "ROOT", root), \
                     mock.patch.object(validate_board, "PROJECT", "board"), \
+                    mock.patch.object(validate_board, "DESCRIPTION", mock.Mock(path=lambda key: proj / "demo.kicad_pro")), \
+                    mock.patch.object(validate_board, "BOARD", proj / "demo.kicad_pcb"), \
+                    mock.patch.object(validate_board, "SCHEMATIC", proj / "demo.kicad_sch"), \
                     mock.patch.object(validate_board, "_PREFLIGHT_CACHE", set()), \
                     mock.patch.object(validate_board, "_check_windows_remote_guard"), \
                     mock.patch.object(validate_board, "run", side_effect=fake_run), \
@@ -638,6 +641,9 @@ class SpeedupPreflightAndZeroZone(unittest.TestCase):
             fake_py.write_text("", encoding="utf-8")
             with mock.patch.object(validate_board, "ROOT", root), \
                     mock.patch.object(validate_board, "PROJECT", "board"), \
+                    mock.patch.object(validate_board, "DESCRIPTION", mock.Mock(path=lambda key: proj / "demo.kicad_pro")), \
+                    mock.patch.object(validate_board, "BOARD", proj / "demo.kicad_pcb"), \
+                    mock.patch.object(validate_board, "SCHEMATIC", proj / "demo.kicad_sch"), \
                     mock.patch.object(validate_board, "_PREFLIGHT_CACHE", set()), \
                     mock.patch.object(validate_board, "run", return_value=subprocess.CompletedProcess([], 0, stdout="3.12.0|10.0.8\n", stderr="")):
                 validate_board._ensure_offline_preflight(str(fake_py))

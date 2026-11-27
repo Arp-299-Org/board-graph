@@ -68,7 +68,8 @@ Look for what those scripts cannot see: a needless detour or corner, tracks bunc
 Answer one line per new finding, after any lines for earlier findings, and nothing else, at most 5, most serious first:
 MUST FIX: what, which net and where, what to do instead. Use this only if the board or the player would really be hurt, or a plainly better route exists.
 FINE AS IS: what, and why it is not worth changing.
-If you find nothing new, answer: NOTHING."""
+If you find nothing new, answer: NOTHING.
+Your final message is read line by line by a script, not by a person. Every line in it must start with FIXED <n>:, STILL OPEN <n>:, MUST FIX:, FINE AS IS:, PAD <ref.pad>: or be the single word NOTHING. Write no preamble, summary or closing remark (not even "Done checking"), and never "MUST FIX: none": any other line makes the review unreadable and any MUST FIX line is an open finding."""
 
 EARLIER = """
 An earlier review of this step found these, word for word, and the agent was sent back to fix them:
