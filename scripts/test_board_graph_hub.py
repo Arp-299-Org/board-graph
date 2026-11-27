@@ -271,6 +271,22 @@ class BoardGraphHubTests(unittest.TestCase):
         self.assertEqual(rt, {"started_at": "2026-11-27T19:25:54+00:00",
                               "finished_at": "2026-11-27T20:05:00+00:00", "running": False})
 
+    def test_inline_scripts_pass_js_syntax_check(self) -> None:
+        import re
+        import shutil
+
+        node = shutil.which("node")
+        if not node:
+            self.skipTest("node not on PATH")
+        index_html = (REPO_ROOT / "tools" / "board_graph_view" / "index.html").read_text(encoding="utf-8")
+        for label, html in (("hub", board_graph_hub.HUB_HTML), ("index", index_html)):
+            match = re.search(r"<script>(.*?)</script>", html, re.S)
+            self.assertIsNotNone(match, f"missing <script> in {label}")
+            js_file = self.root / f"{label}.js"
+            js_file.write_text(match.group(1), encoding="utf-8")
+            done = subprocess.run([node, "--check", str(js_file)], capture_output=True, text=True, check=False)
+            self.assertEqual(done.returncode, 0, f"{label} JS syntax error:\n{done.stderr}")
+
 
 if __name__ == "__main__":
     unittest.main()

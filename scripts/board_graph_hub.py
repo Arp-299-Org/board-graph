@@ -215,7 +215,7 @@ HUB_HTML = """<!doctype html>
       if (/^```/.test(line.trim())) {
         flushPara(); closeList(); closeTable();
         if (code === null) { code = []; }
-        else { out.push(`<pre class="box">${esc(code.join('\n'))}</pre>`); code = null; }
+        else { out.push(`<pre class="box">${esc(code.join('\\n'))}</pre>`); code = null; }
         continue;
       }
       if (code !== null) { code.push(line); continue; }
@@ -245,7 +245,7 @@ HUB_HTML = """<!doctype html>
       }
     }
     flushPara(); closeList(); closeTable();
-    if (code !== null) out.push(`<pre class="box">${esc(code.join('\n'))}</pre>`);
+    if (code !== null) out.push(`<pre class="box">${esc(code.join('\\n'))}</pre>`);
     return out.join('');
   }
 

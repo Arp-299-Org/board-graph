@@ -1,7 +1,7 @@
 {
   "name": "board-graph",
   "repository": "Arp-299-Org/board-graph",
-  "version": "0.37.2",
+  "version": "0.37.3",
   "files": {
     "docs/BOARD_APPROVALS.md": "0f95089a0522654ff995ca99e4a104c61632fc15fe93ee8bb42aa6ee1f1244d3",
     "docs/BOARD_EVIDENCE.md": "386390a77d7905f7aff82c3402694cc0fcc45660110c9da5a51d8e692858fbd1",
@@ -17,7 +17,7 @@
     "scripts/board_graph_cli.py": "18162fae55b2f4b9f70800429633d8431553d970ea5629a6dd0aed74284ac9d5",
     "scripts/board_graph_codex.py": "a876c1a9b8a782463745b56447c73cc3a70546616db1dbf104049dd1f787e622",
     "scripts/board_graph_git.py": "e84b080e707e46de56a2ac9eab2bce353c94dbc4e9e88f3de73686987911deea",
-    "scripts/board_graph_hub.py": "97e4caad83de90ac810643b222169ac886945eada0a8d4e61953ceee2362f4e9",
+    "scripts/board_graph_hub.py": "d5e6ad324831a9e34acfda820818abecd971404ff45ce8e4d4c63e9e44d1598c",
     "scripts/board_graph_model.py": "1840d319c415c0ace40f18da20002a2353b0874213f09a0d2c9a0dcedf033168",
     "scripts/board_graph_serve.py": "99589e927f7cf2ed5f7c14e836ff8d15abe0e4a9760e44b6a833de7c2d868a54",
     "scripts/board_graph_state.py": "abc4d2f69da21d660a0411af8358380f15ac70ae7455bfca06784bd0a44ca29c",
@@ -102,7 +102,7 @@
     "scripts/test_board_graph.py": "b7cf349ac96910ced7114a3c01e4c65188759ad32f0ec46caeda2873897e52af",
     "scripts/test_board_graph_codex.py": "9f4d8116c6826c7232a141250a1f22c48aa1e73933b091f5dab0c051c77d2d51",
     "scripts/test_board_graph_e2e.py": "033cbbea822f8c3c606184e7447af8dc872d89087db0c583c9170b37e0732d5d",
-    "scripts/test_board_graph_hub.py": "27979e5b5fd78420bcaeda35eefa30d64064a4669200a41fdb13f7ef84edea40",
+    "scripts/test_board_graph_hub.py": "630a673069ed692b783795fad9a0a2d78d36902a00ba8287750f0b258d637e3f",
     "scripts/test_board_graph_project_actions.py": "4262280fbff448d24b5705f741a49c0f0612ffaa6076c5ca784852bf5451d7e5",
     "scripts/test_board_graph_serve.py": "3dc348edfcdb65c7f4552e96fd282a4e5dc0f05484f1fca75f382828ad8248e2",
     "scripts/test_board_graph_tool.py": "5ac998e0223a542a701becc033bd705b56a97d4df7d429393bd8e263945a63bb",
