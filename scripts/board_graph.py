@@ -157,9 +157,11 @@ if CHOSEN.name:
     DATABASE = f"the {ONE} {CHOSEN.name}'s database"
 DONE = "done"
 # What every brief says, so whoever is on a card reads it at the start.
-BROKEN_CARD = ("When this card's script or tool fails or refuses: stop. Record needs_lead with what it said, word for "
-               "word. Never do the card's work another way, with another tool or by hand, and never record it as "
-               "done: another method is the owner's choice, asked for in plain words.")
+BROKEN_CARD = ("When this card's script or tool crashes or breaks: stop. Record needs_lead with what it said, "
+               "word for word. Never do the card's work another way, with another tool or by hand, and never "
+               "record it as done: another method is the owner's choice, asked for in plain words. Starting "
+               "baseline findings on an agent card are work to resolve on this card (not a broken tool); stale "
+               "upstream approvals (recheck) are refreshed by walking `returned` through the graph.")
 # The outcome that ends a track early, by the owner alone, at a card that allows it: the track is then at DONE, and
 # its last transition says it was dropped, where and why.
 DROPPED = "dropped"

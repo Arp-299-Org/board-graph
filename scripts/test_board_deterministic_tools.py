@@ -82,6 +82,42 @@ class DeterministicToolsTests(unittest.TestCase):
         parts_data = board_part_fetch.update_parts_json(parts_file, [rec], {"C501473": pdf_name})
         self.assertEqual(parts_data["parts"]["MJ56881-B011-HLRN1-C"]["datasheet"], "MJ56881-B011-HLRN1-C.pdf")
 
+    def test_part_fetch_prices_js_redirect_and_lcsc_fallback(self) -> None:
+        self.assertEqual(board_part_fetch._first_price({"prices": [{"productPrice": 0.123}]}), 0.123)
+        self.assertEqual(board_part_fetch._first_price({"initialPrice": 0.456}), 0.456)
+        sheets_dir = self.root / "hardware" / "reference"
+        sheets_dir.mkdir(parents=True)
+        bad_pdf = sheets_dir / "Test_MPN.pdf"
+        bad_pdf.write_bytes(b"<html>stale error</html>")
+
+        def fake_urlopen(req, timeout=30):
+            url = req.full_url if hasattr(req, "full_url") else str(req)
+            if url == "https://bad.invalid/stub":
+                return io.BytesIO(b"<script>location.href='https://good.invalid/real.pdf'</script>")
+            if url == "https://good.invalid/real.pdf":
+                return io.BytesIO(b"%PDF-1.5\nreal")
+            if url == "https://html-only.invalid/err":
+                return io.BytesIO(b"<html>404</html>")
+            if "wmsc.lcsc.com" in url:
+                return io.BytesIO(json.dumps({"result": {"pdfUrl": "https://good.invalid/real.pdf"}}).encode("utf-8"))
+            raise AssertionError(f"unexpected URL {url}")
+
+        name = board_part_fetch.download_datasheet("https://bad.invalid/stub", sheets_dir, "Test-MPN", urlopen=fake_urlopen)
+        self.assertEqual(name, "Test-MPN.pdf")
+        self.assertTrue((sheets_dir / "Test-MPN.pdf").read_bytes().startswith(b"%PDF-"))
+        with self.assertRaises(ValueError):
+            board_part_fetch.download_datasheet("https://html-only.invalid/err", sheets_dir, "Bad-MPN", urlopen=fake_urlopen)
+
+        rec = {
+            "part": "C2883805",
+            "listed_mpn": "Hdr_MPN",
+            "datasheet_url": "https://html-only.invalid/err",
+            "datasheet_access_url": "",
+        }
+        fb_name = board_part_fetch.fetch_datasheet(rec, sheets_dir, urlopen=fake_urlopen)
+        self.assertEqual(fb_name, "Hdr_MPN.pdf")
+        self.assertEqual(rec["datasheet_url"], "https://good.invalid/real.pdf")
+
     def test_placement_snapshot_matches_placement_findings(self) -> None:
         pcb = """(kicad_pcb
   (footprint "lib:RJ45" (layer "F.Cu") (at 116 110.45 180)

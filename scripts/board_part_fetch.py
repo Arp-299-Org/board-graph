@@ -23,6 +23,11 @@ if __name__ == "__main__":
 
 ROOT = tool_paths.project_root()
 DETAIL_URL = "https://cart.jlcpcb.com/shoppingCart/smtGood/getComponentDetail?componentCode={code}"
+LCSC_DETAIL_URL = "https://wmsc.lcsc.com/ftps/wm/product/detail?productCode={code}"
+# LCSC datasheet URLs often serve an HTML stub that redirects via JS to the real PDF.
+JS_REDIRECT = re.compile(rb"""location\.href\s*=\s*['"]([^'"]+)['"]""")
+LCSC_PDF_RE = re.compile(rb"https://datasheet\.lcsc\.com/datasheet/pdf/[0-9A-Za-z._/-]+\.pdf")
+MAX_REDIRECT_HOPS = 3
 HEADERS = {"User-Agent": "board-graph/1.0", "Accept": "application/json, */*"}
 
 
@@ -36,14 +41,17 @@ def _class_name(raw: object) -> str:
 
 
 def _first_price(data: dict) -> float:
-    for key in ("jlcPrices", "componentPrices"):
+    for key in ("jlcPrices", "componentPrices", "prices"):
         prices = data.get(key)
         if isinstance(prices, list) and prices:
             val = prices[0].get("productPrice") if isinstance(prices[0], dict) else None
             if isinstance(val, (int, float)):
                 return float(val)
-    val = data.get("productPrice")
-    return float(val) if isinstance(val, (int, float)) else 0.0
+    for key in ("productPrice", "initialPrice"):
+        val = data.get(key)
+        if isinstance(val, (int, float)):
+            return float(val)
+    return 0.0
 
 
 def fetch_lcsc_detail(code: str, urlopen=urllib.request.urlopen) -> dict:
@@ -60,6 +68,8 @@ def fetch_lcsc_detail(code: str, urlopen=urllib.request.urlopen) -> dict:
     mpn = str(data.get("componentModelEn") or data.get("componentCode") or clean).strip()
     maker = str(data.get("componentBrandEn") or data.get("brandNameEn") or "").strip()
     stock = int(data.get("stockCount") or 0)
+    access_id = str(data.get("dataManualFileAccessId") or "").strip()
+    access_url = f"https://jlcpcb.com/api/file/downloadByFileSystemAccessId/{access_id}" if access_id else ""
     return {
         "part": clean,
         "listed_manufacturer": maker,
@@ -70,25 +80,88 @@ def fetch_lcsc_detail(code: str, urlopen=urllib.request.urlopen) -> dict:
         "package": str(data.get("componentSpecificationEn") or "").strip(),
         "description": str(data.get("describe") or "").strip(),
         "datasheet_url": str(data.get("dataManualUrl") or "").strip(),
+        "datasheet_access_url": access_url,
     }
 
 
+def fetch_lcsc_datasheet_url(code: str, urlopen=urllib.request.urlopen) -> str:
+    """Ask LCSC's product detail endpoint for `code`'s PDF URL as fallback."""
+    req = urllib.request.Request(LCSC_DETAIL_URL.format(code=urllib.parse.quote(code)), headers=HEADERS)
+    with urlopen(req, timeout=20) as resp:
+        payload = json.loads(resp.read().decode("utf-8"))
+    result = payload.get("result") if isinstance(payload, dict) else None
+    return str((result or {}).get("pdfUrl") or "").strip() if isinstance(result, dict) else ""
+
+
+def _next_pdf_hop(url: str, data: bytes) -> str | None:
+    snippet = data[:8192]
+    hop = JS_REDIRECT.search(snippet)
+    if hop:
+        return urllib.parse.urljoin(url, hop.group(1).decode("utf-8", "replace"))
+    direct = LCSC_PDF_RE.search(snippet)
+    if direct:
+        return direct.group(0).decode("ascii")
+    return None
+
+
 def download_datasheet(url: str, dest_dir: pathlib.Path, mpn: str, urlopen=urllib.request.urlopen) -> str | None:
-    """Download datasheet PDF if `url` is non-empty; return relative filename under `dest_dir`."""
+    """Download datasheet PDF if `url` is non-empty; follow JS redirects and refuse non-PDF payloads."""
     if not url:
         return None
     safe = re.sub(r"[^A-Za-z0-9._-]+", "_", mpn).strip("_") or "datasheet"
     target = dest_dir / f"{safe}.pdf"
-    if target.is_file() and target.stat().st_size > 0:
-        return target.name
-    req = urllib.request.Request(url, headers={"User-Agent": HEADERS["User-Agent"]})
-    with urlopen(req, timeout=30) as resp:
-        data = resp.read()
-    if not data:
-        return None
+    if target.is_file():
+        with target.open("rb") as existing:
+            if existing.read(5) == b"%PDF-":
+                return target.name
+    data = b""
+    current_url = url
+    for _ in range(MAX_REDIRECT_HOPS + 1):
+        req = urllib.request.Request(current_url, headers={"User-Agent": HEADERS["User-Agent"]})
+        with urlopen(req, timeout=30) as resp:
+            data = resp.read()
+        if data[:5] == b"%PDF-":
+            break
+        nxt = _next_pdf_hop(current_url, data)
+        if not nxt or nxt == current_url:
+            break
+        current_url = nxt
+    if data[:5] != b"%PDF-":
+        raise ValueError(f"{url} did not return a PDF (starts {data[:40]!r})")
     dest_dir.mkdir(parents=True, exist_ok=True)
     target.write_bytes(data)
     return target.name
+
+
+def fetch_datasheet(rec: dict, sheets_dir: pathlib.Path, urlopen=urllib.request.urlopen) -> str | None:
+    """Try JLCPCB's URL, access-ID URL, and LCSC's product endpoint in order."""
+    candidates: list[tuple[str, str]] = []
+    if rec.get("datasheet_url"):
+        candidates.append(("jlcpcb", str(rec["datasheet_url"])))
+    if rec.get("datasheet_access_url"):
+        candidates.append(("jlcpcb-access", str(rec["datasheet_access_url"])))
+    tried: set[str] = set()
+    for source, url in candidates:
+        if not url or url in tried:
+            continue
+        tried.add(url)
+        try:
+            name = download_datasheet(url, sheets_dir, rec["listed_mpn"], urlopen=urlopen)
+            if name:
+                rec["datasheet_url"] = url
+                return name
+        except Exception as exc:  # noqa: BLE001
+            print(f"warning: {source} datasheet for {rec['part']}: {exc}", file=sys.stderr)
+    try:
+        lcsc_url = fetch_lcsc_datasheet_url(rec["part"], urlopen=urlopen)
+        if lcsc_url and lcsc_url not in tried:
+            name = download_datasheet(lcsc_url, sheets_dir, rec["listed_mpn"], urlopen=urlopen)
+            if name:
+                rec["datasheet_url"] = lcsc_url
+                return name
+    except Exception as exc:  # noqa: BLE001
+        print(f"warning: lcsc datasheet for {rec['part']}: {exc}", file=sys.stderr)
+    return None
 
 
 def update_listings(path: pathlib.Path, planning_qty: int, records: list[dict], read_at: str) -> dict:
@@ -158,11 +231,7 @@ def main(argv: list[str] | None = None) -> int:
         if args.skip_pdf:
             pdf_map[rec["part"]] = None
         else:
-            try:
-                pdf_map[rec["part"]] = download_datasheet(rec["datasheet_url"], sheets_dir, rec["listed_mpn"])
-            except Exception as exc:  # noqa: BLE001
-                print(f"warning: could not download datasheet for {rec['part']}: {exc}", file=sys.stderr)
-                pdf_map[rec["part"]] = None
+            pdf_map[rec["part"]] = fetch_datasheet(rec, sheets_dir)
     listings_out = update_listings(listings_path, args.planning_qty, records, read_at)
     parts_out = update_parts_json(parts_path, records, pdf_map)
     if args.json:

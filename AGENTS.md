@@ -21,9 +21,10 @@ words, on main the day it is made.
 When `tools/board_graph.json` enables autonomous delegation (`autonomy.mode`
 is `"delegated"` through `autonomy.until`), the owner has pre-authorized the
 agent to choose in-stock parts, placement, and board tradeoffs up through that
-stop card without stopping for `needs_owner` (recording each choice and its
-basis in `board/DECISIONS.md` and card records); `order` and anything beyond
-`autonomy.until` always require the owner.
+stop card without stopping for `needs_owner` (recording each delegated choice
+and its basis in the card's own files and card records rather than rewriting
+`board/DECISIONS.md` mid-run); `order` and anything beyond `autonomy.until`
+always require the owner.
 
 ## Honesty
 
@@ -43,14 +44,19 @@ wrong while doing something else, say so with the file and line.
   other command names its board: `--board <name>`.
   Work the graph has no card for is first a change to the graph, brought to
   the owner. `docs/BOARD_PIPELINE_CONTRACT.md` says how the graph runs.
-- **A card that does not work.** When a card's script or tool fails or
-  refuses, stop. Record `needs_lead` with what it said, word for word, and
+- **A card that does not work.** When a card's script or tool crashes or
+  breaks, stop. Record `needs_lead` with what it said, word for word, and
   tell the owner in plain words what failed. Never do the card's work another
   way, with another tool or by hand, and never record it as done. Never
   propose a replacement for a tool the owner chose (another router, a script
   in its place). Say what was done by its true name: copper a script wrote
   is not "routed by hand". Never write a note or a memory that tells a later
-  session to avoid a card or its tool.
+  session to avoid a card or its tool. Expected starting baseline findings on
+  an agent card (such as missing listings, placement snapshots, or part heights
+  before authoring them) are work to resolve on that card and recheck before
+  recording `pass`. Stale upstream approvals (`recheck`) blocking `next` are
+  refreshed by walking `returned` cleanly through the graph, not by stopping
+  with `needs_lead`.
 - **Copper.** Copper is laid only by the Routing batch card's routing run, in the
   locked KiCad editor, using the task's authorized mode (`Mode: ipc`,
   `Mode: hybrid` default, or `Mode: interactive`): checked atomic IPC chunks via
