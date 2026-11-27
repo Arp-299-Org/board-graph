@@ -11,6 +11,7 @@ import re
 import shlex
 import subprocess
 import sys
+import threading
 import time
 import uuid
 
@@ -145,17 +146,117 @@ def _discover_test_suites(root: pathlib.Path) -> list[tuple[str, list[str]]]:
     return suites
 
 
-def _run_one_check(root: pathlib.Path, env: dict[str, str], label: str, cmd: list[str]) -> tuple[str, int, str, float]:
+def _abort_active_procs(active_procs: set[subprocess.Popen], proc_lock: threading.Lock) -> None:
+    with proc_lock:
+        victims = list(active_procs)
+    for proc in victims:
+        if proc.poll() is None:
+            try:
+                proc.terminate()
+            except OSError:
+                pass
+    deadline = time.monotonic() + 2.0
+    for proc in victims:
+        if proc.poll() is not None:
+            continue
+        remaining = max(0.0, deadline - time.monotonic())
+        try:
+            proc.wait(timeout=remaining)
+        except subprocess.TimeoutExpired:
+            try:
+                proc.kill()
+            except OSError:
+                pass
+
+
+def _run_one_check(
+    root: pathlib.Path,
+    env: dict[str, str],
+    label: str,
+    cmd: list[str],
+    stop_event: threading.Event | None = None,
+    active_procs: set[subprocess.Popen] | None = None,
+    proc_lock: threading.Lock | None = None,
+) -> tuple[str, int | None, str, float]:
+    if stop_event is not None and stop_event.is_set():
+        return label, None, "", 0.0
     t0 = time.monotonic()
-    done = subprocess.run(cmd, cwd=str(root), env=env, capture_output=True, text=True)
+    proc = subprocess.Popen(
+        cmd,
+        cwd=str(root),
+        env=env,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    if active_procs is not None and proc_lock is not None:
+        with proc_lock:
+            active_procs.add(proc)
+        if stop_event is not None and stop_event.is_set() and proc.poll() is None:
+            try:
+                proc.terminate()
+            except OSError:
+                pass
+    try:
+        stdout, stderr = proc.communicate()
+    finally:
+        if active_procs is not None and proc_lock is not None:
+            with proc_lock:
+                active_procs.discard(proc)
     elapsed = time.monotonic() - t0
-    out = (done.stdout or "") + "\n" + (done.stderr or "")
-    return label, done.returncode, out, elapsed
+    out = (stdout or "") + "\n" + (stderr or "")
+    return label, proc.returncode, out, elapsed
 
 
-def run_tool_checks(root: pathlib.Path) -> dict:
+def _run_parallel_suites(
+    root: pathlib.Path,
+    env: dict[str, str],
+    suites: list[tuple[str, list[str]]],
+    fail_fast: bool,
+    timings: dict[str, float],
+) -> tuple[dict[str, tuple[int, str, float]], bool]:
+    results: dict[str, tuple[int, str, float]] = {}
+    total_suites = len(suites)
+    stop_event = threading.Event()
+    proc_lock = threading.Lock()
+    active_procs: set[subprocess.Popen] = set()
+    aborted = False
+    with concurrent.futures.ThreadPoolExecutor(max_workers=_worker_count(total_suites)) as pool:
+        future_map = {
+            pool.submit(_run_one_check, root, env, label, cmd, stop_event, active_procs, proc_lock): label
+            for label, cmd in suites
+        }
+        done_idx = 0
+        for future in concurrent.futures.as_completed(future_map):
+            try:
+                label, rc, out, sec = future.result()
+            except concurrent.futures.CancelledError:
+                continue
+            if rc is None:
+                continue
+            if aborted and rc != 0:
+                continue
+            done_idx += 1
+            results[label] = (rc, out, sec)
+            timings[label] = round(sec, 2)
+            status = "ok  " if rc == 0 else "FAIL"
+            suffix = "; fail-fast aborting remaining suites" if (rc != 0 and fail_fast and not aborted) else ""
+            print(f"[tool_checks {done_idx}/{total_suites}] {status} {label} ({sec:.1f}s){suffix}",
+                  file=sys.stderr, flush=True)
+            if rc != 0 and fail_fast and not aborted:
+                aborted = True
+                stop_event.set()
+                for pending in future_map:
+                    pending.cancel()
+                _abort_active_procs(active_procs, proc_lock)
+    return results, aborted
+
+
+def run_tool_checks(root: pathlib.Path, *, fail_fast: bool | None = None) -> dict:
     """Run fail-fast hygiene preflight, then run workflow audit, dev tests, and unit/integration suites in parallel."""
     root = pathlib.Path(root)
+    if fail_fast is None:
+        fail_fast = os.environ.get("BOARD_GRAPH_DEV_FAIL_FAST", "1").strip().lower() not in ("0", "false", "no")
     started = time.monotonic()
     env = _clean_env()
     env["BOARD_GRAPH_DEV_IN_TOOL_CHECKS"] = "1"
@@ -195,22 +296,16 @@ def run_tool_checks(root: pathlib.Path) -> dict:
                 "timings": timings,
                 "slowest": slowest,
                 "preflight_failed": True,
+                "fail_fast_aborted": False,
                 "skipped_suites": len(suites),
             },
         }
 
-    results: dict[str, tuple[int, str, float]] = {}
     total_suites = len(suites)
-    with concurrent.futures.ThreadPoolExecutor(max_workers=_worker_count(total_suites)) as pool:
-        future_map = {pool.submit(_run_one_check, root, env, label, cmd): label for label, cmd in suites}
-        for done_idx, future in enumerate(concurrent.futures.as_completed(future_map), 1):
-            label, rc, out, sec = future.result()
-            results[label] = (rc, out, sec)
-            timings[label] = round(sec, 2)
-            status = "ok  " if rc == 0 else "FAIL"
-            print(f"[tool_checks {done_idx}/{total_suites}] {status} {label} ({sec:.1f}s)", file=sys.stderr, flush=True)
-
+    results, aborted = _run_parallel_suites(root, env, suites, fail_fast, timings)
     for label, _ in suites:
+        if label not in results:
+            continue
         rc, out, _ = results[label]
         if rc == 0:
             passed.append(label)
@@ -218,10 +313,11 @@ def run_tool_checks(root: pathlib.Path) -> dict:
             failed.append(label)
             findings.append(f"{label} failed (exit {rc}): {_tail(out)}")
 
+    skipped_suites = total_suites - len(results)
     elapsed_s = round(time.monotonic() - started, 2)
     slowest = [{"check": k, "elapsed_s": v} for k, v in sorted(timings.items(), key=lambda item: -item[1])[:5]]
     detail: dict[str, object] = {
-        "checked": len(preflight) + total_suites,
+        "checked": len(preflight) + len(results),
         "passed": len(passed),
         "failed": failed,
         "code_sha": tool_code_fingerprint(root)["digest"],
@@ -229,7 +325,8 @@ def run_tool_checks(root: pathlib.Path) -> dict:
         "timings": timings,
         "slowest": slowest,
         "preflight_failed": False,
-        "skipped_suites": 0,
+        "fail_fast_aborted": aborted,
+        "skipped_suites": skipped_suites,
     }
     if elapsed_s > SLOW_CHECK_WARN_SECONDS:
         top = ", ".join(f"{s['check']} ({s['elapsed_s']:.1f}s)" for s in slowest[:3])

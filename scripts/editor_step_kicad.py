@@ -321,6 +321,41 @@ def saved_connection(path, target, output, centered=False):
     return value
 
 
+def saved_connections(path, requests):
+    """Check one or more (target, output, centered) pairs, batching into one pcbnew.LoadBoard when unmocked."""
+    if not requests:
+        return []
+    f = _facade()
+    if len(requests) == 1 or f.saved_connection is not saved_connection:
+        return [f.saved_connection(path, target, output, centered) for target, output, centered in requests]
+    vb = getattr(f, "validate_board", validate_board)
+    spec_path = pathlib.Path(requests[0][1]).parent / f".conn-batch-{os.getpid()}-{int(time.time() * 1000)}.json"
+    payload = [
+        {
+            "start": target[0],
+            "end": target[1],
+            "net": target[2],
+            "output": str(output),
+            "centered_exits": bool(centered),
+        }
+        for target, output, centered in requests
+    ]
+    spec_path.write_text(json.dumps(payload), encoding="utf-8")
+    try:
+        done = vb.kicad_offline("scripts/kicad_check_connection.py", path, "--batch", spec_path)
+        if done.returncode:
+            raise ValueError("Could not check the saved connection: " + (done.stderr or done.stdout)[-400:].strip())
+    finally:
+        spec_path.unlink(missing_ok=True)
+    values = []
+    for _target, output, _centered in requests:
+        value = json.loads(pathlib.Path(output).read_text(encoding="utf-8"))["connected"]
+        if type(value) is not bool:
+            raise ValueError("Invalid saved connection report")
+        values.append(value)
+    return values
+
+
 def _write_status(message: str) -> None:
     """Best-effort single-line live status update for routing_run.py wait() observability."""
     target = os.environ.get("BOARD_GRAPH_STATUS_FILE")
@@ -415,24 +450,30 @@ def final_connections(path, results, folder):
     prior = [row for row in results if row.get("kept")][:-1]
     pairs = {}
     before = f.sha(path)
+    entries = []
+    requests = []
     for i, row in enumerate(prior):
         conns = step_connections(row)
         if not conns:
             continue
         centered = bool(row.get("pad_exits"))
         multi = row.get("connections") is not None
-        targets = []
         for j, connection in enumerate(conns, 1):
             target = [connection[k] for k in ("from", "to", "net")]
             report = folder / (f"delivery-pair-{i + 1}-{j}.json" if multi else f"delivery-pair-{i + 1}.json")
-            if not f.saved_connection(path, target, report, centered):
-                raise ValueError(f"Previously kept connection reopened: {row['task']}")
-            if centered:
-                pads = json.loads(report.read_bytes()).get("pad_exits", [])
-                if [p["pad"] for p in pads] != target[:2] or any(p.get("issues") != [] for p in pads):
-                    raise ValueError(f"Previously kept pad exit changed: {row['task']}")
-            targets.append(target)
-        pairs[row["task"]] = targets if multi else targets[0]
+            entries.append((row, centered, multi, target, report))
+            requests.append((target, report, centered))
+    checked = f.saved_connections(path, requests)
+    grouped: dict[str, list[list[str]]] = {}
+    for (row, centered, multi, target, report), is_connected in zip(entries, checked):
+        if not is_connected:
+            raise ValueError(f"Previously kept connection reopened: {row['task']}")
+        if centered:
+            pads = json.loads(report.read_bytes()).get("pad_exits", [])
+            if [p["pad"] for p in pads] != target[:2] or any(p.get("issues") != [] for p in pads):
+                raise ValueError(f"Previously kept pad exit changed: {row['task']}")
+        grouped.setdefault(row["task"], []).append(target)
+        pairs[row["task"]] = grouped[row["task"]] if multi else grouped[row["task"]][0]
     if f.sha(path) != before:
         raise ValueError("The final PCB changed during the connection recheck")
     return {"board_sha256": before, "connections": pairs}

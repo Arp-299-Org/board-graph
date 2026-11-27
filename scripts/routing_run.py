@@ -114,7 +114,13 @@ LEFT_OUT = tuple(dict.fromkeys(part for part in (DESCRIPTION.inside_folder("repo
                                                  DESCRIPTION.inside_folder("production"), _EXPORTS)
                                if part and part != "."))
 POLL = 30
+LOCAL_POLL = 2
 QUIET = 20  # polls the Mac may miss in a row before the wait gives up (the run there goes on)
+
+
+def poll_seconds() -> float:
+    """Use fast local polling when running on one machine; keep 30s interval over SSH."""
+    return min(POLL, LOCAL_POLL) if mac.ONE_MACHINE else POLL
 
 
 # Here: git, the engine.
@@ -516,6 +522,7 @@ def status(args, attempt) -> dict:
 
 def wait(args, attempt) -> dict:
     """Until the run on the Mac has finished or died. A Mac that does not answer is waited out QUIET polls in a row."""
+    interval = poll_seconds()
     missed, last = 0, None
     last_print = time.time()
     while True:
@@ -525,9 +532,9 @@ def wait(args, attempt) -> dict:
         except mac.MacError as error:
             missed += 1
             if missed >= QUIET:
-                raise Refused(f"the Mac has not answered for {missed * POLL // 60} minutes ({error}); the run there "
+                raise Refused(f"the Mac has not answered for {int(missed * interval // 60)} minutes ({error}); the run there "
                               f"goes on: run this again with --attempt {attempt} to pick it up") from None
-            time.sleep(POLL)
+            time.sleep(interval)
             continue
         detail = found.get("detail", "")
         seen = (found["state"], found.get("steps"), detail)
@@ -540,7 +547,7 @@ def wait(args, attempt) -> dict:
             last_print = now
         if found["state"] in ("finished", "died", "absent"):
             return found
-        time.sleep(POLL)
+        time.sleep(interval)
 
 
 def fetch(path: str) -> bytes:

@@ -270,10 +270,34 @@ class ToolDevWorkflowTests(unittest.TestCase):
                 good = tool_actions.run_tool_checks(root)
             self.assertEqual(good["outcome"], "pass", good["findings"])
             self.assertFalse(good["detail"]["preflight_failed"])
+            self.assertFalse(good["detail"]["fail_fast_aborted"])
             self.assertEqual(good["detail"]["skipped_suites"], 0)
             self.assertIn("elapsed_s", good["detail"])
             self.assertIn("timings", good["detail"])
             self.assertGreaterEqual(len(good["detail"]["slowest"]), 1)
+
+    def test_tool_checks_fail_fast_aborts_remaining_suites_on_first_failure(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = _init_temp_repo(pathlib.Path(td), git=False, trim_tests=True)
+            fast_fail = root / "scripts" / "test_aaa_fail.py"
+            fast_fail.write_text("import sys\nsys.exit(1)\n", encoding="utf-8")
+            slow_suite = root / "scripts" / "test_zzz_slow.py"
+            slow_suite.write_text("import time\ntime.sleep(30)\n", encoding="utf-8")
+            board_graph_tool.manifest(
+                root,
+                "0.33.1",
+                add=("scripts/test_aaa_fail.py", "scripts/test_zzz_slow.py"),
+            )
+            with mock.patch.dict(os.environ, {"BOARD_GRAPH_DEV_IN_TOOL_CHECKS": "1"}):
+                t0 = __import__("time").monotonic()
+                res = tool_actions.run_tool_checks(root, fail_fast=True)
+                elapsed = __import__("time").monotonic() - t0
+            self.assertEqual(res["outcome"], "needs_lead")
+            self.assertFalse(res["detail"]["preflight_failed"])
+            self.assertTrue(res["detail"]["fail_fast_aborted"])
+            self.assertGreaterEqual(res["detail"]["skipped_suites"], 1)
+            self.assertIn("scripts/test_aaa_fail.py", res["detail"]["failed"])
+            self.assertLess(elapsed, 15.0)
 
 
 if __name__ == "__main__":

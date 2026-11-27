@@ -129,6 +129,7 @@ from editor_step_kicad import (  # noqa: E402
     same_board,
     save_candidate,
     saved_connection,
+    saved_connections,
     screen_locked,
     sha,
 )
@@ -180,7 +181,11 @@ HANDOFF_GRACE_SECONDS = 60
 MAX_PROGRESS_EXTENSIONS = 3
 
 
-CLAUDE = str(pathlib.Path.home() / ".local/bin/claude")
+def _default_claude_bin() -> str:
+    return os.environ.get("BOARD_GRAPH_CLAUDE_BIN") or shutil.which("claude") or str(pathlib.Path.home() / ".local/bin/claude")
+
+
+CLAUDE = _default_claude_bin()
 PYTHON = sys.executable
 ROUTING = validate_board.DESCRIPTION.routing_agent
 RECIPE = validate_board.DESCRIPTION.root / ROUTING["recipe"] if ROUTING.get("recipe") else None
@@ -420,11 +425,13 @@ def _prepare_step_inputs(args, task: str, path: pathlib.Path, proc, socket: str,
                      "and put bends in open space. The saved check allows 0.02 mm lateral offset and 1 degree from perpendicular.")
     if ROUTING.get("tasks") and not targets and not pours and not task.lstrip().startswith("Repair:"):
         raise ValueError("Start a task with Connection: or Pour:, or label a geometry repair with Repair:")
-    already_connected = []
-    for idx, target in enumerate(targets, 1):
-        start_report = folder / ("connection-start.json" if len(targets) == 1 else f"connection-start-{idx}.json")
-        if saved_connection(path, target, start_report):
-            already_connected.append(" ".join(target))
+    start_reports = [folder / ("connection-start.json" if len(targets) == 1 else f"connection-start-{idx}.json")
+                     for idx in range(1, len(targets) + 1)]
+    already_connected = [
+        " ".join(target)
+        for target, ok in zip(targets, saved_connections(path, [(t, r, False) for t, r in zip(targets, start_reports)]))
+        if ok
+    ]
     if already_connected:
         raise ValueError(f"The requested pads were already connected before this task: {'; '.join(already_connected)}")
     extra_layers = tuple(dict.fromkeys(layer for pour in pours for layer in pour["layers"] if layer not in ("F.Cu", "B.Cu")))
@@ -519,9 +526,10 @@ def _check_round_targets_and_pours(path: pathlib.Path, folder: pathlib.Path, rou
     if targets:
         checked_connections = []
         merged_pads: dict[str, dict] = {}
-        for idx, target in enumerate(targets, 1):
-            report = folder / (f"connection-round{round_num}.json" if len(targets) == 1 else f"connection-round{round_num}-{idx}.json")
-            joined = saved_connection(path, target, report, centered)
+        reports = [folder / (f"connection-round{round_num}.json" if len(targets) == 1 else f"connection-round{round_num}-{idx}.json")
+                   for idx in range(1, len(targets) + 1)]
+        joined_list = saved_connections(path, [(t, r, bool(centered)) for t, r in zip(targets, reports)])
+        for target, report, joined in zip(targets, reports, joined_list):
             checked_connections.append({"from": target[0], "to": target[1], "net": target[2], "before": False, "after": joined, "saved_sha256": saved_sha})
             if centered:
                 entries = json.loads(report.read_text(encoding="utf-8"))["pad_exits"]

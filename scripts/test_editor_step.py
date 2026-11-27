@@ -2257,6 +2257,39 @@ class V281FixesTests(unittest.TestCase):
                     editor_step.main()
             close_mock.assert_called_once_with(proc)
 
+    def test_saved_connections_batches_unmocked_and_respects_mocked_saved_connection(self) -> None:
+        import json
+        import tempfile
+        import editor_step_kicad
+
+        with tempfile.TemporaryDirectory() as td:
+            folder = pathlib.Path(td)
+            pcb = folder / "demo.kicad_pcb"
+            pcb.write_text("(kicad_pcb)\n", encoding="utf-8")
+            reqs = [
+                (["J1.1", "J2.1", "/D0"], folder / "c1.json", True),
+                (["J1.2", "J2.2", "/D1"], folder / "c2.json", False),
+            ]
+            offline_calls = []
+
+            def fake_offline(script, *args):
+                offline_calls.append((script, args))
+                spec = json.loads(pathlib.Path(args[2]).read_text(encoding="utf-8"))
+                for idx, entry in enumerate(spec):
+                    pathlib.Path(entry["output"]).write_text(json.dumps({"connected": idx == 0}), encoding="utf-8")
+                return SimpleNamespace(returncode=0, stdout="", stderr="")
+
+            with mock.patch.object(editor_step_kicad.validate_board, "kicad_offline", side_effect=fake_offline):
+                res = editor_step_kicad.saved_connections(pcb, reqs)
+            self.assertEqual(res, [True, False])
+            self.assertEqual(len(offline_calls), 1)
+            self.assertEqual(offline_calls[0][1][1], "--batch")
+
+            with mock.patch.object(editor_step, "saved_connection", side_effect=[False, True]) as single_mock:
+                res2 = editor_step_kicad.saved_connections(pcb, reqs)
+            self.assertEqual(res2, [False, True])
+            self.assertEqual(single_mock.call_count, 2)
+
 
 if __name__ == "__main__":
     unittest.main()

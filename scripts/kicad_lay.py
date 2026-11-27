@@ -369,28 +369,21 @@ class KipyLayBoard(kicad_ipc.KipyBoardCacheMixin):
     def run_drc_diff(self, before_text: str, after_text: str) -> dict:
         project = pathlib.Path(self.route.project)
         cli = kicad_ipc.invoke_kicad_cli_path()
-        reports = []
-        with tempfile.TemporaryDirectory(prefix="board-graph-lay-drc-") as folder:
-            for suffix in (".kicad_pro", ".kicad_dru"):
-                src = project / f"{self.route.name}{suffix}"
-                if src.exists():
-                    shutil.copy(src, pathlib.Path(folder) / src.name)
-            for label, content in (("before", before_text), ("after", after_text)):
-                pcb = pathlib.Path(folder) / f"{self.route.name}.kicad_pcb"
-                pcb.write_text(content, encoding="utf-8")
-                out = pathlib.Path(folder) / f"{label}.json"
-                done = subprocess.run(
-                    [sys.executable, str(cli), "pcb", "drc", "--format", "json", "--severity-all",
-                     "--refill-zones", "--output", str(out), str(pcb)],
-                    capture_output=True, text=True, check=False, timeout=600,
-                )
-                if not out.is_file():
-                    raise LayFailure("drc_failed", "kicad-cli DRC failed: " + (done.stderr or done.stdout).strip()[-300:])
-                reports.append(json.loads(out.read_text(encoding="utf-8")))
-        added_errors = new_drc_errors(reports[0], reports[1])
+        try:
+            before_rep = kicad_ipc.cached_drc_report(project, self.route.name, before_text, cli)
+            after_rep = (
+                before_rep
+                if after_text == before_text
+                else kicad_ipc.cached_drc_report(project, self.route.name, after_text, cli)
+            )
+        except RuntimeError as error:
+            raise LayFailure("drc_failed", str(error)) from None
         return {
-            "new_errors": added_errors,
-            "unconnected": [len(reports[0].get("unconnected_items", [])), len(reports[1].get("unconnected_items", []))],
+            "new_errors": new_drc_errors(before_rep, after_rep),
+            "unconnected": [
+                len(before_rep.get("unconnected_items", [])),
+                len(after_rep.get("unconnected_items", [])),
+            ],
         }
 
     def _build_zone(self, pour: PlannedPour, nets: dict):
