@@ -3516,6 +3516,10 @@ class NoPartsTests(unittest.TestCase):
         self.assertEqual(len(ACTIONS["baseline"].run(self.root)["findings"]), 1)
         self.write(board_graph_actions.BOM, "Refs,Qty\n")
         self.assertIn("missing columns", ACTIONS["baseline"].run(self.root)["findings"][0])
+        self.write(board_graph_actions.BOM, "Refs,Qty,Value\nR1,1,1k\n")
+        found = ACTIONS["bom"].run(self.root)
+        self.assertEqual(found["outcome"], "needs_lead")
+        self.assertIn("missing columns: Manufacturer, MPN, Supplier, Supplier Part", found["findings"][0])
 
 
 class ViewTests(unittest.TestCase):

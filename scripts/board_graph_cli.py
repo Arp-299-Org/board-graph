@@ -43,6 +43,7 @@ SUBCOMMANDS = {
     "board-description": "scripts/board_description.py",
     "part-search": "scripts/board_part_search.py",
     "part-fetch": "scripts/board_part_fetch.py",
+    "export-bom": "scripts/board_bom_export.py",
     "sync-models": "scripts/board_sync_models.py",
     "placement-snapshot": "scripts/board_placement_snapshot.py",
     "quote-package": "scripts/board_quote_package.py",
@@ -97,6 +98,7 @@ def usage(out=None) -> None:
         "  board-description ...  scripts/board_description.py\n"
         "  part-search ...        scripts/board_part_search.py (search in-stock JLCPCB SMT parts)\n"
         "  part-fetch ...         scripts/board_part_fetch.py (JLCPCB stock & datasheets)\n"
+        "  export-bom ...         scripts/board_bom_export.py (export & validate schematic BOM CSV)\n"
         "  sync-models ...        scripts/board_sync_models.py (attach STEP models & sync .pretty/ offline)\n"
         "  placement-snapshot ... scripts/board_placement_snapshot.py (normalize, check silkscreen, snapshot & render)\n"
         "  quote-package ...      scripts/board_quote_package.py (Gerbers, IPC netlist, BOM/CPL, checksums)\n"

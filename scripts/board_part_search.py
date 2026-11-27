@@ -6,6 +6,7 @@ import argparse
 import json
 import pathlib
 import sys
+import time
 import urllib.request
 
 HERE = pathlib.Path(__file__).resolve().parent
@@ -52,7 +53,14 @@ def parse_search_results(payload: dict, *, min_stock: int = 50) -> list[dict]:
     return out
 
 
-def search_catalog(query: str, *, limit: int = 10, min_stock: int = 50, urlopen=urllib.request.urlopen) -> list[dict]:
+def search_catalog(
+    query: str,
+    *,
+    limit: int = 10,
+    min_stock: int = 50,
+    urlopen=urllib.request.urlopen,
+    sleep=time.sleep,
+) -> list[dict]:
     """Query JLCPCB's SMT catalog for `query` and return normalized in-stock matches."""
     clean = query.strip()
     if not clean:
@@ -66,8 +74,8 @@ def search_catalog(query: str, *, limit: int = 10, min_stock: int = 50, urlopen=
         "stockFlag": True,
     }).encode("utf-8")
     req = urllib.request.Request(SEARCH_URL, data=body, headers=HEADERS)
-    with urlopen(req, timeout=20) as resp:
-        payload = json.loads(resp.read().decode("utf-8"))
+    raw = board_part_fetch.urlopen_with_retry(req, timeout=20, urlopen=urlopen, sleep=sleep)
+    payload = json.loads(raw.decode("utf-8"))
     return parse_search_results(payload, min_stock=min_stock)
 
 

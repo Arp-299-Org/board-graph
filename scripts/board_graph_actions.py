@@ -27,6 +27,7 @@ import subprocess
 import sys
 import tempfile
 
+import board_bom_export
 import board_copper_origin
 import board_description
 import board_pre_schematic
@@ -293,8 +294,7 @@ class Project:
         return {issue["id"] for issue in self.graph.get("open_issues", [])}
 
     def bom_rows(self):
-        with (self.root / BOM).open(encoding="utf-8-sig", newline="") as stream:
-            return list(csv.DictReader(stream))
+        return board_bom_export.read_bom_rows(self.root / BOM, BOM, BOM_COLUMNS)
 
     def inventory(self):
         return {"board_sha256": text_sha256(self.root / BOARD), "footprints": len(self.fps),
@@ -801,13 +801,15 @@ def baseline(root):
 
 
 def bom(root):
-    """bom_report(): schematic, board and exported BOM name the same parts, approved targets are fitted, and the
-    board's LCSC Part # agrees with its Supplier Part."""
+    """bom_report(): schematic, board and BOM name the same fitted parts and LCSC IDs agree."""
     missing = not_there_yet(root, SCHEMATIC, BOARD, BOM)
     if missing:
         return result(missing, {})
     project = Project(root)
-    report = bom_report(project)
+    try:
+        report = bom_report(project)
+    except (OSError, ValueError) as error:
+        return result([str(error)], {})
     findings = list(report["findings"]) + (datasheet_findings(project) if (pathlib.Path(root) / PARTS).is_file() else [])
     return result(findings, {"grouped_rows": len(report["rows"]), "fitted_components": report["fitted_components"],
         "rows": report["rows"], "note": "Identity, consistency, and parts.json datasheet coverage verified."})
@@ -885,11 +887,7 @@ BOARD_CHECK_READS = (*DESIGN, "scripts/validate_board.py", ".github/workflows/va
 
 
 def board_checks_findings(summary):
-    """What keeps the Board checks card from passing, read from a validate run's summary.json, with the open
-    count: a check that failed; one that passed only as inherited from the base commit; a run that skipped the
-    checks (an incremental run on a change that touches nothing they read); and connections still open, under
-    which the checks allow an unfinished board (unconnected items, pads waiting on routing, electrical findings by
-    name), so none of them is a pass for this card."""
+    """Extract failing, inherited, skipped, or open-connection findings from a validate summary.json."""
     checks = summary.get("checks") or []
     findings = []
     skipped = any(item["check"] == "Board checks" and item["ok"] for item in checks)
@@ -912,32 +910,33 @@ def board_checks_findings(summary):
 
 
 def board_checks(root, lookup=None):
-    """The board checks on this checkout's commit, as a validate run kept them on the graph with
-    `board_graph.py checks`: a workflow's last step on the KiCad machine's runner, or scripts/run_board_checks.py
-    run there by hand in a project without one. The newest row on the commit, and board_checks_findings() on it.
-    No row yet, or a run that left no checks, is a finding, not a pass. `lookup` stands in for the database in
-    tests; by default the one database, opened as every command opens it."""
+    """Board checks on HEAD from the graph DB, auto-running scripts/run_board_checks.py in one_machine mode."""
     root = pathlib.Path(root)
     done = subprocess.run(["git", "rev-parse", "HEAD"], cwd=str(root), capture_output=True, check=False, **NO_WINDOW)
     if done.returncode != 0:
         raise RuntimeError(f"git rev-parse HEAD: {done.stderr.decode('utf-8', 'replace').strip()}")
     head = done.stdout.decode("ascii").strip()
-    if lookup is None:
+    default_lookup = lookup is None
+    if default_lookup:
         import board_graph  # board_graph imports this module, so the import waits until the action runs
         lookup = board_graph.open_state(board_graph.place(), board_graph.RECORDS).checks_for
-    row = lookup(head)
+    row, auto_note = lookup(head), None
+    if row is None and default_lookup:
+        import run_board_checks
+        auto_note = run_board_checks.maybe_auto_run(root)
+        row = lookup(head)
     detail = {"commit": head, "run": None, "pass": None, "open": None, "checks": [],
               "scope": "The board checks on this commit as a validate run kept them on the graph: "
                        "scripts/validate_board.py as the KiCad machine ran it (a workflow on its runner, or "
                        "scripts/run_board_checks.py there), not run here."}
     if row is None:
+        suffix = f" ({auto_note})" if auto_note else ""
         return result([f"no board checks result on the graph for {head[:8]}: with a validate workflow, push it "
                        f"and run next when the run has finished; without one, run scripts/run_board_checks.py"
-                       f"{boards.chosen(root).argument} on the KiCad machine in a checkout of this commit"], detail)
+                       f"{boards.chosen(root).argument} on the KiCad machine in a checkout of this commit{suffix}"], detail)
     detail["run"] = {"id": row["run_id"], "event": row["event"], "at": row["at"]}
     if row["passed"] is None:
-        return result([f"validate run {row['run_id']} on {head[:8]} left no checks: "
-                       f"{row.get('note') or 'no summary'}"], detail)
+        return result([f"validate run {row['run_id']} on {head[:8]} left no checks: {row.get('note') or 'no summary'}"], detail)
     findings, open_count = board_checks_findings({"pass": row["passed"], "checks": row["checks"]})
     detail.update({"pass": row["passed"], "open": open_count, "checks": row["checks"]})
     return result(findings, detail)

@@ -8,6 +8,8 @@ import json
 import pathlib
 import re
 import sys
+import time
+import urllib.error
 import urllib.parse
 import urllib.request
 
@@ -54,14 +56,44 @@ def _first_price(data: dict) -> float:
     return 0.0
 
 
-def fetch_lcsc_detail(code: str, urlopen=urllib.request.urlopen) -> dict:
+RETRY_HTTP_CODES = (429, 500, 502, 503, 504)
+
+
+def _retry_delay(error: Exception, attempt: int) -> float:
+    headers = getattr(error, "headers", None)
+    raw = headers.get("Retry-After") if headers else None
+    if raw is not None:
+        try:
+            return max(0.0, min(15.0, float(str(raw).strip())))
+        except ValueError:
+            pass
+    return min(10.0, 1.5 * (2**attempt))
+
+
+def urlopen_with_retry(req, *, timeout: float = 20, urlopen=urllib.request.urlopen, sleep=time.sleep, attempts: int = 4) -> bytes:
+    """Read URL response bytes, retrying transient HTTP 429/5xx and URL errors with backoff."""
+    for attempt in range(attempts):
+        try:
+            with urlopen(req, timeout=timeout) as resp:
+                return resp.read()
+        except urllib.error.HTTPError as error:
+            if error.code not in RETRY_HTTP_CODES or attempt + 1 >= attempts:
+                raise
+            sleep(_retry_delay(error, attempt))
+        except urllib.error.URLError:
+            if attempt + 1 >= attempts:
+                raise
+            sleep(min(10.0, 1.5 * (2**attempt)))
+    raise AssertionError("unreachable")
+
+
+def fetch_lcsc_detail(code: str, urlopen=urllib.request.urlopen, sleep=time.sleep) -> dict:
     """Fetch normalized JLCPCB/LCSC component metadata for `code` (e.g. C501473)."""
     clean = code.strip().upper()
     if not clean:
         raise ValueError("empty LCSC code")
     req = urllib.request.Request(DETAIL_URL.format(code=urllib.parse.quote(clean)), headers=HEADERS)
-    with urlopen(req, timeout=20) as resp:
-        payload = json.loads(resp.read().decode("utf-8"))
+    payload = json.loads(urlopen_with_retry(req, timeout=20, urlopen=urlopen, sleep=sleep).decode("utf-8"))
     data = payload.get("data") if isinstance(payload, dict) else None
     if not isinstance(data, dict):
         raise ValueError(f"{clean}: unexpected JLCPCB response")

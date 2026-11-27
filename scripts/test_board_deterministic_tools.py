@@ -5,17 +5,25 @@ from __future__ import annotations
 import datetime
 import io
 import json
+import os
 import pathlib
 import sys
 import tempfile
 import types
 import unittest
+import urllib.error
 from unittest import mock
 
 SCRIPTS_DIR = pathlib.Path(__file__).resolve().parent
 if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
+FIXTURES_DIR = SCRIPTS_DIR / "fixtures"
+os.environ.setdefault("BOARD_GRAPH_BOARD", str(FIXTURES_DIR / "board.json"))
+os.environ.setdefault("BOARD_GRAPH_SITE", str(FIXTURES_DIR / "board_graph_site.json"))
+os.environ.setdefault("BOARD_GRAPH_BOARDS", str(FIXTURES_DIR / "no_boards.json"))
 
+import board_bom_export  # noqa: E402
+import board_graph  # noqa: E402
 import board_graph_actions  # noqa: E402
 import board_graph_cli  # noqa: E402
 import board_part_fetch  # noqa: E402
@@ -24,6 +32,7 @@ import board_placement_snapshot  # noqa: E402
 import board_pre_schematic  # noqa: E402
 import board_quote_package  # noqa: E402
 import board_sync_models  # noqa: E402
+import run_board_checks  # noqa: E402
 
 
 class DeterministicToolsTests(unittest.TestCase):
@@ -38,6 +47,7 @@ class DeterministicToolsTests(unittest.TestCase):
         for cmd, script in (
             ("part-search", "scripts/board_part_search.py"),
             ("part-fetch", "scripts/board_part_fetch.py"),
+            ("export-bom", "scripts/board_bom_export.py"),
             ("sync-models", "scripts/board_sync_models.py"),
             ("placement-snapshot", "scripts/board_placement_snapshot.py"),
             ("quote-package", "scripts/board_quote_package.py"),
@@ -227,6 +237,104 @@ class DeterministicToolsTests(unittest.TestCase):
         text = sums.read_text(encoding="utf-8")
         self.assertIn("RJ45_R1.zip", text)
         self.assertIn("RJ45_R1_SMT_bom.csv", text)
+
+    def test_part_search_retries_on_http_429(self) -> None:
+        calls = []
+
+        class FakeResp(io.BytesIO):
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *args):
+                self.close()
+
+        payload = {"data": {"componentPageInfo": {"list": [{
+            "componentCode": "C501473", "componentBrandEn": "Heling",
+            "componentModelEn": "MJ56881-B011-HLRN1-C", "componentLibraryType": "expand",
+            "stockCount": 500, "initialPrice": 0.5,
+        }]}}}
+
+        def flaky_urlopen(req, timeout=20):
+            calls.append(1)
+            if len(calls) == 1:
+                raise urllib.error.HTTPError(req.full_url, 429, "Too Many Requests", {"Retry-After": "0"}, None)
+            return FakeResp(json.dumps(payload).encode("utf-8"))
+
+        slept = []
+        rows = board_part_search.search_catalog("RJ45", urlopen=flaky_urlopen, sleep=slept.append)
+        self.assertEqual(len(calls), 2)
+        self.assertEqual(slept, [0.0])
+        self.assertEqual([r["part"] for r in rows], ["C501473"])
+
+    def test_export_bom_groups_validates_and_matches_bom_report(self) -> None:
+        def write(rel: str, text: str) -> None:
+            p = self.root / rel
+            p.parent.mkdir(parents=True, exist_ok=True)
+            p.write_text(text, encoding="utf-8")
+
+        write(board_graph_actions.GRAPH, '{"nodes": []}')
+        sch = """(kicad_sch (version 20250114)
+  (symbol (lib_id "Conn:J") (at 100 100 0)
+    (property "Reference" "J1") (property "Value" "MJ56881")
+    (property "Manufacturer" "Heling") (property "Manufacturer Part" "MJ56881-B011")
+    (property "Supplier" "LCSC") (property "Supplier Part" "C501473"))
+  (symbol (lib_id "Device:R") (at 120 100 0)
+    (property "Reference" "R10") (property "Value" "10k")
+    (property "Manufacturer" "UNI-ROYAL") (property "MPN" "0603WAF1002T5E")
+    (property "Supplier" "LCSC") (property "Supplier Part" "C25804"))
+  (symbol (lib_id "Device:R") (at 130 100 0)
+    (property "Reference" "R2") (property "Value" "10k")
+    (property "Manufacturer" "UNI-ROYAL") (property "MPN" "0603WAF1002T5E")
+    (property "Supplier" "LCSC") (property "Supplier Part" "C25804")))"""
+        pcb = """(kicad_pcb (version 20250114)
+  (footprint "lib:J" (layer "F.Cu") (attr smd)
+    (property "Reference" "J1") (property "Value" "MJ56881")
+    (property "Manufacturer" "Heling") (property "Manufacturer Part" "MJ56881-B011")
+    (property "Supplier" "LCSC") (property "Supplier Part" "C501473")
+    (property "LCSC Part #" "C501473"))
+  (footprint "lib:R" (layer "F.Cu") (attr smd)
+    (property "Reference" "R2") (property "Value" "10k")
+    (property "Manufacturer" "UNI-ROYAL") (property "MPN" "0603WAF1002T5E")
+    (property "Supplier" "LCSC") (property "Supplier Part" "C25804")
+    (property "LCSC Part #" "C25804"))
+  (footprint "lib:R" (layer "F.Cu") (attr smd)
+    (property "Reference" "R10") (property "Value" "10k")
+    (property "Manufacturer" "UNI-ROYAL") (property "MPN" "0603WAF1002T5E")
+    (property "Supplier" "LCSC") (property "Supplier Part" "C25804")
+    (property "LCSC Part #" "C25804")))"""
+        write(board_graph_actions.SCHEMATIC, sch)
+        write(board_graph_actions.BOARD, pcb)
+        desc_path = FIXTURES_DIR / "board.json"
+        res = board_bom_export.export_bom(self.root, check_pcb=True, board_description_path=desc_path)
+        self.assertEqual(res["pcb_mismatches"], [])
+        self.assertEqual(res["fitted_components"], 3)
+        self.assertEqual(res["rows"][1]["Refs"], "R2,R10")
+        report = board_graph_actions.bom_report(board_graph_actions.Project(self.root))
+        self.assertEqual(report["findings"], [])
+
+        write(board_graph_actions.SCHEMATIC, """(kicad_sch (version 20250114)
+  (symbol (lib_id "Conn:J") (at 100 100 0)
+    (property "Reference" "J1") (property "Value" "MJ56881")))""")
+        with self.assertRaises(ValueError):
+            board_bom_export.export_bom(self.root, board_description_path=desc_path)
+
+    def test_board_checks_auto_runs_once_in_one_machine_mode(self) -> None:
+        head = "deadbeef" * 5
+        rows = [None, {
+            "at": "2026-11-27T23:00:00+00:00", "commit": head, "run_id": "local-1", "event": "local",
+            "passed": True, "open": 0, "checks": [
+                {"check": "DRC", "ok": True, "detail": "0 violations", "open": 0},
+            ], "note": None,
+        }]
+        fake_state = types.SimpleNamespace(checks_for=lambda commit: rows.pop(0))
+        with mock.patch.object(board_graph_actions.subprocess, "run",
+                               return_value=types.SimpleNamespace(returncode=0, stdout=head.encode("ascii"), stderr=b"")), \
+             mock.patch.object(board_graph, "open_state", return_value=fake_state), \
+             mock.patch.object(board_graph, "place", return_value=self.root), \
+             mock.patch.object(run_board_checks, "maybe_auto_run", return_value=None) as auto:
+            found = board_graph_actions.board_checks(self.root)
+        auto.assert_called_once_with(self.root)
+        self.assertEqual((found["outcome"], found["findings"]), ("pass", []))
 
 
 if __name__ == "__main__":

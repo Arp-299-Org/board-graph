@@ -166,6 +166,27 @@ def run(root=ROOT, base=None, out=None, description=None, state=None, call=launc
     return 0 if checked.returncode == 0 else 1
 
 
+def maybe_auto_run(root: pathlib.Path = ROOT) -> str | None:
+    """In one_machine mode, run board checks automatically when no DB result exists yet."""
+    import site_settings
+
+    try:
+        settings = site_settings.load(root)
+    except site_settings.SiteError:
+        return None
+    if not settings.one_machine:
+        return None
+    try:
+        chosen = boards.chosen(root)
+    except boards.BoardsError:
+        return None
+    notes: list[str] = []
+    rc = run(root=root, board=chosen.name or None, say=notes.append)
+    if rc == 2:
+        return "auto-run of run_board_checks.py refused: " + "; ".join(notes[:3])
+    return None
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__.split("\n", 1)[0])
     parser.add_argument("--base", help="check only what changed since this ref, as a pull request's run does "
