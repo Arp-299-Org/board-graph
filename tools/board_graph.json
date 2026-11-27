@@ -174,7 +174,7 @@
       "track": "board",
       "stage": "requirements",
       "label": "Datasheets",
-      "who": "auto",
+      "who": "agent",
       "task": "Download every selected part's datasheet into hardware/reference and record its package and height taken from it into hardware/reference/parts.json before drawing schematic symbols or footprints.",
       "pass_when": "Every selected part is in parts.json with its datasheet on hand in hardware/reference and a height taken from it.",
       "owns": [
@@ -261,7 +261,7 @@
       "track": "board",
       "stage": "footprints",
       "label": "Models",
-      "who": "auto",
+      "who": "agent",
       "task": "Every part's 3D model loads, and its top matches the datasheet height. Make or check the model against the datasheet.",
       "pass_when": "Every part's 3D model loads and its top is within 0.3 mm of the datasheet height.",
       "owns": [
@@ -282,7 +282,7 @@
       "track": "board",
       "stage": "footprints",
       "label": "Footprints",
-      "who": "auto",
+      "who": "agent",
       "task": "Every board footprint is identical to its library copy, and the library holds nothing the board does not use. Every joint soldered by hand is shown buildable from the maker's data by scripts/board_manual_joints.py, which writes board/reports/footprints/manual_joints.md: the real pin, from its datasheet in hardware/reference/parts.json, passes the smallest finished hole, or the hole is as the maker draws it; the pad has a mask opening on both faces; it joins no plane solid. A joint with neither a pin nor a maker's hole on record is not proven and keeps this card open. A repair changes only what the finding names.",
       "pass_when": "Every board footprint matches its library copy; the library has no unused footprint; DRC's accepted library-mismatch list is empty; every hand-soldered joint fits its pin or is as the maker draws it, has mask openings and thermal relief, and none is unproven.",
       "owns": [
