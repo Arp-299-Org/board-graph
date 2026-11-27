@@ -262,7 +262,7 @@
       "stage": "footprints",
       "label": "Models",
       "who": "agent",
-      "task": "Every part's 3D model loads, and its top matches the datasheet height. Make or check the model against the datasheet.",
+      "task": "Every part's 3D model loads, and its top matches the datasheet height. Make or check the model against the datasheet, attach the (model ...) entry to the board footprints and library (offline pcbnew + scripts/kicad_footprints_to_library.py --apply, or KiCad GUI after 'Loading Footprint Libraries' finishes), and verify with the models check.",
       "pass_when": "Every part's 3D model loads and its top is within 0.3 mm of the datasheet height.",
       "owns": [
         "board/models"

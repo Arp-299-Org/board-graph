@@ -57,3 +57,12 @@ is first rehearsed once on a uniquely named disposable copy
 (`tools/kicad/create_disposable_project_copy.py`): do it, inspect the
 result, confirm the recovery path and record it in its recipe, then do it
 on the real files.
+
+Before clicking **Tools > Update Footprints from Library** or **Update PCB from
+Schematic** in KiCad's GUI, open the `.kicad_pro` project (not a standalone
+`.kicad_pcb`) and wait until `"Loading Footprint Libraries"` clears from the
+bottom-right status bar; clicking Update early causes false
+`*** library footprint not found ***` errors. To attach 3D models or keep the
+board and `.pretty/` library identical without racing GUI startup, attach the
+model to the board footprints via offline `pcbnew` and sync back with
+`scripts/kicad_footprints_to_library.py --apply`.

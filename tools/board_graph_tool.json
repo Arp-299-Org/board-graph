@@ -1,7 +1,7 @@
 {
   "name": "board-graph",
   "repository": "Arp-299-Org/board-graph",
-  "version": "0.38.4",
+  "version": "0.38.5",
   "files": {
     "docs/BOARD_APPROVALS.md": "0f95089a0522654ff995ca99e4a104c61632fc15fe93ee8bb42aa6ee1f1244d3",
     "docs/BOARD_EVIDENCE.md": "386390a77d7905f7aff82c3402694cc0fcc45660110c9da5a51d8e692858fbd1",
