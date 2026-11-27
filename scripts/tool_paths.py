@@ -246,3 +246,48 @@ def tool_fingerprint(root: pathlib.Path, environ=None) -> str | None:
     if commit:
         digest.update(commit.encode("ascii"))
     return digest.hexdigest()
+
+
+def _git_out(tool_root: pathlib.Path, *args: str) -> str | None:
+    try:
+        done = subprocess.run(
+            ["git", "-C", str(tool_root), *args],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            timeout=5,
+            check=False,
+            **NO_WINDOW,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    return done.stdout.strip() if done.returncode == 0 else None
+
+
+def tool_status(tool_root: pathlib.Path = TOOL_ROOT) -> dict:
+    """Return version, git branch/commit, dirty flag, and commits ahead of main for `tool_root`."""
+    tool_root = pathlib.Path(tool_root)
+    version = None
+    manifest = tool_root / MANIFEST
+    if manifest.is_file():
+        try:
+            version = json.loads(manifest.read_text(encoding="utf-8")).get("version")
+        except (OSError, ValueError):
+            pass
+    info: dict = {"version": version, "external": is_external(), "root": str(tool_root)}
+    if not is_git_checkout(tool_root):
+        return info
+    branch = _git_out(tool_root, "rev-parse", "--abbrev-ref", "HEAD")
+    commit = _git_out(tool_root, "rev-parse", "--short", "HEAD")
+    commits_ahead: list[dict[str, str]] = []
+    ahead = 0
+    for base in ("origin/main", "main"):
+        if _git_out(tool_root, "rev-parse", "--verify", "-q", base) is not None:
+            log = _git_out(tool_root, "log", "--format=%h%x09%s", f"{base}..HEAD")
+            if log is not None:
+                rows = [line.split("\t", 1) for line in log.splitlines() if line.strip()]
+                ahead = len(rows)
+                commits_ahead = [{"sha": parts[0], "subject": parts[1] if len(parts) > 1 else ""} for parts in rows[:8]]
+            break
+    info.update(branch=branch, commit=commit, dirty=bool(tool_dirty(tool_root)), ahead=ahead, commits_ahead=commits_ahead)
+    return info

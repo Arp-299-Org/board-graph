@@ -23,7 +23,10 @@ if sys.platform == "darwin":
 elif sys.platform.startswith("linux"):
     KICAD_CLI = pathlib.Path(os.environ.get("KICAD_CLI") or shutil.which("kicad-cli") or "/usr/bin/kicad-cli")
     KICAD_PCBNEW = pathlib.Path(os.environ.get("KICAD_PCBNEW") or shutil.which("pcbnew") or "/usr/bin/pcbnew")
-    KICAD_PYTHON = pathlib.Path(os.environ.get("KICAD_PYTHON") or shutil.which("python3") or "/usr/bin/python3")
+    KICAD_PYTHON = pathlib.Path(
+        os.environ.get("KICAD_PYTHON")
+        or ("/usr/bin/python3" if pathlib.Path("/usr/bin/python3").is_file() else (shutil.which("python3") or "/usr/bin/python3"))
+    )
     KICAD_SHARE = pathlib.Path("/usr/share/kicad")
 else:
     _BIN = pathlib.Path(r"C:\Program Files\KiCad") / KICAD_CONFIG_VERSION / "bin"

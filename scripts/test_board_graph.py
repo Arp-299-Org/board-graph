@@ -87,7 +87,7 @@ class GraphTests(unittest.TestCase):
     def test_allowed_outcomes_name_their_targets(self):
         allowed = self.graph.allowed("stock")
         self.assertEqual(allowed["pass"], ["datasheets"])
-        self.assertEqual(allowed["returned"], ["bom", "schematic", "constraints"])
+        self.assertEqual(allowed["returned"], ["constraints", "decisions"])
         for outcome in self.graph.stay:
             self.assertEqual(allowed[outcome], ["stock"])
         self.assertNotIn("returned", self.graph.allowed("inventory"))
@@ -3398,7 +3398,7 @@ class InventoryTests(unittest.TestCase):
                  "from the schematic makes")
         bom = (f"{board_graph_actions.BOM} is not there yet: this card reads the exported BOM, which the first BOM "
                "export from the schematic writes")
-        for name, expected in (("bom", [board, bom]), ("datasheets", [board, bom]), ("models", [board, bom]),
+        for name, expected in (("bom", [board, bom]), ("models", [board, bom]),
                                ("footprints", [board]),
                                ("placement", [board, f"{board_graph_actions.PLACEMENT} is not there yet: this card "
                                                      "reads it"])):
@@ -3406,6 +3406,28 @@ class InventoryTests(unittest.TestCase):
                 found = ACTIONS[name].run(self.root)
                 self.assertEqual((found["outcome"], found["findings"]), ("needs_lead", expected))
                 board_graph.checked(found)
+
+    def test_pre_schematic_stock_and_datasheets_validate_without_board_or_bom(self):
+        # Without board or BOM, supply_receipt and datasheets validate pre-schematic part selections cleanly.
+        now = board_graph_actions.datetime.datetime(2026, 11, 15, tzinfo=board_graph_actions.datetime.timezone.utc)
+        self.assertEqual(board_graph_actions.supply_receipt(self.root, now=now)["outcome"], "needs_lead")
+        self.assertEqual(board_graph_actions.datasheets(self.root)["outcome"], "needs_lead")
+        self.write(board_graph_actions.STOCK_LISTINGS, json.dumps({
+            "planning_quantity": 5,
+            "factory_parts": [
+                {"part": "C1", "read_at": "2026-11-10T07:10:28Z", "listed_manufacturer": "Maker",
+                 "listed_mpn": "MPN1", "class": "Basic", "stock": 100, "unit_price_usd": 0.05},
+            ],
+        }))
+        sup = board_graph_actions.supply_receipt(self.root, now=now)
+        self.assertEqual((sup["outcome"], sup["detail"]["stage"], sup["detail"]["factory_parts"]),
+                         ("pass", "pre_schematic", 1))
+        (self.root / board_graph_actions.DATASHEETS).mkdir(parents=True, exist_ok=True)
+        (self.root / board_graph_actions.DATASHEETS / "MPN1.pdf").write_bytes(b"%PDF-1.4\n")
+        self.write(board_graph_actions.PARTS, json.dumps({"parts": {"MPN1": {"datasheet": "MPN1.pdf", "height_mm": 1.2}}}))
+        ds = board_graph_actions.datasheets(self.root)
+        self.assertEqual((ds["outcome"], ds["detail"]["stage"], ds["detail"]["parts_checked"]),
+                         ("pass", "pre_schematic", 1))
 
 
 class NoPartsTests(unittest.TestCase):

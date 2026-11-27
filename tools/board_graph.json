@@ -47,11 +47,11 @@
   "stages": [
     {
       "id": "requirements",
-      "label": "Requirements and constraints"
+      "label": "Requirements, parts & stock"
     },
     {
       "id": "schematic",
-      "label": "Schematic, parts, BOM"
+      "label": "Schematic & BOM"
     },
     {
       "id": "footprints",
@@ -130,7 +130,7 @@
       ],
       "action": null,
       "outcomes": {
-        "pass": "schematic",
+        "pass": "stock",
         "returned": [
           "decisions"
         ]
@@ -141,12 +141,63 @@
       ]
     },
     {
+      "id": "stock",
+      "requires_current": [
+        "constraints"
+      ],
+      "track": "board",
+      "stage": "requirements",
+      "label": "Parts & stock",
+      "who": "agent",
+      "task": "Choose exact in-stock factory parts for the design and verify supply before schematic work. Record dated listings for every factory part: listed manufacturer, MPN, supplier ID, class, stock and price. For a shortage or preorder, record the owner's accepted plan in the owner's words; a plan is not confirmed fulfillment. Write them to <reports>/stock/listings.json: planning_quantity (the boards planned) and factory_parts, one entry per supplier part with part, read_at, listed_manufacturer, listed_mpn, class, stock and unit_price_usd, and owner_plan where stock is short.",
+      "pass_when": "Every intended factory part has a dated in-stock listing at most 30 days old in board/reports/stock/listings.json; any shortage has an owner-accepted plan.",
+      "docs": [
+        "board/DECISIONS.md"
+      ],
+      "owns": [
+        "board/reports/stock/listings.json"
+      ],
+      "action": "supply_receipt",
+      "outcomes": {
+        "pass": "datasheets",
+        "returned": [
+          "constraints",
+          "decisions"
+        ]
+      },
+      "approval_owned": true
+    },
+    {
+      "id": "datasheets",
+      "requires_current": [
+        "stock"
+      ],
+      "track": "board",
+      "stage": "requirements",
+      "label": "Datasheets",
+      "who": "auto",
+      "task": "Download every selected part's datasheet into hardware/reference and record its package and height taken from it into hardware/reference/parts.json before drawing schematic symbols or footprints.",
+      "pass_when": "Every selected part is in parts.json with its datasheet on hand in hardware/reference and a height taken from it.",
+      "owns": [
+        "hardware/reference/parts.json",
+        "hardware/reference"
+      ],
+      "action": "datasheets",
+      "outcomes": {
+        "pass": "schematic",
+        "returned": [
+          "stock"
+        ]
+      },
+      "approval_owned": true
+    },
+    {
       "id": "schematic",
       "track": "board",
       "stage": "schematic",
       "label": "Schematic",
       "who": "agent",
-      "task": "The parts and connections. Keep the schematic the source: the board is updated from it. As the card starts, its script runs KiCad's ERC on the saved schematic and reports every error and warning. Render the pages and run the schematic critic; resolve each finding or decline it with a reason. On a new board, this card ends with the files the next cards read: the rules file, the board made by the first update from the schematic, and the first BOM and schematic exports.",
+      "task": "The parts and connections, built from the selected in-stock parts and datasheets. Keep the schematic the source: the board is updated from it. As the card starts, its script runs KiCad's ERC on the saved schematic and reports every error and warning. Render the pages and run the schematic critic; resolve each finding or decline it with a reason. On a new board, this card ends with the files the next cards read: the rules file, the board made by the first update from the schematic, and the first BOM and schematic exports.",
       "pass_when": "ERC reports 0 errors and 0 warnings; schematic critic findings are resolved; the pages read cleanly: signal left to right, power up, ground down, net labels instead of long crossing wires.",
       "docs": [
         "board/DECISIONS.md",
@@ -164,11 +215,15 @@
       "outcomes": {
         "pass": "bom",
         "returned": [
+          "datasheets",
+          "stock",
           "constraints"
         ]
       },
       "requires_current": [
-        "constraints"
+        "constraints",
+        "stock",
+        "datasheets"
       ],
       "approval_files": [
         "board/example.kicad_sch"
@@ -193,59 +248,14 @@
       "action": "bom",
       "approved_targets": [],
       "outcomes": {
-        "pass": "stock",
+        "pass": "models",
         "returned": [
           "schematic",
+          "datasheets",
+          "stock",
           "constraints"
         ]
       }
-    },
-    {
-      "id": "stock",
-      "requires_current": [
-        "bom"
-      ],
-      "track": "board",
-      "stage": "schematic",
-      "label": "Stock",
-      "who": "agent",
-      "task": "Can the factory supply those exact parts. Record dated listings for every factory part: listed manufacturer, MPN, supplier ID, class, stock and price. For a shortage or preorder, record the owner's accepted plan in the owner's words; a plan is not confirmed fulfillment. Write them to <reports>/stock/listings.json: planning_quantity (the boards planned) and factory_parts, one entry per supplier part with part, read_at, listed_manufacturer, listed_mpn, class, stock and unit_price_usd, and owner_plan where the stock is short. As the card starts, its script compares that file with the saved board.",
-      "pass_when": "A dated listing exists for every factory part, at most 30 days old; every shortage has a plan the owner accepted.",
-      "docs": [
-        "board/DECISIONS.md"
-      ],
-      "owns": [],
-      "action": "supply_receipt",
-      "outcomes": {
-        "pass": "datasheets",
-        "returned": [
-          "bom",
-          "schematic",
-          "constraints"
-        ]
-      },
-      "approval_owned": true
-    },
-    {
-      "id": "datasheets",
-      "track": "board",
-      "stage": "footprints",
-      "label": "Datasheets",
-      "who": "auto",
-      "task": "Every BOM part has its datasheet in hardware/reference and its package and height taken from it into hardware/reference/parts.json.",
-      "pass_when": "Every BOM part is in parts.json with a datasheet on hand and a height taken from it.",
-      "owns": [
-        "hardware/reference/parts.json",
-        "hardware/reference"
-      ],
-      "action": "datasheets",
-      "outcomes": {
-        "pass": "models",
-        "returned": [
-          "bom"
-        ]
-      },
-      "approval_owned": true
     },
     {
       "id": "models",
@@ -262,7 +272,8 @@
       "outcomes": {
         "pass": "footprints",
         "returned": [
-          "bom"
+          "bom",
+          "datasheets"
         ]
       },
       "approval_owned": true

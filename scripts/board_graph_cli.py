@@ -31,6 +31,7 @@ SUBCOMMANDS = {
     "track-craft": "scripts/board_track_craft.py",
     "view": "scripts/board_graph_view.py",
     "serve": "scripts/board_graph_serve.py",
+    "hub": "scripts/board_graph_hub.py",
     "mac": "scripts/mac.py",
     "tidy": "scripts/tidy.py",
     "boards": "scripts/boards.py",
@@ -51,7 +52,7 @@ VALUE_FLAGS = frozenset({
     "--records", "--view", "--out", "--base", "--from", "--to", "--minutes", "--model",
     "--review-model", "--provider", "--review-provider", "--effort", "--agent",
     "--branch", "--tokens", "--reason", "--prompt", "--after", "--board-description",
-    "--board-name", "--project-title",
+    "--board-name", "--project-title", "--source", "--config", "--bind", "--port",
     "--mac-tool-checkout", "--mac-tree", "--mac-steps", "--ref", "--version", "--root", "--skip",
     "--track", "--node", "--output", "--json", "--timeout", "--exclusions", "--production", "--base-name", "--name",
 })
@@ -75,6 +76,7 @@ def usage(out=None) -> None:
         "  track-craft ...        scripts/board_track_craft.py (uses configured KiCad machine)\n"
         "  view ...               scripts/board_graph_view.py\n"
         "  serve ...              scripts/board_graph_serve.py\n"
+        "  hub ...                scripts/board_graph_hub.py (multi-run flat 2D dashboard)\n"
         "  mac ...                scripts/mac.py\n"
         "  tidy ...               scripts/tidy.py\n"
         "  boards ...             scripts/boards.py\n"
@@ -420,6 +422,8 @@ def main(argv: list[str] | None = None) -> int:
         return _run_version()
     if command == "init":
         return _run_init(explicit_project, tail)
+    if command == "hub":
+        return subprocess.run([sys.executable, "-B", str(TOOL_ROOT / SUBCOMMANDS["hub"]), *tail], check=False).returncode
 
     extra_env: dict[str, str] = {}
     if command == "tool":

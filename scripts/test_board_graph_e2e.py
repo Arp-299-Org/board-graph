@@ -204,13 +204,13 @@ class BoardGraphCliE2ETests(unittest.TestCase):
             )
             self.assertEqual(ok_con.returncode, 0, ok_con.stderr + ok_con.stdout)
             where3 = json.loads(_run_cli(["where", "--json"], cwd=proj, env=env).stdout)
-            self.assertEqual(where3["tracks"][0]["position"], "schematic")
+            self.assertEqual(where3["tracks"][0]["position"], "stock")
 
             view_dir = proj / "tmp_view"
             snap = _run_cli(["view", "--out", str(view_dir), "snapshot", "--quick"], cwd=proj, env=env)
             self.assertEqual(snap.returncode, 0, snap.stderr + snap.stdout)
             view_data = json.loads((view_dir / "view.json").read_text(encoding="utf-8"))
-            self.assertEqual(view_data["state"]["tracks"]["board"]["position"], "schematic")
+            self.assertEqual(view_data["state"]["tracks"]["board"]["position"], "stock")
             self.assertGreaterEqual(view_data["log"]["total"], 3)
 
     def test_init_autonomous_walks_owner_card_and_blocks_order(self) -> None:

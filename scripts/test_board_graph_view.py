@@ -159,8 +159,8 @@ class WhatRunsTests(Base):
         self.assertEqual(runs["uses"], ["scripts/board_space.py", "scripts/graph_pack.py", "scripts/kicad_sexp.py"])
         self.assertEqual(runs["reads"], list(board_graph_actions.LIBRARY_READS))
         self.assertNotIn("last", runs)
-        # Datasheets builds the same Project but never reaches the model code, so board_space.py is not named.
-        self.assertEqual(nodes["datasheets"]["runs"]["uses"], ["scripts/kicad_sexp.py"])
+        # Datasheets uses board_pre_schematic and builds Project without reaching model code.
+        self.assertEqual(nodes["datasheets"]["runs"]["uses"], ["scripts/board_pre_schematic.py", "scripts/kicad_sexp.py"])
         package = nodes["package"]["runs"]
         if self.graph.nodes["package"].get("pass_check"):
             self.assertEqual(package["when"], "pass")
@@ -342,17 +342,16 @@ class PrivateNamesTests(unittest.TestCase):
         self.assertIn("[/\\/(?:Users|home)\\/[^\\s\"'<>]+/g, '[path hidden]']", page)
         for words in ("<title>Board graph</title>", 'aria-label="Boards"', 'aria-label="The board graph'):
             self.assertNotIn(words, page)
-        self.assertIn("${graphKind()} in 3D", page)
+        self.assertIn("id=\"stages\"", page)
 
     def test_the_page_has_a_page_per_track(self):
-        # ?track=<id> shows one track as the main path; nothing in the page but the board's own blue and the
-        # fallback names the board track where the main track belongs.
+        # ?track=<id> shows one track as the main path cleanly in the flat 2D view.
         page = (pathlib.Path(board_graph_view.ROOT) / "tools/board_graph_view/index.html").read_text(encoding="utf-8")
         self.assertIn("get('track')", page)
         self.assertIn('id="tabs"', page)
-        for line in ("addCard(n.id, MAIN,", "t.id !== MAIN &&", "const b = M.tracks[MAIN];"):
-            self.assertIn(line, page)
-        self.assertNotIn("addCard(n.id, 'board'", page)
+        self.assertIn("mainTrackId", page)
+        self.assertIn("n.track === mainTrack", page)
+        self.assertNotIn("three.module.min.js", page)
 
 
 

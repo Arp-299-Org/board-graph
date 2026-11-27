@@ -7,2925 +7,619 @@
 <style>
   :root {
     color-scheme: dark;
-    --font: "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, "Helvetica Neue", sans-serif;
-    --font-display: "Segoe UI Variable Display", "Segoe UI", system-ui, -apple-system, "Helvetica Neue", sans-serif;
-    --field: #000000;
-    --ink-1: #f0efec;
-    --ink-2: #c3c2b7;
-    --ink-3: #898781;
+    --bg: #08090c;
+    --surface: #111318;
+    --surface-2: #171b24;
+    --surface-hover: #1d222e;
+    --ink-1: #f2f1ed;
+    --ink-2: #c2c1b8;
+    --ink-3: #85847c;
     --hair: rgba(255, 255, 255, 0.10);
-    --panel: rgba(10, 10, 10, 0.94);
-    --control: rgba(22, 22, 21, 0.88);
-    --control-hover: rgba(44, 44, 42, 0.92);
-    --focus: #86b6ef;
-    --panel-w: min(460px, 100vw);
-    --strip-h: 36px;
+    --hair-strong: rgba(255, 255, 255, 0.18);
+    --blue: #3987e5;
+    --blue-bg: rgba(57, 135, 229, 0.14);
+    --blue-soft: #86b6ef;
+    --amber: #e2a336;
+    --amber-bg: rgba(226, 163, 54, 0.14);
+    --red: #e5534b;
+    --red-bg: rgba(229, 83, 75, 0.15);
+    --green: #3fb950;
+    --green-bg: rgba(63, 185, 80, 0.14);
+    --font: "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, sans-serif;
     --mono: ui-monospace, "Cascadia Mono", "SF Mono", Menlo, Consolas, monospace;
-    /* Workspace and log state: quiet when nothing needs doing, amber when something waits, red when it failed. */
-    --ok: #898781;
-    --warn: #f2c14e;
-    --bad: #f27a6b;
-    --good: #3987e5;
   }
   * { box-sizing: border-box; }
-  html, body { margin: 0; height: 100%; background: var(--field); color: var(--ink-1); overflow: hidden; }
-  body { font: 400 15px/1.5 var(--font); -webkit-font-smoothing: antialiased; }
-  button { font: inherit; color: inherit; }
-  :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink-1); font: 400 13.5px/1.5 var(--font); -webkit-font-smoothing: antialiased; }
+  a { color: var(--blue-soft); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  button { font: inherit; color: inherit; cursor: pointer; background: none; border: none; }
+  code, pre { font-family: var(--mono); }
 
-  #scene { position: fixed; inset: 0; width: 100%; height: 100%; display: block; outline: none; touch-action: none; cursor: grab; }
-  #scene:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
-  #scene.pointing { cursor: pointer; }
-  #scene.dragging { cursor: grabbing; }
+  .app { min-height: 100%; display: flex; flex-direction: column; }
+  .header {
+    display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px;
+    padding: 14px 20px; border-bottom: 1px solid var(--hair); background: var(--surface);
+    position: sticky; top: 0; z-index: 20;
+  }
+  .title-block { display: flex; flex-direction: column; gap: 2px; min-width: 220px; }
+  .title-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+  h1 { margin: 0; font-size: 18px; font-weight: 650; letter-spacing: -0.01em; }
+  .milestone { color: var(--ink-3); font-size: 12.5px; }
 
-  .hud { position: fixed; top: 20px; left: 24px; width: min(352px, calc(100vw - 48px)); pointer-events: none; z-index: 2; }
-  .hud > * { pointer-events: auto; position: relative; }
-  .hud::before {
-    /* A soft shade behind the text, so it stays readable when the scene passes under it. */
-    content: ""; position: absolute; inset: -40px -90px -40px -60px; pointer-events: none;
-    background: radial-gradient(closest-side, rgba(0, 0, 0, 0.84), rgba(0, 0, 0, 0.62) 60%, rgba(0, 0, 0, 0));
+  .pills { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+  .pill {
+    display: inline-flex; align-items: center; gap: 6px; padding: 3px 9px; border-radius: 999px;
+    border: 1px solid var(--hair); background: var(--surface-2); font-size: 12px; color: var(--ink-2);
   }
-  .hud h1 { font: 600 22px/1.2 var(--font-display); letter-spacing: -0.01em; margin: 0 0 2px; }
-  .hud .milestone { margin: 0 0 14px; color: var(--ink-2); font-size: 14px; }
-  .needs-you { margin: 0 0 14px; display: grid; gap: 6px; }
-  .needs-you[hidden] { display: none; }
-  .needs-item {
-    all: unset; box-sizing: border-box; cursor: pointer; display: block; width: 100%;
-    padding: 8px 11px; border-radius: 7px; border: 1px solid rgba(242, 193, 78, 0.45);
-    background: rgba(242, 193, 78, 0.09); color: var(--ink-1); font-size: 13px; line-height: 1.4;
-  }
-  .needs-item:hover { background: rgba(242, 193, 78, 0.16); border-color: rgba(242, 193, 78, 0.72); }
-  .needs-item:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
-  .needs-head { display: flex; align-items: center; gap: 7px; font-weight: 600; color: var(--warn); font-size: 12.5px; }
-  .needs-sub { color: var(--ink-2); margin-top: 2px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-  /* Several boards: one row per board, the one shown marked; a row opens that board's graph. */
-  .boards { list-style: none; margin: 0 0 14px; padding: 0; display: grid; gap: 3px; }
-  .boards[hidden] { display: none; }
-  .boards a { all: unset; cursor: pointer; display: flex; align-items: baseline; justify-content: space-between; gap: 8px;
-    padding: 4px 9px; border-left: 2px solid rgba(255, 255, 255, 0.16); border-radius: 0 5px 5px 0;
-    color: var(--ink-2); font-size: 13px; line-height: 1.35; }
-  .boards a:hover { background: rgba(255, 255, 255, 0.05); color: var(--ink-1); }
-  .boards a:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: 2px; }
-  .boards a[aria-current] { border-left-color: var(--good); background: rgba(57, 135, 229, 0.11); color: var(--ink-1); }
-  .boards a.needs-owner { border-left-color: var(--warn); }
-  .boards .name { font-weight: 600; white-space: nowrap; }
-  .boards .at { color: var(--ink-3); font-size: 12.5px; text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .boards a[aria-current] .at { color: var(--ink-2); }
-  .boards a.needs-owner .at { color: var(--warn); font-weight: 500; }
-  .positions { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
-  /* The tabs: one per track with cards. The board's is the whole graph; another track's is that track's own page. */
-  .tabs { display: flex; flex-wrap: wrap; gap: 4px; margin: 0 0 14px; }
-  .tabs[hidden] { display: none; }
-  .tabs a { all: unset; cursor: pointer; padding: 3px 10px; border-radius: 6px; border: 1px solid rgba(255, 255, 255, 0.12);
-            color: var(--ink-2); font-size: 12.5px; font-weight: 500; white-space: nowrap; }
-  .tabs a:hover { background: rgba(255, 255, 255, 0.06); color: var(--ink-1); }
-  .tabs a:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
-  .tabs a[aria-current] { background: rgba(255, 255, 255, 0.1); border-color: rgba(255, 255, 255, 0.34); color: var(--ink-1); }
-  .positions button {
-    all: unset; box-sizing: border-box; display: grid; grid-template-columns: 10px 1fr; column-gap: 10px;
-    cursor: pointer; border-radius: 6px; padding: 2px 6px 2px 0; width: 100%;
-  }
-  .positions button:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
-  .positions .swatch { width: 10px; height: 10px; border-radius: 2px; margin-top: 6px; }
-  .positions .track { color: var(--ink-3); font-size: 12px; line-height: 1.3; }
-  .positions .node { font-weight: 600; font-size: 15px; line-height: 1.35; }
-  .positions button:hover .node { text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--ink-3); }
-  .positions .detail { color: var(--ink-2); font-size: 12px; line-height: 1.4; }
-  .positions .launch-status { color: var(--warn); font-size: 12px; line-height: 1.4; overflow-wrap: anywhere; }
-  .stamp { margin: 14px 0 0; color: var(--ink-3); font-size: 12px; }
-  #live { margin-top: 4px; }
-  #live.off { color: #e0a040; }
+  .pill.auto { border-color: rgba(134, 182, 239, 0.4); color: var(--blue-soft); background: var(--blue-bg); }
+  .pill.tool { cursor: pointer; font-family: var(--mono); font-size: 11.5px; }
+  .pill.tool:hover { background: var(--surface-hover); border-color: var(--hair-strong); }
+  .pill.dirty { border-color: rgba(226, 163, 54, 0.45); color: var(--amber); background: var(--amber-bg); }
+  .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--ink-3); display: inline-block; }
+  .dot.live { background: var(--green); box-shadow: 0 0 6px var(--green); }
+  .dot.stale { background: var(--amber); }
 
-  /* A card's part of the graph's running notes, in its panel: the notes file's own words, as they stand now. */
-  .notes-text { margin-top: 6px; padding: 8px 10px; white-space: pre-wrap; overflow-wrap: anywhere;
-    color: var(--ink-1); font-size: 13.5px; line-height: 1.5; background: rgba(255, 255, 255, 0.04); border-left: 2px solid var(--ink-3); border-radius: 2px; }
-  .notes-text.empty { color: var(--ink-3); }
+  .actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+  .btn {
+    padding: 6px 11px; border: 1px solid var(--hair); border-radius: 6px;
+    background: var(--surface-2); color: var(--ink-2); font-size: 12.5px; font-weight: 500;
+  }
+  .btn:hover { background: var(--surface-hover); color: var(--ink-1); border-color: var(--hair-strong); }
+  .btn.active { border-color: var(--blue); color: var(--ink-1); background: var(--blue-bg); }
+  select.board-select {
+    background: var(--surface-2); color: var(--ink-1); border: 1px solid var(--hair);
+    border-radius: 6px; padding: 5px 8px; font: inherit; font-size: 12.5px;
+  }
 
-  /* The log: what ran and what was recorded, newest first. */
-  .log { margin: 22px 0 0; }
-  .log-head { display: flex; align-items: baseline; gap: 12px; margin: 0 0 4px; }
-  .log-head h2 { font: 600 13px/1.3 var(--font); color: var(--ink-2); margin: 0; }
-  .log-head .link { font-size: 12px; font-weight: 500; color: var(--ink-2); }
-  .log-rows { list-style: none; margin: 0; padding: 0; display: grid; gap: 1px; }
-  .row {
-    all: unset; box-sizing: border-box; display: grid; grid-template-columns: 40px 9px minmax(0, 1fr); column-gap: 8px;
-    width: 100%; padding: 4px 6px 4px 0; border-radius: 6px; cursor: pointer;
+  .status-strip {
+    display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px;
+    padding: 9px 20px; border-bottom: 1px solid var(--hair); background: #0c0e13; font-size: 12.5px; color: var(--ink-2);
   }
-  .row:hover .row-title { text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--ink-3); }
-  .row:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
-  .row-time { color: var(--ink-3); font-size: 12px; line-height: 1.35; font-variant-numeric: tabular-nums; }
-  .row-time span { display: block; color: #6b6a65; }
-  .row .dot { margin-top: 6px; }
-  .row-title, .row-sub { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .row-title { font-size: 13.5px; line-height: 1.35; font-weight: 500; }
-  .row-sub { font-size: 12px; line-height: 1.35; color: var(--ink-3); }
-  .panel .row-title, .panel .row-sub { white-space: normal; }
-  .panel .log-rows { margin-top: 10px; gap: 4px; }
-  .empty { color: var(--ink-3); font-size: 13px; margin: 0; }
+  .legend { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; color: var(--ink-3); font-size: 12px; }
+  .legend span { display: inline-flex; align-items: center; gap: 5px; }
+  .swatch { width: 10px; height: 10px; border-radius: 3px; display: inline-block; border: 1px solid transparent; }
 
-  .dot { width: 7px; height: 7px; border-radius: 50%; flex: none; display: inline-block; box-shadow: inset 0 0 0 1.5px var(--ok); }
-  .dot.good { background: var(--good); box-shadow: none; }
-  .dot.warn { background: var(--warn); box-shadow: none; }
-  .dot.bad { background: var(--bad); box-shadow: none; }
+  .main { flex: 1; padding: 18px 20px 40px; display: flex; flex-direction: column; gap: 22px; }
+  .board-scroll { overflow-x: auto; padding-bottom: 6px; }
+  .stages { display: flex; align-items: flex-start; gap: 12px; min-width: max-content; }
+  .stage-col {
+    width: 224px; flex: 0 0 224px; background: var(--surface); border: 1px solid var(--hair);
+    border-radius: 10px; padding: 10px; display: flex; flex-direction: column; gap: 8px;
+  }
+  .stage-col.current { border-color: rgba(134, 182, 239, 0.45); }
+  .stage-head {
+    display: flex; align-items: center; justify-content: space-between; gap: 6px;
+    padding-bottom: 6px; border-bottom: 1px solid var(--hair); font-size: 12px; font-weight: 600; color: var(--ink-2);
+  }
+  .stage-count { font-family: var(--mono); font-size: 11px; color: var(--ink-3); }
 
-  /* The workspace strip: git beside the graph, as information. */
-  .strip {
-    position: fixed; left: 0; right: 0; bottom: 0; height: var(--strip-h); display: flex; align-items: stretch;
-    background: rgba(8, 8, 8, 0.97); border-top: 1px solid var(--hair); font-size: 12.5px;
-    overflow-x: auto; overflow-y: hidden; scrollbar-width: none; transition: right 220ms ease;
+  .card {
+    text-align: left; width: 100%; border-radius: 8px; padding: 9px 10px;
+    border: 1px solid var(--hair); background: var(--surface-2);
+    display: flex; flex-direction: column; gap: 5px; transition: border-color .12s, background .12s;
   }
-  .strip::-webkit-scrollbar { display: none; }
-  /* More chips past the right edge: the strip fades there and scrolls sideways. */
-  .strip.more { -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 56px), transparent);
-    mask-image: linear-gradient(to right, #000 calc(100% - 56px), transparent); }
-  body.panel-open .strip { right: var(--panel-w); }
-  .strip-title { display: flex; align-items: center; padding: 0 14px 0 24px; color: var(--ink-3); white-space: nowrap; flex: none; }
-  .chip {
-    all: unset; box-sizing: border-box; display: inline-flex; align-items: center; gap: 7px; padding: 0 14px; flex: none;
-    border-left: 1px solid var(--hair); white-space: nowrap; cursor: pointer; color: var(--ink-2);
-  }
-  .chip:hover { background: var(--control-hover); color: var(--ink-1); }
-  .chip:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
-  .chip .k { color: var(--ink-3); }
-  .chip b { font-weight: 600; color: var(--ink-1); }
-  .strip-title .asof { margin-left: 6px; }
+  .card:hover { background: var(--surface-hover); border-color: var(--hair-strong); }
+  .card.selected { outline: 2px solid var(--blue-soft); outline-offset: 1px; }
+  .card.passed { border-color: rgba(57, 135, 229, 0.55); background: rgba(28, 92, 171, 0.16); }
+  .card.current { border-color: rgba(134, 182, 239, 0.85); background: rgba(134, 182, 239, 0.13); }
+  .card.blocked-owner { border-color: rgba(226, 163, 54, 0.8); background: var(--amber-bg); }
+  .card.blocked-lead { border-color: rgba(229, 83, 75, 0.85); background: var(--red-bg); }
+  .card.ahead { opacity: 0.78; }
+  .card.returned-before { border-style: dashed; }
 
-  /* Watching a change: a new log row slides in at the top; a changed row, strip cell or position flashes once.
-     The flashes only change colour, so they play under reduced motion too; the slide does not (rowItem). */
-  @keyframes row-in {
-    from { opacity: 0; transform: translateY(-10px); max-height: 0; }
-    to { opacity: 1; transform: none; max-height: 80px; }
+  .card-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 6px; }
+  .card-title { font-weight: 600; font-size: 13px; color: var(--ink-1); line-height: 1.3; }
+  .badge {
+    flex: none; padding: 1px 6px; border-radius: 4px; font-size: 10.5px; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.03em; border: 1px solid var(--hair); color: var(--ink-3);
   }
-  @keyframes lit { from { background-color: rgba(134, 182, 239, 0.34); } to { background-color: rgba(134, 182, 239, 0); } }
-  .log-rows li.enter { animation: row-in 600ms cubic-bezier(0.2, 0.7, 0.2, 1) backwards; overflow: hidden; }
-  .log-rows li.enter .row, .log-rows li.changed .row { animation: lit 1600ms ease-out; }
-  .chip.flash { animation: lit 1400ms ease-out; }
-  .positions li.flash .node { animation: lit 1400ms ease-out; border-radius: 4px; }
-  .mono { font-family: var(--mono); font-size: 0.92em; }
+  .badge.passed { color: var(--blue-soft); border-color: rgba(57, 135, 229, 0.5); }
+  .badge.working { color: #9ecaff; border-color: rgba(134, 182, 239, 0.6); }
+  .badge.owner { color: var(--amber); border-color: rgba(226, 163, 54, 0.55); }
+  .badge.lead { color: var(--red); border-color: rgba(229, 83, 75, 0.55); }
+  .badge.ready { color: var(--green); border-color: rgba(63, 185, 80, 0.5); }
+  .card-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 11px; color: var(--ink-3); font-family: var(--mono); }
+  .card-note { font-size: 11.5px; color: var(--ink-2); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; line-height: 1.35; }
 
-  .facts { display: grid; grid-template-columns: 112px minmax(0, 1fr); gap: 6px 12px; margin: 4px 0 0; font-size: 14px; }
-  .facts dt { color: var(--ink-3); }
-  .facts dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
-  .said {
-    font: 12px/1.5 var(--mono); color: var(--ink-2); background: rgba(255, 255, 255, 0.03); border: 1px solid var(--hair);
-    border-radius: 6px; padding: 10px 12px; white-space: pre-wrap; overflow-wrap: anywhere; margin: 6px 0 0; max-height: 360px; overflow: auto;
-  }
-  .bullets { margin: 4px 0 0; padding-left: 18px; color: var(--ink-2); font-size: 14px; display: grid; gap: 4px; }
-  .block { border-top: 1px solid var(--hair); padding: 10px 0 2px; margin-top: 10px; }
-  .block:first-of-type { border-top: 0; margin-top: 0; padding-top: 2px; }
-  .back { display: inline-block; margin: 0 0 12px; font-weight: 500; }
-  a.link { all: unset; cursor: pointer; color: var(--ink-1); font-weight: 600; text-decoration: underline;
-    text-decoration-color: rgba(240, 239, 236, 0.35); text-underline-offset: 3px; overflow-wrap: anywhere; }
-  a.link:hover { text-decoration-color: var(--ink-1); }
-  a.link:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: 2px; }
+  .side-tracks { display: flex; flex-direction: column; gap: 12px; }
+  .track-box { background: var(--surface); border: 1px solid var(--hair); border-radius: 10px; padding: 12px; }
+  .track-box h2 { margin: 0 0 10px; font-size: 13px; color: var(--ink-2); font-weight: 600; }
+  .wrap-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; }
 
-  .toolbar { position: fixed; top: 20px; right: 24px; display: flex; gap: 8px; transition: right 220ms ease; z-index: 3; }
-  body.panel-open .toolbar { right: calc(var(--panel-w) + 16px); }
-  .tool {
-    font: 500 13px/1 var(--font); color: var(--ink-1); background: var(--control);
-    border: 1px solid var(--hair); border-radius: 6px; padding: 9px 13px; cursor: pointer;
+  .popover {
+    position: fixed; top: 56px; right: 20px; width: min(460px, calc(100vw - 40px));
+    background: var(--surface); border: 1px solid var(--hair-strong); border-radius: 10px;
+    padding: 14px; box-shadow: 0 18px 48px rgba(0, 0, 0, 0.6); z-index: 40; display: none;
   }
-  .tool:hover { background: var(--control-hover); }
-  .tool[aria-pressed="true"] { border-color: rgba(134, 182, 239, 0.6); }
+  .popover.open { display: block; }
+  .popover h3 { margin: 0 0 8px; font-size: 14px; }
+  .commit-list { list-style: none; padding: 0; margin: 8px 0 0; display: flex; flex-direction: column; gap: 6px; font-size: 12px; }
+  .commit-list li { display: flex; gap: 8px; color: var(--ink-2); }
+  .commit-list code { color: var(--blue-soft); flex: none; }
 
-  .legend {
-    position: fixed; left: 24px; bottom: calc(var(--strip-h) + 12px); right: 24px; display: flex; flex-wrap: wrap; align-items: center;
-    gap: 6px 18px; color: var(--ink-2); font-size: 12px; pointer-events: none;
+  .drawer-backdrop {
+    position: fixed; inset: 0; background: rgba(0, 0, 0, 0.45); z-index: 30; display: none;
   }
-  body.panel-open .legend { right: calc(var(--panel-w) + 16px); }
-  .legend span { display: inline-flex; align-items: center; gap: 7px; white-space: nowrap; }
-  .legend svg { flex: none; }
-  .legend .hint { color: var(--ink-3); margin-left: auto; }
-
-  .panel {
-    position: fixed; top: 0; right: 0; bottom: 0; width: var(--panel-w); background: #0b0b0b;
-    border-left: 1px solid var(--hair); transform: translateX(100%); transition: transform 220ms ease;
-    overflow-y: auto; padding: 22px 28px 40px; visibility: hidden; z-index: 5;
+  .drawer-backdrop.open { display: block; }
+  .drawer {
+    position: fixed; top: 0; right: 0; bottom: 0; width: min(560px, 100vw);
+    background: var(--surface); border-left: 1px solid var(--hair-strong); z-index: 35;
+    display: flex; flex-direction: column; transform: translateX(100%); transition: transform .15s ease-out;
   }
-  .panel.open { transform: none; visibility: visible; }
-  .panel-close { float: right; margin: -2px -6px 0 12px; }
-  .panel .where { color: var(--ink-3); font-size: 13px; margin: 2px 0 6px; }
-  .panel h2 { font: 600 28px/1.15 var(--font-display); letter-spacing: -0.015em; margin: 0 0 12px; clear: none; }
-  .panel h3 { font: 600 13px/1.3 var(--font); color: var(--ink-2); margin: 20px 0 7px; }
-  .panel p { margin: 0 0 8px; max-width: 62ch; }
-  .panel .quiet { color: var(--ink-2); font-size: 13.5px; }
-  .state-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0 0 8px; }
-  .state { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: var(--ink-1);
-    border: 1px solid var(--hair); border-radius: 999px; padding: 3px 11px 3px 8px; }
-  .state i { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
-  .who-pill { font-size: 12.5px; color: var(--ink-3); padding: 2px 9px; border-radius: 999px; background: rgba(255, 255, 255, 0.04); }
-  .who-pill.you { color: var(--warn); background: rgba(242, 193, 78, 0.11); font-weight: 600; }
-  .callout { margin: 12px 0 4px; padding: 11px 13px; border-radius: 8px; border: 1px solid var(--hair); background: rgba(255, 255, 255, 0.03); }
-  .callout.owner { border-color: rgba(242, 193, 78, 0.45); background: rgba(242, 193, 78, 0.08); }
-  .callout.work { border-color: rgba(57, 135, 229, 0.45); background: rgba(57, 135, 229, 0.09); }
-  .callout-head { font-weight: 600; font-size: 13.5px; margin: 0 0 4px; color: var(--ink-1); }
-  .callout.owner .callout-head { color: var(--warn); }
-  .artifact-primary {
-    display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; margin: 12px 0 8px;
-    padding: 11px 14px; border-radius: 8px; border: 1px solid rgba(134, 182, 239, 0.42);
-    background: rgba(57, 135, 229, 0.15); color: var(--ink-1); text-decoration: none; font-weight: 600; font-size: 14px;
+  .drawer.open { transform: translateX(0); }
+  .drawer-head {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    padding: 14px 18px; border-bottom: 1px solid var(--hair);
   }
-  .artifact-primary:hover { background: rgba(57, 135, 229, 0.25); border-color: rgba(134, 182, 239, 0.72); }
-  .artifact-primary .kind { font-weight: 500; font-size: 12px; color: var(--ink-2); white-space: nowrap; }
-  .artifact-list { list-style: none; margin: 6px 0 0; padding: 0; border: 1px solid var(--hair); border-radius: 8px; overflow: hidden; }
-  .artifact-list li + li { border-top: 1px solid var(--hair); }
-  .artifact-row {
-    display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 10px;
-    padding: 9px 12px; color: var(--ink-1); text-decoration: none; background: rgba(255, 255, 255, 0.025); font-size: 13.5px;
+  .drawer-head h2 { margin: 0; font-size: 16px; }
+  .drawer-body { flex: 1; overflow-y: auto; padding: 16px 18px 28px; display: flex; flex-direction: column; gap: 14px; }
+  .sec h4 { margin: 0 0 6px; font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--ink-3); }
+  .kv { display: grid; grid-template-columns: 110px 1fr; gap: 4px 10px; font-size: 12.5px; }
+  .kv .k { color: var(--ink-3); }
+  .note-box {
+    margin: 0; padding: 10px 12px; border-radius: 6px; border: 1px solid var(--hair);
+    background: #0c0e13; color: var(--ink-1); font-size: 12px; white-space: pre-wrap; word-break: break-word; line-height: 1.45;
   }
-  a.artifact-row:hover { background: rgba(255, 255, 255, 0.07); }
-  .artifact-row.missing { color: var(--ink-3); background: transparent; }
-  .artifact-main { min-width: 0; }
-  .artifact-title { font-weight: 500; overflow-wrap: anywhere; }
-  .artifact-path { font: 11.5px/1.35 var(--mono); color: var(--ink-3); overflow-wrap: anywhere; }
-  .artifact-meta { font-size: 12px; color: var(--ink-2); white-space: nowrap; }
-  .artifact-row.missing .artifact-meta { color: var(--ink-3); }
-  .mini-table-wrap { margin: 8px 0 0; border: 1px solid var(--hair); border-radius: 8px; overflow-x: auto; max-height: 280px; overflow-y: auto; }
-  .mini-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
-  .mini-table th, .mini-table td { padding: 6px 9px; text-align: left; border-bottom: 1px solid rgba(255, 255, 255, 0.07); vertical-align: top; }
-  .mini-table th { position: sticky; top: 0; background: #141413; color: var(--ink-2); font-weight: 600; white-space: nowrap; }
-  .mini-table tr:last-child td { border-bottom: 0; }
-  .outcomes { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
-  .outcomes li { display: grid; grid-template-columns: 76px 1fr; gap: 10px; font-size: 14px; }
-  .outcomes .key { color: var(--ink-3); }
-  .link {
-    all: unset; cursor: pointer; color: var(--ink-1); font-weight: 600;
-    text-decoration: underline; text-decoration-color: rgba(240, 239, 236, 0.35); text-underline-offset: 3px;
-  }
-  .link:hover { text-decoration-color: var(--ink-1); }
-  .link:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: 2px; }
-  .note { border-left: 2px solid var(--hair); padding: 2px 0 2px 12px; color: var(--ink-2); font-size: 14px; margin: 6px 0 0; }
-  details { border-top: 1px solid var(--hair); padding: 9px 0; font-size: 14px; }
-  details:last-child { border-bottom: 1px solid var(--hair); }
-  details.machine-details { margin-top: 22px; }
-  details.machine-details > summary { color: var(--ink-3); font-weight: 500; font-size: 13px; }
-  details.machine-details[open] > summary { color: var(--ink-2); margin-bottom: 8px; }
-  summary { cursor: pointer; font-weight: 600; }
-  details p { color: var(--ink-2); margin: 6px 0 0; font-size: 13px; }
-  .filter-bar { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 8px 0 10px; }
-
-  .list-track { margin: 18px 0 4px; font: 600 15px/1.3 var(--font); }
-  .list-stage { margin: 12px 0 4px; color: var(--ink-3); font-size: 13px; }
-  .list { list-style: none; margin: 0; padding: 0; }
-  .list li { display: flex; justify-content: space-between; gap: 12px; padding: 4px 0; border-bottom: 1px solid rgba(255,255,255,0.06); font-size: 14px; }
-  .list .word { color: var(--ink-3); font-size: 13px; white-space: nowrap; }
-
-  .message { position: fixed; inset: 0; display: grid; place-items: center; padding: 24px; text-align: center; color: var(--ink-2); }
-  .message[hidden] { display: none; }
-  .message strong { display: block; color: var(--ink-1); font: 600 18px/1.3 var(--font-display); margin-bottom: 6px; }
-
-  /* The log under the positions gives way first when the window is short: fitLog() leaves out the rows that would
-     reach the legend. */
-  .hud .log[hidden], .hud .log-rows li[hidden] { display: none; }
-  @media (max-width: 720px) {
-    .hud { top: 12px; left: 16px; }
-    .hud h1 { font-size: 18px; }
-    .hud .milestone { margin-bottom: 10px; }
-    .positions .detail, .stamp, .hud .log { display: none; }
-    .toolbar { top: auto; bottom: calc(var(--strip-h) + 12px); right: 16px; left: 16px; justify-content: flex-end; flex-wrap: wrap; }
-    body.panel-open .toolbar { right: 16px; }
-    body.panel-open .strip { right: 0; }
-    .strip-title { padding-left: 16px; }
-    .legend { display: none; }
-    .panel { padding: 18px 18px 32px; }
-    .facts { grid-template-columns: 96px minmax(0, 1fr); }
-  }
-  @media (prefers-reduced-motion: reduce) {
-    .panel, .toolbar, .strip { transition: none; }
-  }
+  .list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 5px; font-size: 12.5px; }
+  .list li { padding: 5px 8px; border-radius: 5px; background: var(--surface-2); border: 1px solid var(--hair); word-break: break-word; }
+  .thumb { max-width: 100%; border-radius: 6px; border: 1px solid var(--hair); margin-top: 6px; display: block; }
+  .error-banner { margin: 16px 20px; padding: 12px 14px; border-radius: 8px; border: 1px solid var(--red); background: var(--red-bg); color: var(--ink-1); }
 </style>
 </head>
 <body>
-<canvas id="scene" tabindex="0" aria-label="The graph in 3D. Use the track positions at the top left or All nodes for a list."></canvas>
+<div class="app">
+  <header class="header">
+    <div class="title-block">
+      <div class="title-row">
+        <h1 id="proj-title">Graph</h1>
+        <span id="autonomy-pill" class="pill auto" style="display:none"></span>
+        <button id="tool-pill" class="pill tool" style="display:none" title="Click to view tool commits ahead of main"></button>
+      </div>
+      <div class="milestone" id="milestone">Loading...</div>
+    </div>
+    <div class="actions">
+      <div id="tabs" style="display:flex;gap:6px"></div>
+      <select id="board-select" class="board-select" style="display:none" aria-label="Select board"></select>
+      <span class="pill" id="live-pill"><span id="live-dot" class="dot"></span><span id="live-text">Connecting</span></span>
+      <button class="btn" id="btn-log">Activity Log</button>
+      <button class="btn" id="btn-notes" style="display:none">Notes</button>
+      <a class="btn" id="btn-files" href="/files/" target="_blank" rel="noopener">Files</a>
+    </div>
+  </header>
 
-<header class="hud">
-  <h1 id="title">Graph</h1>
-  <p class="milestone" id="milestone"></p>
-  <nav class="tabs" id="tabs" aria-label="Tracks" hidden></nav>
-  <div class="needs-you" id="needs-you" aria-label="Needs your input" hidden></div>
-  <ul class="boards" id="boards" aria-label="Graphs" hidden></ul>
-  <ul class="positions" id="positions"></ul>
-  <p class="stamp" id="stamp"></p>
-  <p class="stamp" id="live" hidden></p>
-  <section class="log" id="log" aria-label="Recent updates">
-    <div class="log-head"><h2>Recent updates</h2><button class="link" id="log-all" type="button">All</button></div>
-    <ol class="log-rows" id="log-rows"></ol>
-  </section>
-</header>
+  <div class="status-strip">
+    <div id="position-line">Loading track position...</div>
+    <div class="legend">
+      <span><i class="swatch" style="background:rgba(28,92,171,0.45);border-color:#3987e5"></i>Passed</span>
+      <span><i class="swatch" style="background:rgba(134,182,239,0.28);border-color:#86b6ef"></i>Current / Working</span>
+      <span><i class="swatch" style="background:var(--amber-bg);border-color:var(--amber)"></i>Needs you</span>
+      <span><i class="swatch" style="background:var(--red-bg);border-color:var(--red)"></i>Needs lead</span>
+      <span><i class="swatch" style="background:var(--surface-2);border-color:var(--hair)"></i>Ahead</span>
+    </div>
+  </div>
 
-<nav class="toolbar" aria-label="View">
-  <button class="tool" id="reset" type="button">Reset view</button>
-  <button class="tool" id="list" type="button" aria-pressed="false">All nodes</button>
-  <button class="tool" id="log-open" type="button" aria-pressed="false">Log</button>
-  <button class="tool" id="private" type="button" aria-pressed="false" title="Draw the page from a copy of the snapshot with the private details taken out: machine and account names, local paths, commit hashes, links and the workspace block. Nothing is covered; they are not in the page while this is on.">Hide private</button>
-  <button class="tool" id="save" type="button">Save PNG</button>
-</nav>
+  <div id="error-box"></div>
 
-<footer class="legend" id="legend" aria-hidden="true">
-  <span><svg width="22" height="12"><rect x="1" y="1" width="20" height="10" rx="3" fill="#1c5cab" stroke="#3987e5"/></svg>Passed</span>
-  <span><svg width="22" height="12"><rect x="1" y="1" width="20" height="10" rx="3" fill="#86b6ef" stroke="#cde2fb"/></svg>On it</span>
-  <span><svg width="28" height="12"><line x1="1" y1="6" x2="27" y2="6" stroke="#3987e5" stroke-width="2"/><circle cx="14" cy="6" r="3.6" fill="#cde2fb"/></svg>Between cards</span>
-  <span><svg width="22" height="12"><rect x="1" y="1" width="20" height="10" rx="3" fill="#0b0b0b" stroke="#2a4f7f"/></svg>Ahead</span>
-  <span><svg width="26" height="16"><rect x="3" y="3" width="20" height="10" rx="3" fill="#0b0b0b" stroke="#2a4f7f"/><rect x="1" y="1" width="24" height="14" rx="5" fill="none" stroke="#cde2fb" stroke-width="1.5"/></svg>Next</span>
-  <span><svg width="28" height="10"><line x1="1" y1="5" x2="27" y2="5" stroke="#3987e5" stroke-width="2"/></svg>Pass</span>
-  <span><svg width="28" height="10"><g fill="#86b6ef"><circle cx="3" cy="5" r="1.6"/><circle cx="10" cy="5" r="1.6"/><circle cx="17" cy="5" r="1.6"/><circle cx="24" cy="5" r="1.6"/></g></svg>Returned</span>
-  <span><svg width="28" height="10"><path d="M1 8 Q14 -2 27 8" fill="none" stroke="#d95926" stroke-width="1.2"/></svg>Requires</span>
-  <span id="legend-stay"></span>
-  <span class="hint">Drag to pan, scroll to zoom. Click a card, update or status chip for details.</span>
-</footer>
+  <main class="main">
+    <div class="board-scroll">
+      <div class="stages" id="stages"></div>
+    </div>
+    <div class="side-tracks" id="side-tracks"></div>
+  </main>
+</div>
 
-<footer class="strip" id="strip" aria-label="Workspace"></footer>
+<div class="popover" id="tool-popover">
+  <div style="display:flex;justify-content:space-between;align-items:center">
+    <h3 id="tool-pop-title">board-graph tool</h3>
+    <button class="btn" id="tool-pop-close">Close</button>
+  </div>
+  <div id="tool-pop-body" style="font-size:12.5px;color:var(--ink-2)"></div>
+</div>
 
-<aside class="panel" id="panel" aria-label="Node details" aria-hidden="true">
-  <button class="tool panel-close" id="close" type="button">Close</button>
-  <div id="panel-body"></div>
+<div class="drawer-backdrop" id="backdrop"></div>
+<aside class="drawer" id="drawer" aria-hidden="true">
+  <div class="drawer-head">
+    <h2 id="drawer-title">Details</h2>
+    <button class="btn" id="drawer-close">Close</button>
+  </div>
+  <div class="drawer-body" id="drawer-body"></div>
 </aside>
 
-<div class="message" id="message" hidden></div>
-
-
-<script type="module">
-import * as THREE from 'https://cdnjs.cloudflare.com/ajax/libs/three.js/0.170.0/three.module.min.js';
-
-// ---------------------------------------------------------------- palette and type
-// Track identity: the dataviz skill's categorical slots 1 to 3, dark steps (validated all-pairs on black).
-// State is light: one hue per track, stepped from dim (ahead) to lit (passed) to bright (here now).
-// The board's steps are its documented blue ramp (650, 550, 400, 250, 100); the side tracks mix their
-// slot hue toward black or white in the same proportions. The board is blue; the other tracks in order take the
-// slots in the graph's order (setHues), and a list (a track out of order) is grey.
-const SLOTS = ['#d95926', '#199e70', '#b8891f'], LIST_HUE = '#898781';
-const HUE = { board: '#3987e5' }, LISTS = new Set();
-// A page per track: ?track=<id> names a track with cards, and the page shows that track alone, its cards the main
-// path in rows of ROW. MAIN is the track the page shows that way: the board's unless ?track names another.
-const TRACK = new URLSearchParams(location.search).get('track'), ROW = 4;
-let MAIN = 'board';
-// The track whose cards are grouped in stages and drawn as terraces: the board's, else the track of the first card
-// that names a stage. With neither it stays 'board', a track the graph does not have.
-let STAGED = 'board';
-const trackHead = t => t.label.split(' (')[0];
-// A track's page, as a link: the board's has no ?track; ?board (which board, with several) is kept.
-function trackHref(id) {
-  const q = new URLSearchParams(location.search);
-  if (id === STAGED) q.delete('track'); else q.set('track', id);
-  const text = q.toString();
-  return location.pathname + (text ? '?' + text : '');
-}
-// The graph a track's page draws: that track alone, its cards in rows of ROW standing where the board's stages
-// stand. What a card requires or returns to on another track is not drawn; `elsewhere` keeps what it requires
-// there, for the card's panel.
-function trackGraph(g, id) {
-  const own = g.nodes.filter(n => n.track === id), ids = new Set(own.map(n => n.id));
-  const stages = [];
-  for (let i = 0; i < own.length; i += ROW) {
-    const last = Math.min(i + ROW, own.length);
-    stages.push({ id: `row-${i / ROW + 1}`, row: true, label: last - i > 1 ? `Cards ${i + 1} to ${last}` : `Card ${last}` });
-  }
-  const nodes = own.map((n, i) => ({ ...n, stage: stages[Math.floor(i / ROW)].id,
-    requires: (n.requires || []).filter(r => ids.has(r)), elsewhere: (n.requires || []).filter(r => !ids.has(r)),
-    outcomes: { ...n.outcomes, returned: n.outcomes.returned.filter(r => ids.has(r)) } }));
-  return { ...g, tracks: g.tracks.filter(t => t.id === id), stages, nodes };
-}
-function setHues(tracks) {
-  for (const id of Object.keys(HUE)) if (id !== 'board') delete HUE[id];
-  LISTS.clear();
-  let slot = 0;
-  if (STAGED !== 'board') HUE[STAGED] = HUE.board;
-  for (const t of tracks) {
-    if (t.id === STAGED) continue;
-    if (t.ordered) HUE[t.id] = SLOTS[slot++ % SLOTS.length];
-    else { HUE[t.id] = LIST_HUE; LISTS.add(t.id); }
-  }
-}
-const INK = { primary: '#f0efec', secondary: '#c3c2b7', muted: '#898781', faint: '#6b6a65', dark: '#0b0b0b' };
-const FONT = getComputedStyle(document.documentElement).getPropertyValue('--font').trim();
-const FONT_DISPLAY = getComputedStyle(document.documentElement).getPropertyValue('--font-display').trim();
-const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
-
-function mixHex(a, b, t) {
-  const pa = parseInt(a.slice(1), 16), pb = parseInt(b.slice(1), 16);
-  return '#' + [16, 8, 0].map(s => {
-    const x = (pa >> s) & 255, y = (pb >> s) & 255;
-    return Math.round(x + (y - x) * t).toString(16).padStart(2, '0');
-  }).join('');
-}
-function steps(track) {
-  if (track === STAGED) {
-    return { dim: '#2a4f7f', lit: '#1c5cab', glow: '#3987e5', bright: '#86b6ef', next: '#cde2fb', floor: '#06101c', floorLit: '#091a2e' };
-  }
-  if (LISTS.has(track) || !HUE[track]) {
-    return { dim: '#3a3a37', lit: '#52514e', glow: '#898781', bright: '#c3c2b7', next: '#e1e0d9', floor: '#0a0a0a', floorLit: '#0d0d0d' };
-  }
-  const h = HUE[track];
-  return { dim: mixHex(h, '#000000', 0.42), lit: mixHex(h, '#000000', 0.32), glow: h, bright: mixHex(h, '#ffffff', 0.42),
-           next: mixHex(h, '#ffffff', 0.72), floor: mixHex(h, '#000000', 0.93), floorLit: mixHex(h, '#000000', 0.88) };
-}
-
-// ---------------------------------------------------------------- geometry constants
-const V = (x, y, z) => new THREE.Vector3(x, y, z);
-const LEAN = THREE.MathUtils.degToRad(50);          // cards lean back from upright, like a music stand
-const UP = V(0, Math.cos(LEAN), -Math.sin(LEAN));    // a card's own up, in the world
-const NORMAL = V(0, Math.sin(LEAN), Math.cos(LEAN)); // the way a card faces
-const CARD = { w: 3.4, h: 1.5 };
-const LANE = { depth: 3.6, rise: 1.15 };             // lanes climb in terraces: stage 1 nearest, stage 7 highest
-const COL = 4.75, X0 = -5.6, SIDE_X = 15.4;          // the gap between cards is long enough to see light flow in it
-const STAGE_LABEL_W = 7.4;
-const LANE_LEFT = X0 - CARD.w / 2 - 0.45 - STAGE_LABEL_W - 0.35, LANE_RIGHT = X0 + 3 * COL + CARD.w / 2 + 1.0;
-const TEX = { w: 1024, h: Math.round(1024 * CARD.h / CARD.w) };
-
-const laneBase = i => V(0, i * LANE.rise, -i * LANE.depth);
-
-// Where each track but the board's sits, read from the graph alone. A track in order sits beside the stage its
-// label names in its parenthesis (the last one named: "beside Layout and Package" sits by Package), else beside the
-// earliest stage with a board card that requires one of its cards or returns work to one, else beside the first
-// stage no other track holds. A list (a track out of order) sits apart, below the second stage. Tracks on one row
-// sit one after another, in the graph's order. A track with no cards gets no row.
-function sideLanes(g) {
-  const words = text => (text || '').toLowerCase().match(/[a-z0-9]+/g) || [];
-  const stageKeys = g.stages.map(s => new Set([s.id.toLowerCase(), words(s.label)[0]].filter(Boolean)));
-  const trackOf = new Map(g.nodes.map(n => [n.id, n.track]));
-  const named = t => {
-    const cut = t.label.indexOf('(');
-    let found = -1;
-    if (cut >= 0) for (const w of words(t.label.slice(cut))) {
-      const i = stageKeys.findIndex(keys => keys.has(w));
-      if (i >= 0) found = i;
+<script>
+(() => {
+  const PATH_MASKS = [
+    [/[A-Za-z]:\\[^\s"'<>]+/g, '[path hidden]'],
+    [/\/(?:Users|home)\/[^\s"'<>]+/g, '[path hidden]'],
+  ];
+  function cleanText(raw) {
+    let text = String(raw ?? '');
+    for (const [re, rep] of PATH_MASKS) text = text.replace(re, rep);
+    const priv = (currentView && Array.isArray(currentView.private_names)) ? currentView.private_names : [];
+    for (const name of priv) {
+      if (name && name.length > 1) text = text.split(name).join('[redacted]');
     }
-    return found;
-  };
-  const linked = t => {
-    const stages = g.nodes.filter(n => n.track === MAIN && [...(n.requires || []), ...(n.outcomes?.returned || [])]
-      .some(id => trackOf.get(id) === t.id)).map(n => g.stages.findIndex(s => s.id === n.stage)).filter(i => i >= 0);
-    return stages.length ? Math.min(...stages) : -1;
-  };
-  const rows = new Map(), lanes = [], held = new Set();
-  const tracks = g.tracks.filter(t => t.id !== MAIN && g.nodes.some(n => n.track === t.id));
-  const chosen = new Map();
-  for (const t of tracks.filter(t => t.ordered)) {
-    const i = [named(t), linked(t)].find(x => x >= 0);
-    if (i !== undefined) { chosen.set(t.id, i); held.add(i); }
+    return text;
   }
-  for (const t of tracks.filter(t => t.ordered && !chosen.has(t.id))) {
-    let i = g.stages.findIndex((s, k) => !held.has(k));
-    if (i < 0) i = 0;
-    chosen.set(t.id, i); held.add(i);
-  }
-  for (const t of tracks) {
-    const list = !t.ordered;
-    const key = list ? 'list' : chosen.get(t.id);
-    const pitch = list ? 3.75 : COL, scale = list ? 0.8 : 1, tail = list ? 0.7 : 2.2;
-    const ids = g.nodes.filter(n => n.track === t.id).map(n => n.id);
-    // The row's next free x: right of the last track on it, with the same gap a row leaves before the board.
-    const x = rows.has(key) ? rows.get(key) : list ? SIDE_X - 0.5 : SIDE_X;
-    const lane = list ? laneBase(Math.min(1, g.stages.length - 1)).add(V(0, -0.7, 0.2)) : laneBase(key);
-    lanes.push({ track: t.id, ids, lane, x, pitch, scale, tail, list });
-    rows.set(key, x + (ids.length - 1) * pitch + CARD.w * scale + tail + 0.7 + 1.6);
-  }
-  return lanes;
-}
+  const esc = (s) => cleanText(s).replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const params = new URLSearchParams(location.search);
+  let activeBoard = params.get('board') || null;
+  let activeTrack = params.get('track') || null;
+  let currentView = null;
+  let selectedCard = null;
+  let drawerMode = null; // 'card' | 'log' | 'notes'
+  let pageStamp = null;
 
-// ---------------------------------------------------------------- canvas textures
-let maxAniso = 1;
-function texture(canvas) {
-  const t = new THREE.CanvasTexture(canvas);
-  t.colorSpace = THREE.SRGBColorSpace;
-  t.anisotropy = maxAniso;
-  return t;
-}
-function rr(g, x, y, w, h, r) {
-  g.beginPath();
-  if (g.roundRect) { g.roundRect(x, y, w, h, r); return; }
-  g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r);
-  g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath();
-}
-function wrap(g, text, maxW) {
-  const lines = []; let line = '';
-  for (const word of text.split(' ')) {
-    const next = line ? line + ' ' + word : word;
-    if (!line || g.measureText(next).width <= maxW) line = next; else { lines.push(line); line = word; }
+  const $ = (id) => document.getElementById(id);
+
+  function mainTrackId(view) {
+    const tracks = (view.graph && view.graph.tracks) || [];
+    if (activeTrack && tracks.some((t) => t.id === activeTrack)) return activeTrack;
+    const ordered = tracks.find((t) => t.ordered);
+    return (ordered && ordered.id) || (tracks[0] && tracks[0].id) || 'board';
   }
-  if (line) lines.push(line);
-  return lines;
-}
-function fitLabel(g, text, maxW) {
-  for (const size of [98, 92, 86]) {
-    g.font = `600 ${size}px ${FONT_DISPLAY}`;
-    if (g.measureText(text).width <= maxW) return { size, lines: [text] };
+
+  function viewJsonUrl() {
+    if (activeBoard && currentView && Array.isArray(currentView.boards)) {
+      const b = currentView.boards.find((item) => item.name === activeBoard && !item.first);
+      if (b) return `boards/${encodeURIComponent(b.name)}/view.json`;
+    }
+    return 'view.json';
   }
-  for (const size of [80, 74, 68, 62, 54]) {
-    g.font = `600 ${size}px ${FONT_DISPLAY}`;
-    const lines = wrap(g, text, maxW);
-    if (lines.length <= 2 && lines.every(l => g.measureText(l).width <= maxW)) return { size, lines };
+
+  function fileHref(rel) {
+    const clean = String(rel || '').replace(/^\/+/, '');
+    const suffix = activeBoard ? `?board=${encodeURIComponent(activeBoard)}` : '';
+    return `/files/${clean.split('/').map(encodeURIComponent).join('/')}${suffix}`;
   }
-  g.font = `600 54px ${FONT_DISPLAY}`;
-  return { size: 54, lines: wrap(g, text, maxW).slice(0, 2) };
-}
 
-// Every time on the page is the viewer's own local time, never UTC: the date as 11/16 (the year only when it is not
-// this year) and the time as 4:14p.
-const localClock = d => `${d.getHours() % 12 || 12}:${String(d.getMinutes()).padStart(2, '0')}${d.getHours() < 12 ? 'a' : 'p'}`;
-const localDay = d => `${d.getMonth() + 1}/${d.getDate()}${d.getFullYear() === new Date().getFullYear() ? '' : '/' + String(d.getFullYear()).slice(2)}`;
-// When an open attempt started, short: the time today, else the date and the time.
-function sinceText(iso) {
-  const d = new Date(iso);
-  if (isNaN(d)) return String(iso);
-  return d.toDateString() === new Date().toDateString() ? localClock(d) : `${localDay(d)} ${localClock(d)}`;
-}
-// How long ago, in where's words (board_graph.py's ago).
-function agoText(iso) {
-  const m = (Date.now() - new Date(iso)) / 60000;
-  if (isNaN(m)) return 'when, it does not say';
-  if (m < 1) return 'under a minute ago';
-  if (m < 120) return `${Math.round(m)} min ago`;
-  return m < 2880 ? `${Math.round(m / 60)} h ago` : `${Math.round(m / 1440)} days ago`;
-}
-const workLine = a => `working: ${a.by}, since ${sinceText(a.since)}`;
-
-const WHO = { auto: 'auto check', agent: 'agent', owner: 'you', owner_and_agent: 'you + agent' };
-
-function cardLook(node, track, M) {
-  const S = steps(track);
-  const done = M.tracks[track]?.done;
-  if (node.status === 'current') return { fill: S.bright, border: S.next, label: INK.dark, foot: '#1d1c19', S };
-  if (node.status === 'passed' && done) return { fill: mixHex(S.lit, '#000000', 0.35), border: S.lit, label: INK.secondary, foot: INK.muted, S };
-  if (node.status === 'passed') return { fill: S.lit, border: S.glow, label: INK.primary, foot: INK.secondary, S };
-  return { fill: '#0b0b0b', border: S.dim, label: '#a3a29b', foot: '#8f8e88', S };
-}
-
-function cardCanvas(node, look, tag, issues, work, badge) {
-  const c = document.createElement('canvas'); c.width = TEX.w; c.height = TEX.h;
-  const g = c.getContext('2d');
-  const pad = 50;
-  rr(g, 5, 5, TEX.w - 10, TEX.h - 10, 40);
-  g.fillStyle = look.fill; g.fill();
-  g.lineWidth = 7; g.strokeStyle = look.border; g.stroke();
-
-  const { size, lines } = fitLabel(g, node.label, TEX.w - pad * 2);
-  g.fillStyle = look.label; g.textBaseline = 'alphabetic';
-  if (lines.length === 1) g.fillText(lines[0], pad, 66 + size * 0.86);
-  else lines.forEach((l, i) => g.fillText(l, pad, 50 + size * 0.86 + i * size * 1.08));
-
-  const footY = TEX.h - 52;
-  if (work) {
-    // Who is working the node and since when, between the label and the foot.
-    let text = workLine(work), px = 58;
-    const room = TEX.w - pad * 2;
-    g.font = `600 ${px}px ${FONT}`;
-    while (g.measureText(text).width > room && px > 42) { px -= 4; g.font = `600 ${px}px ${FONT}`; }
-    while (g.measureText(text).width > room && text.length > 4) text = text.slice(0, -2) + '…';
-    g.fillStyle = look.label;
-    g.fillText(text, pad, footY - 104);
+  function formatAgo(iso) {
+    if (!iso) return '';
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return iso;
+    const sec = Math.max(0, Math.round((Date.now() - d.getTime()) / 1000));
+    if (sec < 60) return `${sec}s ago`;
+    if (sec < 3600) return `${Math.floor(sec / 60)}m ago`;
+    return `${Math.floor(sec / 3600)}h ago`;
   }
-  const isYou = node.who === 'owner' || node.who === 'owner_and_agent';
-  g.font = `${isYou ? 600 : 500} 64px ${FONT}`;
-  g.fillStyle = isYou && node.status !== 'current' ? '#f2c14e' : look.foot;
-  g.fillText(WHO[node.who] || node.who, pad, footY);
 
-  if (tag) {
-    g.font = `600 60px ${FONT}`;
-    const tw = g.measureText(tag.text).width, ph = 90, pw = tw + 60, px = TEX.w - pad + 18 - pw, py = footY - 66;
-    rr(g, px, py, pw, ph, ph / 2);
-    if (tag.solid) { g.fillStyle = tag.fill; g.fill(); g.fillStyle = tag.ink; }
-    else { g.lineWidth = 6; g.strokeStyle = tag.fill; g.stroke(); g.fillStyle = tag.fill; }
-    g.fillText(tag.text, px + 30, footY);
-  } else if (issues) {
-    g.font = `500 58px ${FONT}`; g.fillStyle = look.foot; g.textAlign = 'right';
-    g.fillText(issues === 1 ? '1 open question' : `${issues} open questions`, TEX.w - pad, footY);
-    g.textAlign = 'left';
-  } else if (badge) {
-    g.font = `500 58px ${FONT}`; g.fillStyle = node.status === 'passed' ? look.label : '#b8b6ad'; g.textAlign = 'right';
-    g.fillText(badge, TEX.w - pad, footY);
-    g.textAlign = 'left';
+  function cardStatus(node, st, trackPos) {
+    const attempt = st && st.attempt;
+    const last = st && st.last;
+    const outcome = last && last.outcome;
+    if (st && st.status === 'passed') return { cls: 'passed', badgeCls: 'passed', badge: 'Passed' };
+    if (st && st.status === 'current') {
+      if (attempt) return { cls: 'current', badgeCls: 'working', badge: 'Working' };
+      if (outcome === 'needs_owner') return { cls: 'blocked-owner', badgeCls: 'owner', badge: 'Needs you' };
+      if (outcome === 'needs_lead' || outcome === 'needs_skill') {
+        return { cls: 'blocked-lead', badgeCls: 'lead', badge: outcome === 'needs_skill' ? 'Needs skill' : 'Needs lead' };
+      }
+      return { cls: 'current', badgeCls: 'ready', badge: trackPos === node.id ? 'Current' : 'Next' };
+    }
+    if (st && st.status === 'open') return { cls: 'current', badgeCls: 'working', badge: 'Open' };
+    return { cls: 'ahead' + (st && st.passed_before ? ' returned-before' : ''), badgeCls: '', badge: node.who || 'ahead' };
   }
-  return c;
-}
 
-function textCanvas(parts, w, h, pxPerUnit, opts = {}) {
-  const c = document.createElement('canvas');
-  c.width = Math.round(w * pxPerUnit); c.height = Math.round(h * pxPerUnit);
-  const g = c.getContext('2d');
-  let x = opts.x || 0;
-  const base = opts.baseline ?? c.height * 0.72;
-  for (const p of parts) {
-    g.font = `${p.weight || 600} ${p.size}px ${p.display ? FONT_DISPLAY : FONT}`;
-    g.fillStyle = p.color;
-    g.fillText(p.text, x, base + (p.dy || 0));
-    x += g.measureText(p.text).width + (p.gap ?? 0);
-  }
-  return c;
-}
+  function renderHeader(view) {
+    const title = view.project || 'Graph';
+    const mainTrack = mainTrackId(view);
+    document.title = `${title} graph`;
+    $('proj-title').textContent = title;
+    $('milestone').textContent = view.milestone || (view.graph && view.graph.milestone) || '';
 
-function glowCanvas(kind) {
-  const c = document.createElement('canvas');
-  const g = c.getContext('2d');
-  if (kind === 'halo') {
-    c.width = 640; c.height = 320;
-    g.filter = 'blur(34px)'; g.fillStyle = '#ffffff';
-    rr(g, 110, 100, 420, 120, 34); g.fill();
-  } else if (kind === 'ring') {
-    c.width = 1024; c.height = 420;
-    g.strokeStyle = '#ffffff'; g.lineWidth = 7; g.shadowColor = '#ffffff'; g.shadowBlur = 22;
-    rr(g, 26, 26, 1024 - 52, 420 - 52, 46); g.stroke();
-    g.shadowBlur = 0; g.lineWidth = 5; g.stroke();
-  } else if (kind === 'pool') {
-    c.width = c.height = 256;
-    const r = g.createRadialGradient(128, 128, 0, 128, 128, 128);
-    r.addColorStop(0, 'rgba(255,255,255,0.9)'); r.addColorStop(0.45, 'rgba(255,255,255,0.25)'); r.addColorStop(1, 'rgba(255,255,255,0)');
-    g.fillStyle = r; g.fillRect(0, 0, 256, 256);
-  } else if (kind === 'dot') {
-    c.width = c.height = 64;
-    const r = g.createRadialGradient(32, 32, 0, 32, 32, 32);
-    r.addColorStop(0, 'rgba(255,255,255,1)'); r.addColorStop(0.55, 'rgba(255,255,255,1)'); r.addColorStop(0.75, 'rgba(255,255,255,0)');
-    g.fillStyle = r; g.fillRect(0, 0, 64, 64);
-  } else if (kind === 'spark') {
-    c.width = c.height = 64;
-    const r = g.createRadialGradient(32, 32, 0, 32, 32, 32);
-    r.addColorStop(0, 'rgba(255,255,255,1)'); r.addColorStop(0.25, 'rgba(255,255,255,0.8)'); r.addColorStop(1, 'rgba(255,255,255,0)');
-    g.fillStyle = r; g.fillRect(0, 0, 64, 64);
-  }
-  return c;
-}
-
-// ---------------------------------------------------------------- renderer, scene, camera
-const canvas = document.getElementById('scene');
-const messageBox = document.getElementById('message');
-function showMessage(title, text) {
-  messageBox.replaceChildren(Object.assign(document.createElement('strong'), { textContent: title }), document.createTextNode(text));
-  messageBox.hidden = false;
-}
-
-let renderer;
-try {
-  renderer = new THREE.WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: true });
-} catch (error) {
-  showMessage('This view needs WebGL', 'The browser did not provide a WebGL context, so the scene cannot be drawn.');
-  throw error;
-}
-renderer.setClearColor(0x000000, 1);
-renderer.outputColorSpace = THREE.SRGBColorSpace;
-maxAniso = renderer.capabilities.getMaxAnisotropy();
-
-const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(30, 1, 0.5, 900);
-const shared = {
-  halo: texture(glowCanvas('halo')), ring: texture(glowCanvas('ring')), pool: texture(glowCanvas('pool')),
-  dot: texture(glowCanvas('dot')), spark: texture(glowCanvas('spark')),
-};
-
-// ---------------------------------------------------------------- pan & zoom control (always horizontally level, no rotation)
-const SLOPE = V(0, LANE.rise, -LANE.depth).normalize();
-class Orbit {
-  constructor(cam, dom) {
-    this.cam = cam; this.dom = dom;
-    this.target = V(0, 0, 0); this.goalTarget = V(0, 0, 0);
-    this.sph = new THREE.Spherical(40, 1.0, 0); this.goal = new THREE.Spherical(40, 1.0, 0);
-    this.pointers = new Map(); this.moved = 0; this.onClick = null; this.onHover = null;
-    dom.addEventListener('pointerdown', e => this.down(e));
-    dom.addEventListener('pointermove', e => this.move(e));
-    dom.addEventListener('pointerup', e => this.up(e));
-    dom.addEventListener('pointercancel', e => { this.pointers.delete(e.pointerId); if (!this.pointers.size) dom.classList.remove('dragging'); });
-    dom.addEventListener('pointerleave', () => this.onHover?.(null));
-    dom.addEventListener('wheel', e => { e.preventDefault(); this.zoom(Math.exp(e.deltaY * 0.0011)); }, { passive: false });
-    dom.addEventListener('contextmenu', e => e.preventDefault());
-    dom.addEventListener('keydown', e => this.key(e));
-  }
-  set(target, radius, phi = 1.0, _theta = 0, now = false) {
-    this.goalTarget.copy(target); this.goal.set(radius, phi, 0);
-    if (now) { this.target.copy(target); this.sph.set(radius, phi, 0); }
-  }
-  zoom(f) { this.goal.radius = THREE.MathUtils.clamp(this.goal.radius * f, 8, 420); this.onInput?.(); }
-  pan(dx, dy) {
-    this.onInput?.();
-    const px = (2 * this.sph.radius * Math.tan(THREE.MathUtils.degToRad(this.cam.fov) / 2)) / Math.max(innerHeight, 320);
-    const up = V(0, 1, 0).applyQuaternion(this.cam.quaternion);
-    const slopeProj = Math.max(0.25, SLOPE.dot(up));
-    this.goalTarget.x -= dx * px;
-    this.goalTarget.addScaledVector(SLOPE, (dy * px) / slopeProj);
-  }
-  down(e) {
-    this.dom.setPointerCapture(e.pointerId);
-    this.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY, button: e.button });
-    this.moved = 0;
-    if (this.pointers.size === 2) this.pinch = this.spread();
-  }
-  spread() {
-    const [a, b] = [...this.pointers.values()];
-    return { d: Math.hypot(a.x - b.x, a.y - b.y), x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
-  }
-  move(e) {
-    const p = this.pointers.get(e.pointerId);
-    if (!p) { this.onHover?.(e); return; }
-    const dx = e.clientX - p.x, dy = e.clientY - p.y;
-    this.moved += Math.abs(dx) + Math.abs(dy);
-    if (this.moved >= 6) this.dom.classList.add('dragging');
-    p.x = e.clientX; p.y = e.clientY;
-    if (this.pointers.size === 2) {
-      const s = this.spread();
-      if (this.pinch && s.d > 0) { this.zoom(this.pinch.d / s.d); this.pan(s.x - this.pinch.x, s.y - this.pinch.y); }
-      this.pinch = s;
+    const tracks = (view.graph && view.graph.tracks) || [];
+    const tabsEl = $('tabs');
+    if (tracks.length > 1) {
+      tabsEl.innerHTML = tracks.map((t) =>
+        `<button class="btn${t.id === mainTrack ? ' active' : ''}" data-track="${esc(t.id)}">${esc(t.label || t.id)}</button>`
+      ).join('');
+      tabsEl.querySelectorAll('button').forEach((b) => b.addEventListener('click', () => {
+        activeTrack = b.dataset.track;
+        renderBoard(currentView);
+      }));
     } else {
-      this.pan(dx, dy);
+      tabsEl.innerHTML = '';
+    }
+
+    const auto = view.autonomy;
+    const autoEl = $('autonomy-pill');
+    if (auto && auto.mode === 'delegated') {
+      autoEl.style.display = 'inline-flex';
+      autoEl.textContent = `AUTONOMOUS <= ${auto.until || 'quote_files'}`;
+    } else {
+      autoEl.style.display = 'none';
+    }
+
+    const tool = view.tool;
+    const toolEl = $('tool-pill');
+    if (tool) {
+      toolEl.style.display = 'inline-flex';
+      const bits = [];
+      if (tool.version) bits.push(`v${tool.version}`);
+      if (tool.branch) bits.push(tool.branch);
+      if (tool.commit) bits.push(`@${tool.commit}`);
+      if (tool.ahead > 0) bits.push(`+${tool.ahead}`);
+      if (tool.dirty) bits.push('dirty');
+      toolEl.className = 'pill tool' + (tool.dirty || tool.ahead > 0 ? ' dirty' : '');
+      toolEl.textContent = `tool: ${bits.join(' ')}`;
+    } else {
+      toolEl.style.display = 'none';
+    }
+
+    const sel = $('board-select');
+    if (Array.isArray(view.boards) && view.boards.length > 1) {
+      sel.style.display = 'inline-block';
+      sel.innerHTML = view.boards.map((b) =>
+        `<option value="${esc(b.name)}"${b.name === (activeBoard || view.board) ? ' selected' : ''}>${esc(b.name)}</option>`
+      ).join('');
+    } else {
+      sel.style.display = 'none';
+    }
+
+    $('btn-notes').style.display = view.notes ? 'inline-block' : 'none';
+    const boardTrack = ((view.where && view.where.tracks) || []).find((t) => t.id === 'board') || {};
+    const pos = boardTrack.position || (view.state && view.state.tracks && view.state.tracks.board && view.state.tracks.board.position) || 'done';
+    const transitions = boardTrack.transitions || [];
+    const last = transitions[transitions.length - 1];
+    $('position-line').innerHTML = last
+      ? `Position: <code>${esc(pos)}</code> &middot; Last: <strong>${esc(last.node)}</strong> <code>${esc(last.outcome)}</code> &rarr; <code>${esc(last.target)}</code> (${esc(last.actor)}, ${esc(formatAgo(last.at))})`
+      : `Position: <code>${esc(pos)}</code> &middot; Waiting for first transition`;
+  }
+
+  function makeCardEl(node, st, art, issues, trackPos) {
+    const info = cardStatus(node, st, trackPos);
+    const btn = document.createElement('button');
+    btn.className = `card ${info.cls}${selectedCard === node.id ? ' selected' : ''}`;
+    btn.type = 'button';
+    const badgeText = (art && art.badge) ? `<span>${esc(art.badge)}</span>` : '';
+    const issueBadge = issues.length ? `<span style="color:var(--amber)">${issues.length} issue${issues.length > 1 ? 's' : ''}</span>` : '';
+    const actorLine = st && st.attempt ? `working: ${st.attempt.by}` : (st && st.last ? `${st.last.outcome} by ${st.last.actor}` : node.who);
+    const noteText = (st && st.attempt && st.attempt.note) || (st && st.last && st.last.note) || '';
+    btn.innerHTML = `
+      <div class="card-top">
+        <span class="card-title">${esc(node.label || node.id)}</span>
+        <span class="badge ${info.badgeCls}">${esc(info.badge)}</span>
+      </div>
+      <div class="card-meta"><span>${esc(actorLine)}</span>${badgeText}${issueBadge}</div>
+      ${noteText ? `<div class="card-note">${esc(noteText)}</div>` : ''}
+    `;
+    btn.addEventListener('click', () => openCard(node.id));
+    return btn;
+  }
+
+  function renderBoard(view) {
+    renderHeader(view);
+    const graph = view.graph || {};
+    const nodes = graph.nodes || [];
+    const stages = graph.stages || [];
+    const nodeStates = (view.state && view.state.nodes) || {};
+    const trackStates = (view.state && view.state.tracks) || {};
+    const artCards = (view.artifacts && view.artifacts.cards) || {};
+    const openIssues = (graph.open_issues || []).filter((i) => !i.closed);
+
+    const issuesByNode = {};
+    for (const iss of openIssues) {
+      for (const target of (iss.close_before || [])) {
+        (issuesByNode[target] = issuesByNode[target] || []).push(iss);
+      }
+    }
+
+    const mainTrack = mainTrackId(view);
+    const boardPos = (trackStates[mainTrack] && trackStates[mainTrack].position) || null;
+    const stagesEl = $('stages');
+    stagesEl.innerHTML = '';
+
+    for (const stage of stages) {
+      const members = nodes.filter((n) => n.track === mainTrack && n.stage === stage.id);
+      if (!members.length) continue;
+      const col = document.createElement('section');
+      const isCur = members.some((n) => (nodeStates[n.id] && nodeStates[n.id].status === 'current'));
+      col.className = 'stage-col' + (isCur ? ' current' : '');
+      const passedCount = members.filter((n) => nodeStates[n.id] && nodeStates[n.id].status === 'passed').length;
+      col.innerHTML = `<div class="stage-head"><span>${esc(stage.label || stage.id)}</span><span class="stage-count">${passedCount}/${members.length}</span></div>`;
+      for (const n of members) {
+        col.appendChild(makeCardEl(n, nodeStates[n.id], artCards[n.id], issuesByNode[n.id] || [], boardPos));
+      }
+      stagesEl.appendChild(col);
+    }
+    const unstagedMain = nodes.filter((n) => n.track === mainTrack && !stages.some((s) => s.id === n.stage));
+    if (unstagedMain.length) {
+      const col = document.createElement('section');
+      col.className = 'stage-col';
+      col.innerHTML = `<div class="stage-head"><span>${esc(mainTrack)}</span><span class="stage-count">${unstagedMain.length}</span></div>`;
+      for (const n of unstagedMain) col.appendChild(makeCardEl(n, nodeStates[n.id], artCards[n.id], issuesByNode[n.id] || [], boardPos));
+      stagesEl.appendChild(col);
+    }
+
+    const sideEl = $('side-tracks');
+    sideEl.innerHTML = '';
+    for (const track of (graph.tracks || [])) {
+      if (track.id === mainTrack) continue;
+      const members = nodes.filter((n) => n.track === track.id);
+      if (!members.length) continue;
+      const box = document.createElement('section');
+      box.className = 'track-box';
+      box.innerHTML = `<h2>${esc(track.label || track.id)}</h2>`;
+      const grid = document.createElement('div');
+      grid.className = 'wrap-cards';
+      const tpos = (trackStates[track.id] && trackStates[track.id].position) || null;
+      for (const n of members) {
+        grid.appendChild(makeCardEl(n, nodeStates[n.id], artCards[n.id], issuesByNode[n.id] || [], tpos));
+      }
+      box.appendChild(grid);
+      sideEl.appendChild(box);
+    }
+
+    if (drawerMode === 'card' && selectedCard) renderCardDrawer(selectedCard);
+    else if (drawerMode === 'log') renderLogDrawer();
+    else if (drawerMode === 'notes') renderNotesDrawer();
+  }
+
+  function showDrawer(title, html) {
+    $('drawer-title').textContent = title;
+    $('drawer-body').innerHTML = html;
+    $('drawer').classList.add('open');
+    $('drawer').setAttribute('aria-hidden', 'false');
+    $('backdrop').classList.add('open');
+  }
+
+  function closeDrawer() {
+    drawerMode = null;
+    $('drawer').classList.remove('open');
+    $('drawer').setAttribute('aria-hidden', 'true');
+    $('backdrop').classList.remove('open');
+    document.querySelectorAll('.card.selected').forEach((el) => el.classList.remove('selected'));
+  }
+
+  function openCard(nodeId) {
+    selectedCard = nodeId;
+    drawerMode = 'card';
+    renderBoard(currentView);
+  }
+
+  function renderCardDrawer(nodeId) {
+    const view = currentView;
+    const node = ((view.graph && view.graph.nodes) || []).find((n) => n.id === nodeId);
+    if (!node) return;
+    const st = (view.state && view.state.nodes && view.state.nodes[nodeId]) || {};
+    const art = (view.artifacts && view.artifacts.cards && view.artifacts.cards[nodeId]) || {};
+    const last = st.last;
+    const attempt = st.attempt;
+    const issues = ((view.graph && view.graph.open_issues) || []).filter((i) => !i.closed && (i.close_before || []).includes(nodeId));
+
+    const parts = [];
+    parts.push(`<div class="sec"><div class="kv">
+      <div class="k">Card ID</div><div><code>${esc(node.id)}</code></div>
+      <div class="k">Owner / Who</div><div>${esc(node.who)}</div>
+      <div class="k">Status</div><div><code>${esc(st.status || 'ahead')}</code></div>
+      ${node.action ? `<div class="k">Script action</div><div><code>${esc(node.action)}</code></div>` : ''}
+      <div class="k">Pass -></div><div><code>${esc(node.outcomes && node.outcomes.pass)}</code></div>
+      ${(node.outcomes && node.outcomes.returned && node.outcomes.returned.length) ? `<div class="k">Return -></div><div><code>${esc(node.outcomes.returned.join(', '))}</code></div>` : ''}
+    </div></div>`);
+
+    if (attempt) {
+      parts.push(`<div class="sec"><h4>Active attempt</h4><pre class="note-box">${esc(attempt.by)} since ${esc(attempt.since)}\naction: ${esc(attempt.action)}\n${attempt.note || ''}</pre></div>`);
+    }
+    if (last) {
+      parts.push(`<div class="sec"><h4>Last transition (${esc(last.outcome)} by ${esc(last.actor)})</h4><pre class="note-box">${esc(last.note || '(no note)')}</pre></div>`);
+    }
+    if (issues.length) {
+      parts.push(`<div class="sec"><h4>Blocking open issues</h4><ul class="list">${issues.map((i) => `<li><strong>${esc(i.id)}:</strong> ${esc(i.issue)}</li>`).join('')}</ul></div>`);
+    }
+    if (art.items && art.items.length) {
+      parts.push(`<div class="sec"><h4>Artifacts & Reports</h4><ul class="list">${art.items.map((item) => {
+        const href = fileHref(item.path);
+        const link = item.exists ? `<a href="${href}" target="_blank" rel="noopener">${esc(item.label || item.path)}</a>` : `${esc(item.label || item.path)} <span style="color:var(--ink-3)">(not yet)</span>`;
+        const thumb = (item.exists && item.kind === 'image') ? `<a href="${href}" target="_blank" rel="noopener"><img class="thumb" src="${href}" alt="${esc(item.label)}"></a>` : '';
+        return `<li>${link} <span style="color:var(--ink-3);font-size:11px;font-family:var(--mono)">${esc(item.path)}</span>${thumb}</li>`;
+      }).join('')}</ul></div>`);
+    }
+    if (node.task) {
+      parts.push(`<div class="sec"><h4>Task</h4><pre class="note-box">${esc(node.task)}</pre></div>`);
+    }
+    if (node.pass_when) {
+      parts.push(`<div class="sec"><h4>Pass criteria</h4><pre class="note-box">${esc(node.pass_when)}</pre></div>`);
+    }
+    if (node.owns && node.owns.length) {
+      parts.push(`<div class="sec"><h4>Owns</h4><ul class="list">${node.owns.map((p) => `<li><a href="${fileHref(p)}" target="_blank" rel="noopener"><code>${esc(p)}</code></a></li>`).join('')}</ul></div>`);
+    }
+    if (node.docs && node.docs.length) {
+      parts.push(`<div class="sec"><h4>Docs</h4><ul class="list">${node.docs.map((p) => `<li><a href="${fileHref(p)}" target="_blank" rel="noopener"><code>${esc(p)}</code></a></li>`).join('')}</ul></div>`);
+    }
+    showDrawer(node.label || node.id, parts.join(''));
+  }
+
+  function renderLogDrawer() {
+    drawerMode = 'log';
+    const rows = (currentView && currentView.log && currentView.log.rows) || [];
+    const html = rows.length
+      ? `<ul class="list">${rows.map((r) => `<li><div><strong>${esc(r.kind)}</strong> <code>${esc(r.node || '')}</code> ${r.outcome ? `<code>${esc(r.outcome)}</code>` : ''} <span style="color:var(--ink-3)">${esc(r.actor || '')} &middot; ${esc(formatAgo(r.at))}</span></div>${r.note ? `<div style="color:var(--ink-2);margin-top:3px;font-size:12px">${esc(r.note)}</div>` : ''}</li>`).join('')}</ul>`
+      : '<p style="color:var(--ink-3)">No activity logged yet.</p>';
+    showDrawer(`Activity log (${rows.length})`, html);
+  }
+
+  function renderNotesDrawer() {
+    drawerMode = 'notes';
+    const n = (currentView && currentView.notes) || {};
+    showDrawer(n.path || 'Notes', `<pre class="note-box">${esc(n.text || '(empty)')}</pre>`);
+  }
+
+  $('drawer-close').addEventListener('click', closeDrawer);
+  $('backdrop').addEventListener('click', closeDrawer);
+  $('btn-log').addEventListener('click', renderLogDrawer);
+  $('btn-notes').addEventListener('click', renderNotesDrawer);
+  $('board-select').addEventListener('change', (e) => {
+    activeBoard = e.target.value;
+    const u = new URL(location.href);
+    u.searchParams.set('board', activeBoard);
+    history.replaceState(null, '', u.toString());
+    loadView();
+  });
+  $('tool-pill').addEventListener('click', () => {
+    const tool = currentView && currentView.tool;
+    if (!tool) return;
+    const pop = $('tool-popover');
+    $('tool-pop-title').textContent = `board-graph ${tool.version ? 'v' + tool.version : ''}`;
+    const commits = (tool.commits_ahead || []).map((c) => `<li><code>${esc(c.sha)}</code><span>${esc(c.subject)}</span></li>`).join('');
+    $('tool-pop-body').innerHTML = `
+      <div>Branch: <code>${esc(tool.branch || 'detached')}</code> &middot; Commit: <code>${esc(tool.commit || '?')}</code> &middot; Dirty: <code>${tool.dirty ? 'yes' : 'no'}</code></div>
+      <div style="margin-top:4px;color:var(--ink-3)">Root: <code>${esc(tool.root || '')}</code></div>
+      ${commits ? `<div style="margin-top:8px;font-weight:600">Ahead of main (${tool.ahead}):</div><ul class="commit-list">${commits}</ul>` : '<div style="margin-top:8px;color:var(--ink-3)">Level with main (0 commits ahead).</div>'}
+    `;
+    pop.classList.toggle('open');
+  });
+  $('tool-pop-close').addEventListener('click', () => $('tool-popover').classList.remove('open'));
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { closeDrawer(); $('tool-popover').classList.remove('open'); } });
+
+  async function loadView() {
+    $('error-box').innerHTML = '';
+    if (location.protocol === 'file:') {
+      if (window.BOARD_GRAPH_SNAPSHOT) {
+        currentView = window.BOARD_GRAPH_SNAPSHOT;
+        $('live-text').textContent = 'Snapshot';
+        renderBoard(currentView);
+        return;
+      }
+      $('error-box').innerHTML = '<div class="error-banner">No snapshot.js data available when opened directly from disk.</div>';
+      return;
+    }
+    try {
+      const resp = await fetch(viewJsonUrl(), { cache: 'no-store' });
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      currentView = await resp.json();
+      if (!activeBoard && currentView.board) activeBoard = currentView.board;
+      renderBoard(currentView);
+    } catch (err) {
+      $('error-box').innerHTML = `<div class="error-banner">Could not load ${esc(viewJsonUrl())}: ${esc(err.message)}</div>`;
     }
   }
-  up(e) {
-    const p = this.pointers.get(e.pointerId);
-    this.pointers.delete(e.pointerId);
-    if (this.pointers.size < 2) this.pinch = null;
-    if (!this.pointers.size) this.dom.classList.remove('dragging');
-    if (p && p.button === 0 && this.moved < 6 && this.pointers.size === 0) this.onClick?.(e);
-  }
-  key(e) {
-    const k = e.key, step = 56;
-    if (k === 'ArrowLeft') this.pan(step, 0); else if (k === 'ArrowRight') this.pan(-step, 0);
-    else if (k === 'ArrowUp') this.pan(0, step); else if (k === 'ArrowDown') this.pan(0, -step);
-    else if (k === '+' || k === '=') this.zoom(0.88); else if (k === '-' || k === '_') this.zoom(1.14);
-    else return;
-    e.preventDefault();
-  }
-  update(dt) {
-    const a = REDUCED ? 1 : 1 - Math.exp(-dt * 9);
-    this.target.lerp(this.goalTarget, a);
-    this.sph.radius += (this.goal.radius - this.sph.radius) * a;
-    this.sph.phi = this.goal.phi;
-    this.sph.theta = 0;
-    this.cam.position.setFromSpherical(this.sph).add(this.target);
-    this.cam.lookAt(this.target);
-  }
-}
-const orbit = new Orbit(camera, canvas);
 
-// ---------------------------------------------------------------- the model: graph + state from the snapshot
-function buildModel(view) {
-  const whole = view.graph;
-  STAGED = whole.tracks.some(t => t.id === 'board') ? 'board' : (whole.nodes.find(n => n.stage)?.track || 'board');
-  setHues(whole.tracks);
-  // Every card on every track, for a name or a state the page needs from a track it does not draw.
-  const all = new Map(whole.nodes.map(n => [n.id, { ...n, ...view.state.nodes[n.id] }]));
-  // With no track named: the board's, or in a graph with no board, the first track that has cards.
-  const first = whole.tracks.some(t => t.id === STAGED) ? STAGED
-    : (whole.tracks.find(t => whole.nodes.some(n => n.track === t.id))?.id || 'board');
-  MAIN = TRACK && whole.nodes.some(n => n.track === TRACK) ? TRACK : first;
-  const g = MAIN === STAGED ? whole : trackGraph(whole, MAIN);
-  if (MAIN !== STAGED && view.log) {
-    // A track's page keeps the updates on its own cards.
-    const rows = view.log.rows.filter(r => g.nodes.some(n => n.id === r.node));
-    view = { ...view, log: { ...view.log, rows, total: rows.length } };
-  }
-  const nodes = new Map(g.nodes.map(n => [n.id, { ...n, ...view.state.nodes[n.id] }]));
-  const tracks = view.state.tracks;
-  const next = new Map();
-  for (const t of g.tracks) {
-    const pos = tracks[t.id].position;
-    if (!pos || pos === 'done') continue;
-    const n = nodes.get(pos);
-    if (!n) continue;
-    if (n.outcomes.pass !== 'done') next.set(n.outcomes.pass, 'pass');
-    for (const r of n.outcomes.returned) if (!next.has(r)) next.set(r, 'returned');
-  }
-  const stageIndex = new Map(g.stages.map((s, i) => [s.id, i]));
-  const stageStatus = new Map(g.stages.map(s => {
-    const ids = g.nodes.filter(n => n.stage === s.id).map(n => nodes.get(n.id).status);
-    return [s.id, ids.includes('current') ? 'current' : ids.every(x => x === 'passed') ? 'passed' : 'ahead'];
-  }));
-  const issues = id => g.open_issues.filter(i => i.close_before.includes(id));
-  const whereTracks = Object.fromEntries(view.where.tracks.map(t => [t.id, t]));
-  return { view, g, whole, all, nodes, tracks, next, stageIndex, stageStatus, issues, whereTracks, prs: pullRequests(view.workspace) };
-}
-
-// Pull requests beside the graph: GitHub's open ones, each tied to the node whose record names it, and the one a
-// position waits on (open or merged). Git never becomes a node or an edge; this is information on the page.
-function pullRequests(ws) {
-  const byNumber = new Map();
-  for (const pr of ws?.pull_requests?.open || []) byNumber.set(pr.number, { ...pr, state: 'open' });
-  for (const q of ws?.merge_questions || []) {
-    const pr = byNumber.get(q.pull_request) || { number: q.pull_request, title: null, branch: null, record: null };
-    Object.assign(pr, {
-      question: q, node: q.node, named_in: 'inputs', state: q.state || pr.state || 'unknown',
-      url: pr.url || q.url, draft: q.draft ?? pr.draft, checks: q.checks ?? pr.checks,
-    });
-    byNumber.set(q.pull_request, pr);
-  }
-  const list = [...byNumber.values()].sort((a, b) => a.number - b.number);
-  const byNode = new Map();
-  for (const pr of list) if (pr.node) byNode.set(pr.node, [...(byNode.get(pr.node) || []), pr]);
-  // Where each open pull request's branch stands by its own records, the ones main lacks: the cards it passed
-  // there and the card it stands at. Main's cards do not move for it; the page says it beside them.
-  const ahead = new Map();
-  const add = (id, pr, how) => ahead.set(id, [...(ahead.get(id) || []), { pr, how }]);
-  for (const pr of list) for (const t of pr.on_branch || []) {
-    for (const id of t.passed) add(id, pr, 'passed');
-    if (t.position && t.position !== 'done') add(t.position, pr, 'at');
-  }
-  return { list, byNode, ahead };
-}
-
-// One line per track a pull request's branch moved: "Firmware at Platform timing".
-const branchLines = pr => (pr.on_branch || []).map(t => t.position
-  ? `${t.track_label} ${t.position === 'done' ? 'finished' : `at ${t.position_label}`}`
-  : `${t.track_label}: ${t.last.label}, ${outcomeWord(t.last.outcome)}`);
-
-// ---------------------------------------------------------------- the scene, rebuilt from a model
-const world = new THREE.Group();
-scene.add(world);
-let disposables = [];
-let M = null, P = new Map(), doneSpots = new Map(), cardMeshes = [], arcs = [], flows = [], pulses = [], selectRing = null,
-  defaultView = null, show = null, beacons = [], outCurves = new Map(), inCurves = new Map();
-
-function keep(...things) { disposables.push(...things); return things[0]; }
-function clearWorld() {
-  for (const d of disposables) d.dispose?.();
-  disposables = [];
-  world.clear();
-  cardMeshes = []; arcs = []; flows = []; pulses = []; P = new Map(); doneSpots = new Map(); show = null;
-  beacons = []; outCurves = new Map(); inCurves = new Map();
-}
-
-function place(base, x, scale = 1) {
-  const w = CARD.w * scale, h = CARD.h * scale;
-  const bottom = V(x, base.y + 0.03, base.z + 0.45);
-  const center = bottom.clone().addScaledVector(UP, h / 2);
-  return {
-    base, center, w, h, scale, bottom,
-    left: center.clone().add(V(-w / 2, 0, 0)),
-    right: center.clone().add(V(w / 2, 0, 0)),
-    top: center.clone().addScaledVector(UP, h / 2),
-  };
-}
-
-function leaningPlane(w, h, material, center, behind = 0) {
-  const mesh = new THREE.Mesh(keep(new THREE.PlaneGeometry(w, h)), keep(material));
-  mesh.rotation.x = -LEAN;
-  mesh.position.copy(center).addScaledVector(NORMAL, -behind);
-  world.add(mesh);
-  return mesh;
-}
-function flatPlane(w, d, material, x, y, z) {
-  const mesh = new THREE.Mesh(keep(new THREE.PlaneGeometry(w, d)), keep(material));
-  mesh.rotation.x = -Math.PI / 2;
-  mesh.position.set(x, y, z);
-  world.add(mesh);
-  return mesh;
-}
-
-function slab(x0, x1, base, top, frontEdge, thick = null) {
-  // A terrace: a dark block whose top is the lane's floor, with a hairline along its front edge.
-  // Side lanes are thin platforms instead (thick given).
-  const depth = LANE.depth, height = thick ?? base.y + 1.6;
-  const geo = keep(new THREE.BoxGeometry(x1 - x0, height, depth));
-  const side = keep(new THREE.MeshBasicMaterial({ color: '#040404' }));
-  const floor = keep(new THREE.MeshBasicMaterial({ color: top }));
-  const mesh = new THREE.Mesh(geo, [side, side, floor, side, side, side]);
-  mesh.position.set((x0 + x1) / 2, base.y - height / 2, base.z - 0.15);
-  world.add(mesh);
-  const zFront = base.z - 0.15 + depth / 2;
-  const line = new THREE.Line(keep(new THREE.BufferGeometry().setFromPoints([V(x0, base.y + 0.004, zFront), V(x1, base.y + 0.004, zFront)])),
-    keep(new THREE.LineBasicMaterial({ color: frontEdge, transparent: true, opacity: 0.9 })));
-  world.add(line);
-}
-
-function isOwnerWait(waits) {
-  return Boolean(waits && (waits.who === 'owner' || waits.who === 'the owner' || waits.outcome === 'needs_owner'));
-}
-function cardTag(node, look, nextKind, model = M) {
-  if (node.status === 'current') {
-    const waits = !node.attempt && model.whereTracks[node.track]?.node?.waiting_on;
-    const onYou = isOwnerWait(waits);
-    const who = onYou ? 'you' : String(waits?.who || '').replace(/^the\s+/i, '');
-    const yours = !waits && !node.attempt && (node.who === 'owner' || node.who === 'owner_and_agent');
-    return {
-      text: node.attempt ? 'working' : waits ? `needs ${who}` : yours ? 'your turn' : 'up next',
-      solid: true,
-      fill: (onYou || yours) ? '#f2c14e' : INK.dark,
-      ink: (onYou || yours) ? '#14120a' : look.S.bright,
+  function connectEvents() {
+    if (location.protocol === 'file:' || typeof EventSource === 'undefined') return;
+    const es = new EventSource('/events');
+    es.onopen = () => {
+      $('live-dot').className = 'dot live';
+      $('live-text').textContent = 'Live';
     };
-  }
-  if (nextKind === 'pass') return { text: 'next', solid: true, fill: look.S.next, ink: INK.dark };
-  if (nextKind === 'returned') return { text: 'can return', solid: false, fill: look.S.next };
-  return null;
-}
-
-function cardBadge(id, model = M) {
-  return model?.view?.artifacts?.cards?.[id]?.badge || null;
-}
-
-function addCard(id, track, spot) {
-  const node = M.nodes.get(id);
-  const look = cardLook(node, track, M);
-  const nextKind = M.next.get(id);
-  const tex = keep(texture(cardCanvas(node, look, cardTag(node, look, nextKind, M), M.issues(id).length, node.attempt, cardBadge(id, M))));
-  const mesh = leaningPlane(spot.w, spot.h, new THREE.MeshBasicMaterial({ map: tex, alphaTest: 0.5 }), spot.center);
-  mesh.userData.id = id;
-  cardMeshes.push(mesh);
-  P.set(id, { ...spot, track, look });
-
-  if (node.status === 'current' && node.attempt) {
-    const halo = leaningPlane(spot.w + 2.2 * spot.scale, spot.h + 1.6 * spot.scale,
-      new THREE.MeshBasicMaterial({ map: shared.halo, color: look.S.glow, transparent: true, opacity: 0.8,
-        blending: THREE.AdditiveBlending, depthWrite: false }), spot.center, 0.02);
-    pulses.push({ id, mat: halo.material, base: 0.7, amp: 0.22, phase: 0 });
-    const pool = flatPlane(spot.w + 4, 4.2, new THREE.MeshBasicMaterial({ map: shared.pool, color: look.S.glow, transparent: true,
-      opacity: 0.45, blending: THREE.AdditiveBlending, depthWrite: false }), spot.center.x, spot.base.y + 0.012, spot.bottom.z - 0.2);
-    pulses.push({ id, mat: pool.material, base: 0.4, amp: 0.1, phase: 0.6 });
-  }
-  if (nextKind) {
-    const ring = leaningPlane(spot.w + 0.34, spot.h + 0.34, new THREE.MeshBasicMaterial({ map: shared.ring, color: look.S.next,
-      transparent: true, opacity: nextKind === 'pass' ? 0.95 : 0.6, blending: THREE.AdditiveBlending, depthWrite: false }),
-      spot.center, 0.012);
-    pulses.push({ id, mat: ring.material, base: nextKind === 'pass' ? 0.85 : 0.5, amp: 0.15, phase: 1.4 });
-  }
-}
-
-function addDone(track, after, isDone) {
-  const S = steps(track);
-  const spot = place(after.base, after.right.x + 1.05, 0.42);
-  const c = document.createElement('canvas'); c.width = 512; c.height = 185;
-  const g = c.getContext('2d');
-  rr(g, 5, 5, 502, 175, 40);
-  g.fillStyle = isDone ? S.lit : '#0b0b0b'; g.fill();
-  g.lineWidth = 6; g.strokeStyle = isDone ? S.glow : S.dim; g.stroke();
-  g.font = `600 84px ${FONT_DISPLAY}`; g.fillStyle = isDone ? INK.primary : INK.faint; g.textAlign = 'center';
-  g.fillText('Done', 256, 122);
-  const mesh = leaningPlane(spot.w, spot.h, new THREE.MeshBasicMaterial({ map: keep(texture(c)), alphaTest: 0.5 }), spot.center);
-  return { ...spot, mesh };
-}
-
-function edgeState(from, to, isDoneEdge, track) {
-  const a = M.nodes.get(from);
-  if (isDoneEdge) return M.tracks[track].done ? 'lit' : (a.status === 'current' ? 'next' : 'dim');
-  const b = M.nodes.get(to);
-  if (b.status === 'current') return 'live';
-  if (a.status === 'passed' && b.status === 'passed') return 'lit';
-  if (a.status === 'current') return 'next';
-  return 'dim';
-}
-const EDGE_STYLE = {
-  lit: S => ({ color: S.glow, opacity: 0.9, r: 0.034 }),
-  live: S => ({ color: S.glow, opacity: 1.0, r: 0.036 }),
-  next: S => ({ color: S.next, opacity: 0.55, r: 0.032 }),
-  dim: S => ({ color: S.dim, opacity: 0.85, r: 0.026 }),
-};
-
-function tube(curve, style, segments = 48) {
-  const geo = keep(new THREE.TubeGeometry(curve, segments, style.r, 8, false));
-  const mat = keep(new THREE.MeshBasicMaterial({ color: style.color, transparent: style.opacity < 1, opacity: style.opacity }));
-  const mesh = new THREE.Mesh(geo, mat);
-  world.add(mesh);
-  const end = curve.getPointAt(1), tan = curve.getTangentAt(1);
-  const cone = new THREE.Mesh(keep(new THREE.ConeGeometry(style.r * 3.2, style.r * 8, 14)), mat);
-  cone.position.copy(end).addScaledVector(tan, -style.r * 4);
-  cone.quaternion.setFromUnitVectors(V(0, 1, 0), tan);
-  world.add(cone);
-  return mesh;
-}
-
-function passCurve(a, b) {
-  if (Math.abs(a.base.z - b.base.z) < 0.01) {
-    return new THREE.LineCurve3(a.right.clone().add(V(0.06, 0, 0)), b.left.clone().add(V(-0.06, 0, 0)));
-  }
-  // From the end of one lane to the start of the next: out to the right, along the riser, in from the left.
-  const mid = a.center.clone().lerp(b.center, 0.5);
-  const y = Math.max(a.center.y, b.base.y + 0.22), z = b.base.z + LANE.depth / 2 + 0.05;
-  return new THREE.CatmullRomCurve3([
-    a.right.clone().add(V(0.06, 0, 0)), a.right.clone().add(V(0.8, 0, -0.1)), V(a.right.x + 1.3, y, z + 0.1),
-    V(mid.x, y, z), V(b.left.x - 1.3, y, z), b.left.clone().add(V(-0.8, 0, 0.1)), b.left.clone().add(V(-0.06, 0, 0)),
-  ], false, 'centripetal', 0.5);
-}
-
-function arcCurve(p0, p1, lift) {
-  const mid = p0.clone().lerp(p1, 0.5);
-  const h = lift + p0.distanceTo(p1) * 0.2;
-  return new THREE.QuadraticBezierCurve3(p0, mid.add(V(0, h, 0)), p1);
-}
-
-function dotted(curve, color, opacity, size) {
-  const n = Math.max(6, Math.round(curve.getLength() / 0.26));
-  const pts = curve.getSpacedPoints(n);
-  const geo = keep(new THREE.BufferGeometry().setFromPoints(pts));
-  const mat = keep(new THREE.PointsMaterial({ map: shared.dot, color, size, transparent: true, opacity, depthWrite: false, alphaTest: 0.05 }));
-  const points = new THREE.Points(geo, mat);
-  world.add(points);
-  return points;
-}
-
-// Between two cards: nothing is on the next card yet, so the marker sits halfway along the edge into it, pulsing,
-// until next starts the card; then the card itself is lit and this light is gone. At a track's first card, with no edge into it, it sits
-// just before the card.
-const BETWEEN_AT = 0.5;
-function lightSprite(map, color, at, scale) {
-  const sprite = new THREE.Sprite(keep(new THREE.SpriteMaterial({ map, color, transparent: true, opacity: 0,
-    blending: THREE.AdditiveBlending, depthWrite: false })));
-  sprite.position.copy(at); sprite.scale.setScalar(scale);
-  world.add(sprite);
-  return sprite;
-}
-function addBetween(curve, S, id) {
-  betweenAt(curve.getPointAt(BETWEEN_AT), S, id);
-}
-function betweenAt(at, S, id) {
-  const glow = lightSprite(shared.pool, S.glow, at, 2.2), head = lightSprite(shared.spark, S.next, at, 1.3);
-  pulses.push({ id, mat: glow.material, base: 0.5, amp: 0.2, phase: 0 }, { id, mat: head.material, base: 0.85, amp: 0.12, phase: 0.4 });
-}
-
-// Light flowing along a curve into node `id`.
-function addFlow(curve, color, id) {
-  const length = curve.getLength();
-  // Sparse enough that a still picture shows lights on a solid line, not a dotted (returned) edge.
-  const n = THREE.MathUtils.clamp(Math.round(length * 1.1), 4, 40);
-  const pos = new Float32Array(n * 3), col = new Float32Array(n * 3);
-  const geo = keep(new THREE.BufferGeometry());
-  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-  geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
-  const mat = keep(new THREE.PointsMaterial({ map: shared.spark, size: 0.9, vertexColors: true, transparent: true,
-    blending: THREE.AdditiveBlending, depthWrite: false }));
-  const points = new THREE.Points(geo, mat);
-  points.frustumCulled = false; // positions move every frame; bounds computed at the start would cull them
-  world.add(points);
-  flows.push({ id, curve, length, n, geo, color: new THREE.Color(color), offsets: Array.from({ length: n }, (_, i) => i / n) });
-}
-
-function labelPlane(parts, w, h, center, ppu = 240) {
-  const tex = keep(texture(textCanvas(parts, w, h, ppu)));
-  return leaningPlane(w, h, new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false }), center);
-}
-
-function build(model) {
-  clearWorld();
-  M = model;
-  const g = M.g;
-
-  // Board lanes: one terrace per stage, a row of cards on each.
-  g.stages.forEach((stage, i) => {
-    const base = laneBase(i);
-    const status = M.stageStatus.get(stage.id);
-    const S = steps(MAIN);
-    slab(LANE_LEFT, LANE_RIGHT, base, status === 'current' ? S.floorLit : status === 'passed' ? S.floor : '#080808',
-      status === 'current' ? S.glow : status === 'passed' ? S.dim : '#1c1c1b');
-    const numColor = status === 'current' ? S.bright : status === 'passed' ? S.glow : '#77756f';
-    const textColor = status === 'current' ? INK.primary : status === 'passed' ? INK.secondary : '#a3a29b';
-    const spot = place(base, LANE_LEFT + 0.35 + STAGE_LABEL_W / 2, 1);
-    // A stage has its number and its name; a row of a track's page says which cards it holds.
-    labelPlane([
-      ...(stage.row ? [] : [{ text: String(i + 1), size: 124, weight: 600, display: true, color: numColor, gap: 36 }]),
-      { text: stage.label, size: 90, weight: 600, display: true, color: stage.row ? numColor : textColor },
-    ], STAGE_LABEL_W, CARD.h, spot.center, 240);
-    g.nodes.filter(n => n.stage === stage.id).forEach((n, j) => addCard(n.id, MAIN, place(base, X0 + j * COL)));
-  });
-
-  // Side lanes: every track but the board's, each a row beside a stage (sideLanes); a track with no cards has none.
-  for (const s of sideLanes(g)) {
-    const ids = s.ids;
-    const S = steps(s.track);
-    const span = (ids.length - 1) * s.pitch + CARD.w * s.scale;
-    const left = s.x - CARD.w * s.scale / 2;
-    const started = M.tracks[s.track]?.started || M.tracks[s.track]?.done;
-    slab(left - 0.7, left + span + s.tail, s.lane, started ? S.floorLit : S.floor, S.dim, 0.3);
-    ids.forEach((id, j) => addCard(id, s.track, place(s.lane, s.x + j * s.pitch, s.scale)));
-    const label = g.tracks.find(t => t.id === s.track).label;
-    const cut = label.indexOf(' (');
-    const head = cut > 0 ? label.slice(0, cut) : label, rest = cut > 0 ? label.slice(cut + 1) : '';
-    // The track's name, and under it what the parenthesis says, kept over the first card.
-    const first = P.get(ids[0]);
-    const hw = 7, hh = 1.0, ppu = 230;
-    const hc = first.top.clone().addScaledVector(UP, hh / 2 + 0.08).add(V(hw / 2 - first.w / 2, 0, 0));
-    const c = document.createElement('canvas'); c.width = hw * ppu; c.height = hh * ppu;
-    const hg = c.getContext('2d');
-    hg.font = `600 84px ${FONT_DISPLAY}`; hg.fillStyle = s.list ? INK.secondary : S.bright;
-    hg.fillText(head, 0, 90);
-    hg.font = `400 64px ${FONT}`; hg.fillStyle = '#a3a29b';
-    hg.fillText(rest.replace(/^\(|\)$/g, ''), 0, 178);
-    leaningPlane(hw, hh, new THREE.MeshBasicMaterial({ map: keep(texture(c)), transparent: true, depthWrite: false }), hc);
-  }
-
-  // Pass edges, done markers, and the light flowing into each current node.
-  for (const t of g.tracks.filter(t => t.ordered)) {
-    const ids = g.nodes.filter(n => n.track === t.id).map(n => n.id);
-    const S = steps(t.id);
-    ids.forEach((id, k) => {
-      const target = M.nodes.get(id).outcomes.pass;
-      const a = P.get(id);
-      let b, isDone = target === 'done';
-      if (isDone) doneSpots.set(t.id, b = addDone(t.id, a, M.tracks[t.id].done)); else b = P.get(target);
-      if (!b) return; // a pass onto a track this page does not draw
-      const state = edgeState(id, target, isDone, t.id);
-      const curve = passCurve(a, b);
-      outCurves.set(id, curve);
-      if (!isDone) inCurves.set(target, curve);
-      tube(curve, EDGE_STYLE[state](S), isDone || Math.abs(a.base.z - b.base.z) < 0.01 ? 8 : 96);
-      if (state === 'live') addFlow(curve, S.next, target);
-    });
-  }
-
-  // Requires: a thin arc from the required node into the node that waits on it.
-  for (const n of g.nodes) {
-    for (const req of n.requires || []) {
-      const a = P.get(req), b = P.get(n.id), S = steps(a.track);
-      const passed = M.nodes.get(req).status === 'passed' || M.nodes.get(req).last?.outcome === 'pass';
-      // On one level (a side track beside the stage that requires it) the edge runs along the floor in front of the row, clear of
-      // every label; across levels it arcs, leaving a track's first node from its free left side.
-      const level = Math.abs(a.base.y - b.base.y) < 0.01;
-      let curve;
-      if (level) {
-        const y = a.base.y + 0.07, z = Math.max(a.bottom.z, b.bottom.z) + 0.6;
-        curve = new THREE.CatmullRomCurve3([
-          V(a.left.x + 0.6, y, a.bottom.z + 0.02), V(a.left.x + 0.45, y, z - 0.25), V(a.left.x, y, z),
-          V(b.right.x, y, z), V(b.right.x - 0.45, y, z - 0.25), V(b.right.x - 0.6, y, b.bottom.z + 0.02),
-        ], false, 'centripetal', 0.5);
-      } else {
-        const isStart = g.tracks.find(t => t.id === a.track)?.start === req;
-        const p0 = isStart ? a.left.clone().add(V(-0.05, 0, 0)) : a.top.clone().add(V(-0.6, 0, 0));
-        curve = arcCurve(p0, b.top.clone().add(V(0.9, 0, 0)), 1.6);
-      }
-      tube(curve, { color: passed ? S.glow : S.dim, opacity: passed ? 0.9 : 0.75, r: 0.02 }, 96);
-      if (M.nodes.get(n.id).status === 'current') addFlow(curve, S.next, n.id);
-    }
-  }
-
-  // Returned edges: dotted arcs back to the earlier nodes a finding can send work to.
-  const outCount = new Map(), inCount = new Map(), outSeen = new Map(), inSeen = new Map();
-  for (const n of g.nodes) for (const r of n.outcomes.returned) {
-    outCount.set(n.id, (outCount.get(n.id) || 0) + 1); inCount.set(r, (inCount.get(r) || 0) + 1);
-  }
-  const fan = (spot, i, count) => count <= 1 ? 0 : (i / (count - 1) - 0.5) * spot.w * 0.62;
-  for (const n of g.nodes) for (const r of n.outcomes.returned) {
-    const a = P.get(n.id), b = P.get(r);
-    const io = outSeen.get(n.id) || 0, ii = inSeen.get(r) || 0;
-    outSeen.set(n.id, io + 1); inSeen.set(r, ii + 1);
-    const p0 = a.top.clone().add(V(fan(a, io, outCount.get(n.id)), 0.02, 0));
-    const p1 = b.top.clone().add(V(fan(b, ii, inCount.get(r)), 0.02, 0));
-    const curve = arcCurve(p0, p1, 0.9);
-    const S = steps(a.track);
-    const fromCurrent = M.nodes.get(n.id).status === 'current';
-    const style = fromCurrent ? { color: S.next, opacity: 0.85, size: 0.13 } : { color: S.glow, opacity: 0.22, size: 0.09 };
-    const points = dotted(curve, style.color, style.opacity, style.size);
-    arcs.push({ from: n.id, to: r, curve, points, base: style, hi: S.next });
-    // The work arrived along this arc: its last transition was a return from here.
-    const last = M.whereTracks[a.track]?.transitions?.at(-1);
-    if (M.nodes.get(r).status === 'current' && last && last.node === n.id && last.target === r && last.outcome !== 'pass') {
-      inCurves.set(r, curve);  // the work arrived along this arc: the marker sits on it
-      addFlow(curve, S.next, r);
-    }
-  }
-
-  // The marker between cards: on the edge the track moved by into the card it stands at, while nothing is on it.
-  for (const [id, n] of M.nodes) {
-    if (n.status !== 'current' || n.attempt) continue;
-    const spot = P.get(id), S = steps(spot.track), curve = inCurves.get(id);
-    if (curve) addBetween(curve, S, id);
-    else betweenAt(spot.left.clone().add(V(-0.45, 0.05, 0)), S, id);  // the track's first card
-  }
-
-  // A ring that follows the selected node.
-  selectRing = leaningPlane(CARD.w + 0.5, CARD.h + 0.5, new THREE.MeshBasicMaterial({ map: shared.ring, color: INK.primary,
-    transparent: true, opacity: 0.95, depthWrite: false }), V(0, -100, 0), 0.016);
-  selectRing.visible = false;
-
-  defaultView = computeDefaultView();
-}
-
-// The default view: fixed angles, then the target and distance that fit every card and lane corner
-// inside the given screen bounds (normalized device coordinates).
-const VIEW_ANGLES = { phi: 1.0, theta: 0 };
-function scenePoints() {
-  const pts = [];
-  for (const s of P.values()) for (const dx of [-1, 1]) for (const dy of [-1, 1]) {
-    pts.push(s.center.clone().add(V(dx * s.w / 2, 0, 0)).addScaledVector(UP, dy * s.h / 2));
-  }
-  for (const i of [0, Math.max(0, (M?.g.stages.length || 1) - 1)]) {
-    const b = laneBase(i);
-    for (const x of [LANE_LEFT, LANE_RIGHT]) pts.push(V(x, b.y, b.z + LANE.depth / 2 - 0.15), V(x, b.y, b.z - LANE.depth / 2));
-  }
-  return pts;
-}
-function fitView(aspect, bounds) {
-  const pts = scenePoints();
-  const cam = new THREE.PerspectiveCamera(camera.fov, aspect, camera.near, camera.far);
-  const box = new THREE.Box3().setFromPoints(pts);
-  const target = box.getCenter(V(0, 0, 0));
-  let radius = 60;
-  const halfV = Math.tan(THREE.MathUtils.degToRad(cam.fov) / 2);
-  for (let k = 0; k < 12; k++) {
-    cam.position.setFromSpherical(new THREE.Spherical(radius, VIEW_ANGLES.phi, VIEW_ANGLES.theta)).add(target);
-    cam.lookAt(target); cam.updateMatrixWorld();
-    let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
-    for (const p of pts) {
-      const v = p.clone().project(cam);
-      x0 = Math.min(x0, v.x); x1 = Math.max(x1, v.x); y0 = Math.min(y0, v.y); y1 = Math.max(y1, v.y);
-    }
-    const right = V(1, 0, 0).applyQuaternion(cam.quaternion), up = V(0, 1, 0).applyQuaternion(cam.quaternion);
-    const dx = (x0 + x1) / 2 - (bounds.x0 + bounds.x1) / 2, dy = (y0 + y1) / 2 - (bounds.y0 + bounds.y1) / 2;
-    target.addScaledVector(right, dx * halfV * aspect * radius).addScaledVector(up, dy * halfV * radius);
-    const scale = Math.max((x1 - x0) / (bounds.x1 - bounds.x0), (y1 - y0) / (bounds.y1 - bounds.y0));
-    radius = THREE.MathUtils.clamp(radius * (0.35 + 0.65 * scale), 10, 420);
-  }
-  return { target, radius, phi: VIEW_ANGLES.phi, theta: VIEW_ANGLES.theta };
-}
-// On a wide window the scene shifts right, clear of the title and positions; when the panel is open it shifts left.
-// While the log shows under the positions, the left column is the HUD's alone: the scene starts right of it.
-const HUD_RIGHT = 396; // the HUD's 24 px margin, its 352 px and a gap
-function hudReserve(w, logShown) {
-  if (w < 900) return 0;
-  return logShown ? Math.max(372, 2 * (HUD_RIGHT - 0.04 * w)) : 372;
-}
-function hudW() { return hudReserve(innerWidth, $('log').getClientRects().length > 0); }
-// With the panel open the scene shifts left to the middle of what is left, unless the log holds the left
-// column: then the scene stays clear of it and the panel covers the scene's right side, like a drawer.
-function screenShift() {
-  const w = innerWidth;
-  if (w < 900) return 0;
-  const reserve = hudW();
-  const panel = document.body.classList.contains('panel-open') ? Math.min(460, w) / 2 : 0;
-  return reserve > 372 ? reserve / 2 : reserve / 2 - panel;
-}
-// Whether the panel would cover this node's card on screen.
-function underPanel(id) {
-  const spot = P.get(id);
-  if (!spot || innerWidth < 900) return false;
-  const v = spot.center.clone().project(camera);
-  return (v.x + 1) / 2 * innerWidth > innerWidth - Math.min(460, innerWidth) - 40;
-}
-function computeDefaultView() {
-  const w = innerWidth, room = hudW() / w;
-  return fitView(camera.aspect, { x0: -0.92, x1: 0.92 - room, y0: -0.78, y1: 0.8 });
-}
-let atDefault = true;
-function resetView(now = false) {
-  if (!defaultView) return;
-  orbit.set(defaultView.target, defaultView.radius, defaultView.phi, defaultView.theta, now);
-  atDefault = true;
-}
-
-// ---------------------------------------------------------------- picking, hover, selection
-const raycaster = new THREE.Raycaster();
-const ndc = new THREE.Vector2();
-let hovered = null, selected = null;
-function pick(e) {
-  const r = canvas.getBoundingClientRect();
-  ndc.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
-  raycaster.setFromCamera(ndc, camera);
-  const hit = raycaster.intersectObjects(cardMeshes, false)[0];
-  return hit ? hit.object.userData.id : null;
-}
-function applyHighlight() {
-  const focus = new Set([hovered, selected].filter(Boolean));
-  for (const arc of arcs) {
-    const on = focus.has(arc.from) || focus.has(arc.to);
-    arc.points.material.color.set(on ? arc.hi : arc.base.color);
-    arc.points.material.opacity = on ? 0.95 : arc.base.opacity;
-    arc.points.material.size = on ? 0.13 : arc.base.size;
-  }
-  if (selectRing) {
-    const spot = selected && P.get(selected);
-    selectRing.visible = !!spot;
-    if (spot) {
-      selectRing.position.copy(spot.center).addScaledVector(NORMAL, -0.016);
-      selectRing.scale.set((spot.w + 0.5) / (CARD.w + 0.5), (spot.h + 0.5) / (CARD.h + 0.5), 1);
-    }
-  }
-}
-orbit.onHover = e => {
-  const id = e ? pick(e) : null;
-  canvas.classList.toggle('pointing', !!id);
-  if (id !== hovered) { hovered = id; applyHighlight(); }
-};
-orbit.onClick = e => { const id = pick(e); if (id) select(id, underPanel(id)); else closePanel(); };
-orbit.onInput = () => { atDefault = false; };
-
-// ---------------------------------------------------------------- HTML: positions, panel, list
-const $ = id => document.getElementById(id);
-function el(tag, props = {}, ...children) {
-  const node = document.createElement(tag);
-  for (const [k, v] of Object.entries(props)) {
-    if (k === 'class') node.className = v; else if (k === 'style') node.style.cssText = v;
-    else if (k.startsWith('on')) node.addEventListener(k.slice(2), v); else node.setAttribute(k, v);
-  }
-  for (const c of children.flat()) if (c != null && c !== false) node.append(c.nodeType ? c : document.createTextNode(String(c)));
-  return node;
-}
-const when = iso => { const d = new Date(iso); return isNaN(d) ? String(iso) : `${localDay(d)} ${localClock(d)}`; };
-const labelOf = id => id === 'done' ? 'Done' : M.nodes.get(id)?.label ?? id;
-const nodeLink = id => id === 'done' ? el('span', {}, 'Done, the end of this track')
-  : el('button', { class: 'link', type: 'button', onclick: () => select(id, true) }, labelOf(id));
-const STATE_WORD = { passed: 'Passed', ahead: 'Ahead', open: 'Open, nothing recorded' };
-// The card the track stands at is on when something is on it, and next in line while the track is between cards.
-const whoHuman = w => (w === 'owner' || w === 'the owner') ? 'you' : w === 'owner_and_agent' ? 'you + agent' : String(w || '').replace(/^the\s+/i, '');
-const stateWord = n => n.status !== 'current' ? STATE_WORD[n.status] || n.status
-  : n.attempt ? 'Working' : M.whereTracks[n.track]?.node?.waiting_on ? `Needs ${whoHuman(M.whereTracks[n.track].node.waiting_on.who)}` : 'Up next';
-
-const SERVED = location.protocol.startsWith('http');
-function fileHref(rel, raw = false) {
-  if (!rel || privateHidden) return null;
-  const clean = String(rel).replace(/^\/+/, '');
-  if (!clean) return null;
-  if (SERVED) {
-    const encoded = clean.split('/').filter(Boolean).map(encodeURIComponent).join('/');
-    // A graph that is not the first is named on the link, so the file's page leads back to this graph.
-    const query = [raw ? 'raw=1' : '', DATA ? `board=${BOARD}` : ''].filter(Boolean).join('&');
-    return `/files/${encoded}${query ? '?' + query : ''}`;
-  }
-  // Opened directly from tools/board_graph_view/index.html on disk: step up two folders to the repo root.
-  return `../../${clean}`;
-}
-function cleanHumanNote(text) {
-  if (!text) return '';
-  return String(text)
-    .replace(/\s+as committed at [0-9a-f]{7,40}/gi, '')
-    .replace(/\s+as changed at [0-9a-f]{7,40}/gi, '')
-    .replace(/\s+as at [0-9a-f]{7,40}/gi, '')
-    .replace(/\s+at [0-9a-f]{7,40}\b/gi, '')
-    .replace(/\s*\([0-9a-f]{7,40}(?:,\s*[0-9a-f]{7,40})*\)/gi, '')
-    .replace(/\s{2,}/g, ' ')
-    .trim();
-}
-function actorHuman(actor) {
-  if (!actor) return '';
-  if (actor === 'owner') return 'you';
-  if (actor.startsWith('agent:')) return `${actor.slice(6)} (agent)`;
-  if (actor.startsWith('script:')) return `${actor.slice(7)} check`;
-  return actor;
-}
-function sizeText(bytes) {
-  if (bytes == null || !isFinite(bytes)) return '';
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return bytes < 10240 ? `${(bytes / 1024).toFixed(1)} KB` : `${Math.round(bytes / 1024)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
-const KIND_LABEL = {
-  pdf: 'Open PDF', image: 'Open image', csv: 'Open table', doc: 'Read doc',
-  folder: 'Open folder', report: 'Open report', model: '3D STEP',
-  footprint: 'Footprint', archive: 'Download zip', kicad: 'KiCad file', json: 'Open JSON', file: 'Open file',
-};
-const repoFileLink = (rel, label) => {
-  const href = fileHref(rel);
-  return href ? el('a', { class: 'link', href, target: '_blank', rel: 'noopener' }, label || rel) : mono(label || rel);
-};
-
-function stageLine(n) {
-  if (n.track === STAGED) {
-    const i = M.stageIndex.get(n.stage);
-    return `Stage ${i + 1} of ${M.g.stages.length}: ${M.g.stages[i].label}`;
-  }
-  return M.g.tracks.find(t => t.id === n.track).label;
-}
-function stateChip(n) {
-  const S = steps(n.track), look = cardLook(n, n.track, M);
-  const nextKind = M.next.get(n.id);
-  let word = stateWord(n);
-  if (nextKind === 'pass') word += ', next';
-  if (nextKind === 'returned') word += ', the work can return here';
-  if (n.status === 'passed' && M.tracks[n.track]?.done) word = 'Passed, track done';
-  return el('span', { class: 'state' }, el('i', { style: `background:${look.fill};box-shadow:0 0 0 1px ${look.border}` }), word);
-}
-
-// The text of each keyed item under `root` (positions, strip cells), to find what a new snapshot changed.
-const texts = root => new Map([...$(root).querySelectorAll('[data-key]')].map(n => [n.dataset.key, n.textContent]));
-// After a render: flash each keyed item that is new or whose text changed since `before`.
-function flashChanged(root, before) {
-  if (!before) return;
-  for (const n of $(root).querySelectorAll('[data-key]')) {
-    if (before.get(n.dataset.key) !== n.textContent) n.classList.add('flash');
-  }
-}
-
-// The ask in one line for the list; the card's panel shows all of it.
-const brief = (text, most = 110) => text.length <= most ? text : text.slice(0, most).replace(/\s+\S*$/, '') + '…';
-const launchStatus = launch => launch.launch_state === 'needs_lead'
-  ? `${labelOf(launch.node)} launch ${launch.run_id} stopped. Lead needed: ${launch.launch_note || 'No reason recorded'}`
-  : `${labelOf(launch.node)} launch ${launch.run_id} still owns this work.`;
-function renderPositions(before) {
-  $('milestone').textContent = M.g.milestone;
-  // The outcomes that keep a node where it is are the same on every node, so the legend names them once.
-  $('legend-stay').textContent = 'Stay at the node: ' + Object.keys(M.g.stay_outcomes).map(k => k.replace(/_/g, ' ')).join(', ');
-  const list = $('positions');
-  list.replaceChildren();
-  for (const t of M.g.tracks) {
-    const st = M.tracks[t.id];
-    const head = t.label.split(' (')[0];
-    const launches = M.whereTracks[t.id]?.launches || [];
-    if (!t.ordered) {
-      const count = M.g.nodes.filter(n => n.track === t.id).length;
-      if (!count && !launches.length) continue;
-      const recorded = M.g.nodes.filter(n => n.track === t.id && M.nodes.get(n.id).transitions > 0).length;
-      list.append(el('li', { 'data-key': t.id }, el('button', { type: 'button', onclick: () => openList() },
-        el('span', { class: 'swatch', style: `background:${steps(t.id).lit}` }),
-        el('span', {}, el('div', { class: 'track' }, head), el('div', { class: 'node' }, `${count} items`),
-          el('div', { class: 'detail' }, recorded ? `${recorded} recorded` : 'none recorded yet'),
-          launches.map(launch => el('div', { class: 'launch-status' }, launchStatus(launch)))))));
-      continue;
-    }
-    const pos = st.position;
-    const n = pos === 'done' ? null : M.nodes.get(pos);
-    const w = M.whereTracks[t.id]?.node;
-    const detail = [];
-    const dropped = M.whereTracks[t.id]?.dropped;
-    if (pos === 'done' && dropped) detail.push(`At ${dropped.label} (${agoText(dropped.since)}): ${brief(cleanHumanNote(dropped.note))}`);
-    else if (pos === 'done') detail.push('every step passed');
-    else if (!n) detail.push(`at ${pos}`);
-    else {
-      if (t.id === STAGED) detail.push(stageLine(n));
-      if (w?.on) detail.push(`Working: ${w.working.map(x => actorHuman(x.by)).join(', ')} (${agoText(w.working[0].since)})`);
-      else if (w?.waiting_on) {
-        const who = isOwnerWait(w.waiting_on) ? 'you' : whoHuman(w.waiting_on.who);
-        detail.push(`Waiting on ${who} (${agoText(w.waiting_on.since)}): ${brief(cleanHumanNote(w.waiting_on.note))}`);
-      } else if (w?.after) detail.push(`Between ${w.after_label} and ${n.label}` + (w.since ? ` (${agoText(w.since)})` : ''));
-      else detail.push(`Before ${n.label}` + (w?.since ? ` (${agoText(w.since)})` : ''));
-    }
-    // An open pull request whose branch has moved this track further than main: said under main's position.
-    for (const pr of M.prs.list) for (const b of pr.on_branch || []) {
-      if (b.track !== t.id || !b.position || b.position === pos) continue;
-      detail.push(`Pull request ${pr.number}, not merged: ${b.position === 'done' ? 'finished' : `at ${b.position_label}`} (${agoText(b.last.at)})`);
-    }
-    list.append(el('li', { 'data-key': t.id }, el('button', { type: 'button', onclick: () => n ? select(n.id, true) : null },
-      el('span', { class: 'swatch', style: `background:${HUE[t.id]}` }),
-      el('span', {}, el('div', { class: 'track' }, head), el('div', { class: 'node' }, n ? n.label : pos === 'done' ? (dropped ? 'Dropped' : 'Done') : pos),
-        detail.map(d => el('div', { class: 'detail' }, d)),
-        launches.map(launch => el('div', { class: 'launch-status' }, launchStatus(launch)))))));
-  }
-  flashChanged('positions', before);
-  $('stamp').textContent = `Snapshot ${when(M.view.generated_at)}`;
-}
-
-// What the panel shows, so a new snapshot can show the same thing again: node, list, log, row or workspace.
-let panelMode = null;
-function pressed() {
-  $('list').setAttribute('aria-pressed', String(panelMode?.kind === 'list'));
-  $('log-open').setAttribute('aria-pressed', String(panelMode?.kind === 'log' || panelMode?.kind === 'row'));
-}
-function openPanel(content, label, mode, keepScroll = false) {
-  const panel = $('panel'), top = panel.scrollTop;
-  $('panel-body').replaceChildren(...content);
-  panel.classList.add('open'); panel.setAttribute('aria-hidden', 'false'); panel.setAttribute('aria-label', label);
-  document.body.classList.add('panel-open');
-  panel.scrollTop = keepScroll ? top : 0;
-  panelMode = mode; pressed();
-  setTimeout(stripEdge, 260);
-}
-function closePanel() {
-  const panel = $('panel');
-  panel.classList.remove('open'); panel.setAttribute('aria-hidden', 'true');
-  document.body.classList.remove('panel-open');
-  panelMode = null; pressed();
-  setTimeout(stripEdge, 260);
-  selected = null; applyHighlight();
-}
-
-// Who does the node, in plain words.
-function whoPill(n) {
-  const isYou = n.who === 'owner' || n.who === 'owner_and_agent';
-  const text = {
-    owner: 'Your decision',
-    owner_and_agent: 'You + agent',
-    agent: 'Agent task',
-    auto: 'Automated check',
-  }[n.who] || n.who;
-  return el('span', { class: `who-pill${isYou ? ' you' : ''}` }, text);
-}
-
-function artifactItemEl(item) {
-  const meta = !item.exists ? 'Not generated yet'
-    : item.is_dir ? (item.count != null ? `${item.count} ${item.count === 1 ? 'item' : 'items'}` : 'Open folder')
-    : [KIND_LABEL[item.kind] || 'Open', sizeText(item.size)].filter(Boolean).join(' · ');
-  const main = el('span', { class: 'artifact-main' },
-    el('div', { class: 'artifact-title' }, item.label),
-    privateHidden ? null : el('div', { class: 'artifact-path' }, item.path));
-  const href = item.exists ? fileHref(item.path) : null;
-  if (!href) return el('div', { class: `artifact-row${item.exists ? '' : ' missing'}` }, main, el('span', { class: 'artifact-meta' }, privateHidden && item.exists ? 'Hidden' : meta));
-  return el('a', { class: 'artifact-row', href, target: '_blank', rel: 'noopener' }, main, el('span', { class: 'artifact-meta' }, `${KIND_LABEL[item.kind] || 'Open'} ↗`));
-}
-
-function cardFilesBlock(id) {
-  const art = M.view.artifacts;
-  if (!art) return [];
-  const card = art.cards?.[id];
-  const out = [];
-
-  if (id === 'datasheets' && art.datasheets) {
-    const ds = art.datasheets;
-    const folderHref = ds.exists ? fileHref(ds.folder) : null;
-    if (folderHref) {
-      out.push(el('a', { class: 'artifact-primary', href: folderHref, target: '_blank', rel: 'noopener' },
-        el('span', {}, `Open datasheets folder (${ds.files.length} ${ds.files.length === 1 ? 'file' : 'files'})`),
-        el('span', { class: 'kind' }, `${ds.folder}/ ↗`)));
-    }
-    if (ds.board_parts?.length) {
-      out.push(el('h3', {}, `Datasheets for this board (${ds.board_parts.length} parts)`));
-      out.push(el('ul', { class: 'artifact-list' }, ds.board_parts.map(p => {
-        const href = p.exists && p.path ? fileHref(p.path) : null;
-        const spec = [p.maker, p.mpn, p.package, p.height_mm != null ? `${p.height_mm} mm high` : null].filter(Boolean).join(' · ');
-        const main = el('span', { class: 'artifact-main' },
-          el('div', { class: 'artifact-title' }, `${p.refs}${p.value ? ` — ${p.value}` : ''}`),
-          el('div', { class: 'artifact-path' }, spec));
-        return el('li', {}, href
-          ? el('a', { class: 'artifact-row', href, target: '_blank', rel: 'noopener' }, main, el('span', { class: 'artifact-meta' }, 'PDF ↗'))
-          : el('div', { class: 'artifact-row missing' }, main, el('span', { class: 'artifact-meta' }, p.path ? 'Missing' : 'No file')));
-      })));
-      return out;
-    }
-    if (ds.files?.length) {
-      out.push(el('h3', {}, `Reference datasheets (${ds.files.length})`));
-      out.push(el('ul', { class: 'artifact-list' }, ds.files.map(f => {
-        const href = fileHref(f.path);
-        const main = el('span', { class: 'artifact-main' }, el('div', { class: 'artifact-title' }, f.name));
-        return el('li', {}, href
-          ? el('a', { class: 'artifact-row', href, target: '_blank', rel: 'noopener' }, main, el('span', { class: 'artifact-meta' }, `${sizeText(f.size) || 'Open'} ↗`))
-          : el('div', { class: 'artifact-row' }, main, el('span', { class: 'artifact-meta' }, 'Hidden')));
-      })));
-      return out;
-    }
-  }
-
-  const items = card?.items || [];
-  const primary = items.find(x => x.primary && x.exists);
-  const rest = items.filter(x => x !== primary);
-
-  if (primary) {
-    const href = fileHref(primary.path);
-    if (href) {
-      const verb = primary.is_dir ? 'Open' : primary.kind === 'doc' ? 'Read' : 'Open';
-      const label = primary.label.toLowerCase().startsWith('open ') ? primary.label : `${verb} ${primary.label}`;
-      out.push(el('a', { class: 'artifact-primary', href, target: '_blank', rel: 'noopener' },
-        el('span', {}, label),
-        el('span', { class: 'kind' }, [KIND_LABEL[primary.kind], sizeText(primary.size)].filter(Boolean).join(' · ') + ' ↗')));
-    } else {
-      out.push(el('ul', { class: 'artifact-list' }, el('li', {}, artifactItemEl(primary))));
-    }
-  }
-
-  if (id === 'bom' && art.bom?.rows?.length) {
-    const b = art.bom;
-    out.push(el('h3', {}, `Parts on this board (${b.unique_parts} unique, ${b.total_qty} total)`));
-    out.push(el('div', { class: 'mini-table-wrap' }, el('table', { class: 'mini-table' },
-      el('thead', {}, el('tr', {}, el('th', {}, 'Refs'), el('th', {}, 'Qty'), el('th', {}, 'Value'), el('th', {}, 'Part'))),
-      el('tbody', {}, b.rows.map(r => {
-        const sp = r.supplier_part;
-        const partLink = !privateHidden && /^C\d{3,}$/.test(sp)
-          ? extLink(`https://jlcpcb.com/parts/componentSearch?searchTxt=${encodeURIComponent(sp)}`, sp)
-          : sp ? mono(sp) : null;
-        return el('tr', {},
-          el('td', {}, r.refs),
-          el('td', {}, r.qty),
-          el('td', {}, r.value),
-          el('td', {}, r.mpn || r.maker, partLink ? [' (', partLink, ')'] : null));
-      })))));
-  }
-
-  if (rest.length) {
-    out.push(el('h3', {}, primary ? 'Other files' : 'Files'));
-    out.push(el('ul', { class: 'artifact-list' }, rest.map(x => el('li', {}, artifactItemEl(x)))));
-  }
-  return out;
-}
-
-// Latest check findings surfaced cleanly when there are actual findings; full plumbing tucked under details.
-function latestFindingsBlock(n) {
-  const last = n.runs?.last;
-  const rep = last?.report_read;
-  if (!rep?.findings?.length && !rep?.error) return [];
-  const out = [el('h3', {}, rep.error ? 'Latest check error' : `Check findings (${rep.findings_total})`)];
-  if (rep.error) out.push(el('p', { class: 'note' }, rep.error));
-  if (rep.findings?.length) {
-    out.push(el('ul', { class: 'bullets' }, rep.findings.map(f => el('li', {}, f))));
-    if (rep.findings_total > rep.findings.length) out.push(el('p', { class: 'quiet' }, `${rep.findings_total - rep.findings.length} more in the report.`));
-  }
-  return out;
-}
-
-function machineDetailsBlock(n) {
-  const parts = [
-    el('h3', {}, 'Agent & check instructions'),
-    el('p', {}, n.task),
-    el('h3', {}, 'Passes when'),
-    el('p', {}, n.pass_when),
-  ];
-  const r = n.runs;
-  if (r) {
-    parts.push(el('h3', {}, r.when === 'pass' ? 'Checked before passing' : 'Automated check'));
-    if (!r.connected) {
-      parts.push(el('p', { class: 'quiet' }, mono(r.action), r.later ? ' — runs on the KiCad Mac.' : ' — manual check.'));
-    } else {
-      parts.push(el('p', { class: 'quiet' }, mono(`${r.function}()`), ' in ', repoFileLink(r.source, r.source), `, line ${r.line}.`));
-      if (r.doc) parts.push(el('p', { class: 'note' }, r.doc));
-      if (r.reads?.length) {
-        parts.push(el('p', { class: 'quiet', style: 'margin-top:6px' }, `Inputs (${r.reads.length}): `,
-          ...r.reads.flatMap((p, i) => i ? [', ', repoFileLink(p, p)] : [repoFileLink(p, p)])));
-      }
-    }
-    if (r.last) {
-      parts.push(facts([
-        ['Last run', `${agoText(r.last.started_at)} (${when(r.last.started_at)})`],
-        ['Result', el('span', {}, dot(outcomeTone(r.last.outcome)), ' ', outcomeWord(r.last.outcome))],
-        r.last.report ? ['Report', repoFileLink(r.last.report, r.last.report)] : null,
-      ]));
-    }
-  }
-  const outs = el('ul', { class: 'outcomes' }, el('li', {}, el('span', { class: 'key' }, 'On pass'), el('span', {}, nodeLink(n.outcomes.pass))));
-  if (n.outcomes.returned.length) {
-    const targets = el('span', {});
-    n.outcomes.returned.forEach((t, i) => { if (i) targets.append(', '); targets.append(nodeLink(t)); });
-    outs.append(el('li', {}, el('span', { class: 'key' }, 'Can return'), targets));
-  }
-  parts.push(el('h3', {}, 'Flow'), outs);
-  return el('details', { class: 'machine-details' }, el('summary', {}, 'Agent rules & check details'), ...parts);
-}
-
-function select(id, fly = false, keepScroll = false) {
-  const n = M.nodes.get(id);
-  if (!n) return;
-  selected = id; applyHighlight();
-  if (fly) {
-    const spot = P.get(id);
-    orbit.goalTarget.copy(spot.center);
-    orbit.goal.radius = Math.min(orbit.goal.radius, 34);
-    atDefault = false;
-  }
-  const body = [
-    el('p', { class: 'where' }, stageLine(n)),
-    el('h2', {}, n.label),
-    el('div', { class: 'state-row' }, stateChip(n), whoPill(n)),
-  ];
-
-  // 1. Urgent status if active or waiting right here
-  if (n.attempt) {
-    const a = n.attempt;
-    body.push(el('div', { class: 'callout work' },
-      el('div', { class: 'callout-head' }, `${a.by === 'owner' ? 'You are' : actorHuman(a.by) + ' is'} working on this (${agoText(a.since)})`),
-      a.note ? el('p', { class: 'quiet', style: 'margin:0' }, cleanHumanNote(a.note)) : null));
-  } else if (n.status === 'current') {
-    const waits = M.whereTracks[n.track]?.node?.waiting_on;
-    if (waits) {
-      const isYou = isOwnerWait(waits);
-      body.push(el('div', { class: `callout${isYou ? ' owner' : ''}` },
-        el('div', { class: 'callout-head' }, isYou ? `Waiting on you (${agoText(waits.since)})` : `Waiting on ${whoHuman(waits.who)} (${agoText(waits.since)})`),
-        waits.note ? el('p', { style: 'margin:0' }, cleanHumanNote(waits.note)) : null));
-    }
-  }
-
-  // 2. The card's part of the graph's notes, then direct links to actual files, renders, datasheets, or BOM
-  body.push(...cardNotesBlock(n));
-  body.push(...cardFilesBlock(id));
-
-  // 3. Any check errors/findings or open questions blocking this step
-  body.push(...latestFindingsBlock(n));
-
-  const policy = M.view.where.approvals;
-  const approvalFor = key => policy?.cards.find(item => item.card === key);
-  const ownReview = approvalFor(id);
-  if (ownReview) {
-    body.push(el('h3', {}, 'Approval on this revision'),
-      el('p', {}, [ownReview.status, ...ownReview.reasons].join(' · ')));
-  }
-  if (policy && n.requires_current?.length) {
-    body.push(el('h3', {}, policy.mode === 'enforce' ? 'Required approvals' : 'Approvals under observation'),
-      el('ul', { class: 'outcomes' }, n.requires_current.map(key => {
-        const review = approvalFor(key);
-        return el('li', {}, el('span', { class: 'key' }, review?.status || 'unproven'),
-          el('span', {}, M.all.get(key)?.label || key));
-      })));
-  }
-
-  if (n.requires?.length) {
-    body.push(el('h3', {}, 'Depends on'), el('ul', { class: 'outcomes' }, n.requires.map(r => {
-      const review = policy?.mode === 'enforce' && approvalFor(r);
-      const passed = review ? review.status === 'current' :
-        M.nodes.get(r).status === 'passed' || M.nodes.get(r).last?.outcome === 'pass';
-      return el('li', {}, el('span', { class: 'key' }, passed ? 'Passed' : 'Waiting'), el('span', {}, nodeLink(r)));
-    })));
-  }
-
-  if (n.elsewhere?.length) {
-    // What this card waits on from a track this page does not draw: named, with a link to that track's page.
-    body.push(el('h3', {}, 'Depends on, on another track'), el('ul', { class: 'outcomes' }, n.elsewhere.map(r => {
-      const other = M.all.get(r), track = M.whole.tracks.find(t => t.id === other?.track);
-      const review = policy?.mode === 'enforce' && approvalFor(r);
-      const passed = review ? review.status === 'current' : other?.status === 'passed' || other?.last?.outcome === 'pass';
-      return el('li', {}, el('span', { class: 'key' }, passed ? 'Passed' : 'Waiting'),
-        el('span', {}, el('a', { class: 'link', href: trackHref(other?.track || STAGED) },
-          `${other?.label ?? r}${track ? ` (${trackHead(track)})` : ''}`)));
-    })));
-  }
-
-  const issues = M.issues(id);
-  if (issues.length) {
-    body.push(el('h3', {}, issues.length === 1 ? 'Open question before this can pass' : `${issues.length} open questions before this can pass`),
-      el('div', {}, issues.map(i => el('details', { open: issues.length === 1 ? '' : null },
-        el('summary', {}, i.id.replace(/_/g, ' ')), el('p', {}, cleanHumanNote(i.issue))))));
-  }
-
-  const prs = M.prs.byNode.get(id) || [];
-  if (prs.length) {
-    body.push(el('h3', {}, prs.length === 1 ? 'Pull request' : 'Pull requests'));
-    prs.forEach(pr => body.push(prBlock(pr, false)));
-  }
-
-  const ahead = (M.prs.ahead.get(id) || []).filter(a => !(a.how === 'passed' && n.status === 'passed'));
-  if (ahead.length) {
-    body.push(el('h3', {}, 'On a branch, not merged'));
-    ahead.forEach(a => body.push(el('p', { class: 'quiet' },
-      extLink(a.pr.url, `Pull request ${a.pr.number}`), a.how === 'passed' ? ': this card has passed there.' : ': the work stands at this card there.')));
-  }
-
-  // 4. Plain-language summary of what happened last
-  if (n.status === 'current') {
-    const w = M.whereTracks[n.track]?.node;
-    if (w?.since && !w?.waiting_on) {
-      const last = M.whereTracks[n.track].transitions.at(-1);
-      body.push(el('h3', {}, 'Latest update'),
-        el('p', { class: 'quiet' }, `Reached ${agoText(w.since)}${last ? ` from ${labelOf(last.node)}` : ''} (${actorHuman(w.moved_by)}).`),
-        w.moved_because ? el('p', { class: 'note' }, cleanHumanNote(w.moved_because)) : null);
-    }
-  } else if (n.last) {
-    body.push(el('h3', {}, 'Last recorded here'),
-      el('p', { class: 'quiet' }, `${outcomeWord(n.last.outcome)}${n.last.outcome === 'dropped' ? '' : ` → ${labelOf(n.last.target)}`}, ${agoText(n.last.at)} by ${actorHuman(n.last.actor)}.`),
-      n.last.note ? el('p', { class: 'note' }, cleanHumanNote(n.last.note)) : null);
-    if (n.passed_before) body.push(el('p', { class: 'quiet' }, 'Passed earlier; work has since returned to an earlier step.'));
-  }
-
-  // 5. Recent human-relevant history for this card
-  const rows = (M.view.log?.rows || []).filter(r => r.node === id && isHumanLogRow(r));
-  if (rows.length) {
-    body.push(el('h3', {}, 'History on this step'), el('ol', { class: 'log-rows' }, rows.slice(0, 5).map(rowItem)));
-  }
-
-  // 6. Tucked-away machine/agent instructions & script plumbing
-  body.push(machineDetailsBlock(n));
-
-  openPanel(body, `Details for ${n.label}`, { kind: 'node', id }, keepScroll);
-}
-
-function openList() {
-  selected = null; applyHighlight();
-  const body = [el('h2', {}, 'All nodes'), el('p', { class: 'quiet' }, 'Every node on every track, in order, with its state.')];
-  const row = id => {
-    const n = M.nodes.get(id);
-    let word = stateWord(n);
-    if (M.next.get(id) === 'pass') word += ', next';
-    return el('li', {}, nodeLink(id), el('span', { class: 'word' }, word));
-  };
-  for (const t of M.g.tracks) {
-    body.push(el('p', { class: 'list-track' }, t.label));
-    if (t.id === STAGED) {
-      M.g.stages.forEach((s, i) => {
-        body.push(el('p', { class: 'list-stage' }, `${i + 1}. ${s.label}`));
-        body.push(el('ul', { class: 'list' }, M.g.nodes.filter(n => n.stage === s.id).map(n => row(n.id))));
-      });
-    } else body.push(el('ul', { class: 'list' }, M.g.nodes.filter(n => n.track === t.id).map(n => row(n.id))));
-  }
-  openPanel(body, 'All nodes', { kind: 'list' });
-}
-
-// ---------------------------------------------------------------- workspace and log: what git and next are doing
-const OUTCOME_WORD = { pass: 'pass', needs_owner: 'needs the owner', needs_lead: 'needs the lead', more_work: 'more work',
-  current: 'current', refused: 'refused', error: 'error', mismatch: 'mismatch', taken: 'taken over' };
-const outcomeWord = o => o == null ? 'unfinished' : OUTCOME_WORD[o] || o.replace(/_/g, ' ');
-function outcomeTone(o) {
-  if (o == null) return 'ok';
-  if (['error', 'refused', 'mismatch'].includes(o)) return 'bad';
-  if (['pass', 'current'].includes(o)) return 'good';
-  return 'warn';
-}
-const dot = tone => el('i', { class: `dot ${tone}`, 'aria-hidden': 'true' });
-const hhmm = iso => { const d = new Date(iso); return isNaN(d) ? '' : localClock(d); };
-const mmdd = iso => { const d = new Date(iso); return isNaN(d) ? '' : localDay(d); };
-const nodeRef = id => M.nodes.has(id) ? nodeLink(id) : el('span', {}, id || 'none');
-const extLink = (href, text) => href ? el('a', { class: 'link', href, target: '_blank', rel: 'noopener' }, text) : el('span', {}, text);
-const facts = pairs => el('dl', { class: 'facts' }, pairs.filter(Boolean).flatMap(([k, v]) => [el('dt', {}, k), el('dd', {}, v)]));
-const mono = text => el('span', { class: 'mono' }, text);
-function lasted(a, b) {
-  const s = (new Date(b) - new Date(a)) / 1000;
-  if (!isFinite(s) || s < 0) return '';
-  return s < 90 ? ` (${Math.round(s)} s)` : ` (${Math.round(s / 60)} min)`;
-}
-
-// One checkout against GitHub's main, in short (the strip) and in full (the panel).
-function standing(c) {
-  if (c.error) return 'unread';
-  const parts = [];
-  if (c.behind) parts.push(`${c.behind} behind`);
-  if (c.ahead) parts.push(`${c.ahead} ahead`);
-  return (parts.length ? parts.join(', ') : 'level') + (c.dirty_owned?.length ? ', owned files changed' : '');
-}
-function standingLong(c) {
-  if (c.error) return `Could not be read: ${c.error}`;
-  const b = c.behind, a = c.ahead, n = k => `${k} commit${k === 1 ? '' : 's'}`;
-  if (b && a) return `${n(b)} behind and ${n(a)} ahead of GitHub's main`;
-  if (b) return `${n(b)} behind GitHub's main`;
-  if (a) return `${n(a)} ahead of GitHub's main`;
-  return "Level with GitHub's main";
-}
-function checkoutTone(c, isMain) {
-  if (c.error || c.dirty_owned?.length || (isMain && c.ahead)) return 'bad';
-  return c.behind ? 'warn' : 'ok';
-}
-function macWord(mac) {
-  if (!mac) return { tone: 'bad', text: 'Mac: not in this snapshot' };
-  if (mac.this_machine) return { tone: 'ok', text: 'Mac: this machine' };
-  if (!mac.reached) return { tone: 'bad', text: 'Mac: not reached' };
-  if (mac.error) return { tone: 'bad', text: 'Mac: reached, status unread' };
-  return null;
-}
-// The Mac's last keep-pace run (scripts/mac_keep_pace.py: one run each time main changes, made by the pusher, the
-// sync workflow or tidy) from its status: words for the strip and a tone. Null for a read made before any run.
-const KEEP_TONE = { level: 'ok', forwarded: 'good', held: 'warn', failed: 'bad' };
-function keepPace(mac) {
-  if (!mac || !('keep_pace' in mac)) return null;
-  const k = mac.keep_pace;
-  if (!k) return { tone: 'warn', text: 'no run recorded', long: 'No run recorded: there is no logs/mac-keep-pace/status.json on the Mac. Has nothing been pushed to main since it was set up?' };
-  if (k.error) return { tone: 'bad', text: 'status unread', long: k.error };
-  const tone = k.pending?.length && k.result !== 'failed' ? 'warn' : KEEP_TONE[k.result] || 'warn';
-  return { tone, text: `${k.result} ${hhmm(k.at)} by ${k.by}`, status: k };
-}
-// CI's board checks as the database holds them: the validate workflow's last step on the Mac writes each run's
-// result (board_graph.py checks), and the page shows the newest row.
-function ciTone(ci) {
-  if (ci.passed === null || ci.passed === undefined) return 'warn';
-  return ci.passed ? (ci.open ? 'warn' : 'ok') : 'bad';
-}
-function ciText(ci) {
-  if (ci.passed === null || ci.passed === undefined) return 'no result';
-  const open = ci.open === null || ci.open === undefined ? '' : `, ${ci.open} open`;
-  return `${ci.passed ? 'pass' : 'FAIL'}${open} ${hhmm(ci.at)}`;
-}
-function ciLong(ci) {
-  if (ci.passed === null || ci.passed === undefined) return ci.note || 'no result';
-  const failing = (ci.checks || []).filter(c => !c.ok).map(c => c.check);
-  return `${ci.passed ? 'pass' : 'FAIL'}, ${ci.open ?? '?'} open${failing.length ? `; failing: ${failing.join(', ')}` : ''}; run ${ci.run_id} (${ci.event}) at ${when(ci.at)}`;
-}
-function prTone(pr) {
-  if (pr.question?.error || /^failing/.test(pr.checks || '')) return 'bad';
-  if (pr.question && pr.state === 'open') return 'warn';
-  if (pr.question && pr.state === 'merged') return 'good';
-  return 'ok';
-}
-function prState(pr) {
-  if (pr.question?.error) return 'GitHub did not say';
-  if (pr.state === 'open') return pr.draft ? 'open, draft' : 'open';
-  return pr.state;
-}
-
-function chip(key, tone, parts, onclick, label) {
-  return el('button', { class: 'chip', type: 'button', onclick, 'aria-label': label, 'data-key': key }, dot(tone), ...parts);
-}
-// Between full snapshots the workspace is carried (git, the Mac, GitHub) and only the database's part is new.
-const carried = ws => ws?.quick ? { from: ws.quick.carried_from } : null;
-function renderWorkspace(before) {
-  const strip = $('strip'), ws = M.view.workspace, kept = carried(ws);
-  const asof = kept?.from ? `as of ${hhmm(kept.from)}` : null;
-  const items = [el('span', { class: 'strip-title' }, 'Status', asof ? el('span', { class: 'asof' }, asof) : null)];
-  const open = () => openWorkspace();
-  // Who is working which node now, from the database: first, since it is what is happening.
-  for (const n of M.nodes.values()) {
-    if (!n.attempt) continue;
-    items.push(chip(`work-${n.id}`, 'good', [el('span', { class: 'k' }, 'Working'), el('b', {}, n.label),
-      `${actorHuman(n.attempt.by)} (${agoText(n.attempt.since)})`], () => select(n.id, true),
-      `Working: ${n.attempt.by} on ${n.label}, since ${when(n.attempt.since)}`));
-  }
-  if (!ws) {
-    items.push(privateHidden
-      ? chip('none', 'ok', ['Private details hidden'], open, 'Workspace: hidden with the private details')
-      : chip('none', 'bad', ['Not in this snapshot'], open, 'Workspace: not in this snapshot'));
-    strip.replaceChildren(...items);
-    return;
-  }
-  const unread = kept && !kept.from;
-  if (ws.error) items.push(chip('error', 'bad', [el('span', { class: 'k' }, 'Workspace'), 'not read'], open, 'Workspace: not read'));
-  const alone = !!M?.view?.one_machine;  // the project runs on one machine: there is no Mac to report
-  if (unread) items.push(chip('unread', 'warn', [alone ? 'Git & GitHub not read yet' : 'Git, Mac & GitHub not read yet'], open,
-    alone ? 'Workspace: git and GitHub not read yet' : 'Workspace: git, the Mac and GitHub not read yet'));
-
-  // Collapse routine git/Mac/tidy/fetch plumbing into one quiet pill when healthy; surface alerts individually.
-  const alerts = [];
-  for (const c of ws.here?.checkouts || []) {
-    const isMain = c.branch === 'main';
-    const tone = checkoutTone(c, isMain);
-    if (tone !== 'ok' || !isMain) {
-      const k = isMain ? 'Local' : 'Branch';
-      alerts.push(chip(isMain ? 'main' : 'this', tone, [el('span', { class: 'k' }, k), el('b', {}, c.branch || 'detached'),
-        standing(c)], open, `${k}: ${c.branch} at ${c.head}, ${standingLong(c)}`));
-    }
-  }
-  const mac = alone ? null : ws.mac, word = ws.error || unread || alone ? null : macWord(mac);
-  if (word && word.tone !== 'ok') alerts.push(chip('mac', word.tone, [word.text], open, word.text));
-  else if (mac && !word) {
-    const macTone = mac.branch === 'main' ? checkoutTone(mac, true) : 'warn';
-    if (macTone !== 'ok') alerts.push(chip('mac', macTone, [el('span', { class: 'k' }, 'Mac'), el('b', {}, mac.branch), standing(mac)], open, `Mac: ${standingLong(mac)}`));
-    const kp = keepPace(mac);
-    if (kp && (kp.tone === 'bad' || kp.stopped)) alerts.push(chip('keep-pace', kp.tone, [el('span', { class: 'k' }, 'Mac sync'), kp.stopped ? 'stopped?' : kp.text], open, `Mac keep-pace: ${kp.text}`));
-  }
-  const last = ws.last_upkeep;
-  if (last && outcomeTone(last.outcome) === 'bad') {
-    alerts.push(chip('last-tidy', 'bad', [el('span', { class: 'k' }, 'Sync'), outcomeWord(last.outcome)], open, `Last tidy: ${outcomeWord(last.outcome)}`));
-  }
-  if (ws.fetch_error) alerts.push(chip('github', 'bad', [el('span', { class: 'k' }, 'GitHub'), 'fetch failed'], open, 'GitHub: fetch failed'));
-
-  if (!ws.error && !unread) {
-    if (alerts.length) items.push(...alerts);
-    else items.push(chip('sync', 'ok', [alone ? 'Git & GitHub in sync' : 'Git, Mac & GitHub in sync'], open,
-      alone ? 'This checkout in sync — click for workspace details' : 'All checkouts and Mac in sync — click for workspace details'));
-  }
-
-  const ci = ws.ci?.latest;
-  if (ci) items.push(chip('ci', ciTone(ci), [el('span', { class: 'k' }, 'Checks'), ciText(ci)], open,
-    `Board checks on ${ci.commit.slice(0, 8)}: ${ciLong(ci)}`));
-
-  for (const pr of M.prs.list) {
-    const onBranch = branchLines(pr);
-    const stands = (pr.on_branch || []).map(t => t.position).find(id => id && M.nodes.has(id));
-    const where = pr.node ? labelOf(pr.node) : onBranch.length ? onBranch[0] : 'no node';
-    const card = pr.node && M.nodes.has(pr.node) ? pr.node : stands;
-    items.push(chip(`pr-${pr.number}`, prTone(pr), [el('b', {}, `PR #${pr.number}`), prState(pr), el('span', { class: 'k' }, where)],
-      () => card ? select(card, true) : openWorkspace(),
-      `Pull request ${pr.number}: ${prState(pr)}, ${pr.node ? `named in a record at ${labelOf(pr.node)}` : 'no record names it'}`
-        + (onBranch.length ? `. On its branch, not merged: ${onBranch.join('; ')}` : '')));
-  }
-  if (ws.pull_requests?.error) items.push(chip('pr-error', 'bad', ['Pull requests: unread'], open, 'Pull requests: GitHub did not say'));
-
-  strip.replaceChildren(...items);
-  flashChanged('strip', before);
-  stripEdge();
-}
-function stripEdge() {
-  const s = $('strip');
-  s.classList.toggle('more', s.scrollLeft + s.clientWidth < s.scrollWidth - 2);
-}
-$('strip').addEventListener('scroll', stripEdge, { passive: true });
-$('strip').addEventListener('wheel', e => {
-  // A mouse wheel scrolls the strip sideways.
-  const s = $('strip');
-  if (s.scrollWidth > s.clientWidth && Math.abs(e.deltaY) > Math.abs(e.deltaX)) { s.scrollLeft += e.deltaY; e.preventDefault(); }
-}, { passive: false });
-
-function prBlock(pr, withNode = true) {
-  const head = el('p', {}, extLink(pr.url, `Pull request ${pr.number}${pr.title ? `: ${pr.title}` : ''}`));
-  const q = pr.question;
-  const rows = [
-    ['State', el('span', {}, dot(prTone(pr)), ' ', prState(pr))],
-    q?.error ? ['GitHub', q.error] : null,
-    pr.checks ? ['Checks', pr.checks] : null,
-    pr.branch ? ['Branch', mono(pr.branch)] : null,
-    withNode ? ['Node', pr.node ? nodeRef(pr.node) : el('span', { class: 'quiet' }, 'No record names it')] : null,
-    branchLines(pr).length ? ['On its branch', `${branchLines(pr).join('; ')} (not merged)`] : null,
-    pr.record ? ['Named in', el('span', {}, mono(pr.record), pr.named_in === 'note' ? ' (its note)' : ' (a merge question)')] : null,
-    q?.merge_commit ? ['Merged as', mono(q.merge_commit.slice(0, 8))] : null,
-    pr.updated_at ? ['Updated', when(pr.updated_at)] : null,
-  ];
-  const out = [head, facts(rows)];
-  if (q && !q.error) {
-    out.push(el('p', { class: 'quiet', style: 'margin-top:8px' }, q.state === 'open'
-      ? `${labelOf(q.node)} waits on its merge; then next checks main's files and records ${outcomeWord(q.then)}.`
-      : `${labelOf(q.node)} waited on its merge; next checks main's files and records ${outcomeWord(q.then)}.`));
-    if (q.head_moved) out.push(el('p', { class: 'quiet' }, `Its head moved since the question (${q.asked_at_head.slice(0, 8)}, now ${(q.head || '').slice(0, 8)}).`));
-  }
-  return el('div', { class: 'block' }, out);
-}
-
-function openWorkspace() {
-  selected = null; applyHighlight();
-  const ws = M.view.workspace;
-  const body = [el('h2', {}, 'Workspace')];
-  if (!ws) {
-    body.push(el('p', { class: 'quiet' }, privateHidden
-      ? 'Hidden with the private details (the Hide private button): the workspace block names machines, accounts, paths and links.'
-      : 'This snapshot was written before the page showed the workspace. Run the snapshot again.'));
-    openPanel(body, 'Workspace', { kind: 'workspace' });
-    return;
-  }
-  const kept = carried(ws);
-  body.unshift(el('p', { class: 'where' }, kept ? (kept.from ? `Read ${when(kept.from)}` : 'Not read yet') : `Read ${when(ws.at)}`));
-  body.push(el('p', { class: 'quiet' }, "Git beside the graph: each checkout against GitHub's main, what tidy has left, and the pull requests the records name. Information only: git never moves a node."));
-  if (kept) body.push(el('p', { class: 'quiet' }, (kept.from
-    ? `Git, the Mac and GitHub as the full snapshot of ${when(kept.from)} read them.` : 'Git, the Mac and GitHub are not read yet.') +
-    ` Since then every record and tidy run has rewritten this page's data from the database alone (last at ${when(ws.quick.at)}),` +
-    ' which brings the last tidy run and the merge questions; a full snapshot reads the rest again.'));
-  if (ws.error) body.push(el('h3', {}, 'Not read'), el('p', { class: 'note' }, ws.error));
-  else if (kept && !kept.from) { /* nothing carried: only the database's part below */ }
-  else {
-    body.push(el('h3', {}, 'GitHub'), el('p', {}, ws.fetch_error
-      ? `The fetch failed, so the counts are against the last fetch: ${ws.fetch_error}` : `Fetched ${when(ws.at)}.`));
-    body.push(el('h3', {}, 'This computer'));
-    for (const c of ws.here.checkouts) {
-      body.push(el('div', { class: 'block' }, facts([
-        ['Branch', el('b', {}, c.branch || 'no branch')],
-        ['Commit', mono(c.head || '?')],
-        ['Against main', el('span', {}, dot(checkoutTone(c, c.branch === 'main')), ' ', standingLong(c))],
-        c.dirty_owned?.length ? ['Uncommitted', el('span', {}, 'owned files: ', mono(c.dirty_owned.join(', ')))] : null,
-        ['Path', mono(c.path)],
-        c.this ? ['', el('span', { class: 'quiet' }, 'The snapshot was taken here.')] : null,
-      ])));
-    }
-    const pendingHere = ws.here.tidy_pending || [];
-    body.push(el('p', { class: 'quiet', style: 'margin-top:10px' }, pendingHere.length
-      ? 'Tidy pending here: worktrees whose work is all on main.' : 'Tidy pending here: nothing.'));
-    if (pendingHere.length) body.push(el('ul', { class: 'bullets' }, pendingHere.map(p =>
-      el('li', {}, mono(p.branch || 'no branch'), ' at ', mono(p.path), p.kept ? ` (kept: ${p.kept})` : ''))));
-    const openHere = ws.here.not_on_main || [];
-    if (openHere.length) {
-      body.push(el('p', { class: 'quiet', style: 'margin-top:10px' }, 'Not on main yet here:'));
-      body.push(el('ul', { class: 'bullets' }, openHere.map(p => el('li', {}, mono(p.branch || 'no branch'),
-        ` ${p.ahead} commit(s), last ${p.last}`, p.path ? ' at ' : '', p.path ? mono(p.path) : ''))));
-    }
-
-    const mac = ws.mac, word = macWord(mac);
-    if (M?.view?.one_machine) {
-      // the project runs on this machine alone
-    } else if (body.push(el('h3', {}, 'Mac')) && word) {
-      body.push(el('p', {}, dot(word.tone), ' ', word.text, '.'));
-      if (mac?.error) body.push(el('p', { class: 'note' }, mac.error));
-    } else {
-      body.push(facts([
-        ['Branch', el('b', {}, mac.branch)],
-        ['Commit', mono(mac.head)],
-        ['Against main', el('span', {}, dot(mac.branch === 'main' ? checkoutTone(mac, true) : 'warn'), ' ', standingLong(mac))],
-      ]));
-      body.push(el('p', { class: 'quiet', style: 'margin-top:10px' }, mac.tidy_pending.length
-        ? 'Tidy pending on the Mac:' : 'Tidy pending on the Mac: nothing.'));
-      if (mac.tidy_pending.length) body.push(el('ul', { class: 'bullets' }, mac.tidy_pending.map(p => el('li', {}, mono(p.branch || 'a disposable copy'), ' at ', mono(p.path)))));
-      if (mac.notes?.length) body.push(el('ul', { class: 'bullets' }, mac.notes.map(t => el('li', {}, t.replace(/^Mac: /, '')))));
-      const kp = keepPace(mac);
-      if (kp) {
-        body.push(el('h3', {}, 'Mac keep-pace run'));
-        const k = kp.status;
-        if (!k) body.push(el('p', {}, dot(kp.tone), ' ', kp.long));
-        else body.push(facts([
-          ['Last run', `${when(k.at)}, made by ${k.by}`],
-          ['Result', el('span', {}, dot(kp.tone), ' ', k.result)],
-          ['Said', k.said],
-        ]));
-      }
-    }
-  }
-  body.push(el('h3', {}, 'CI board checks'));
-  const ci = ws.ci?.latest;
-  if (ci) {
-    body.push(facts([
-      ['Commit', mono(ci.commit.slice(0, 8))],
-      ['Result', el('span', {}, dot(ciTone(ci)), ' ', ciLong(ci))],
-    ]));
-    if (ci.checks?.length) body.push(el('ul', { class: 'bullets' }, ci.checks.map(c =>
-      el('li', {}, `${c.check}: ${c.inherited ? 'inherited' : c.ok ? 'pass' : 'FAIL'}, ${c.detail}`))));
-  } else body.push(el('p', { class: 'quiet' }, 'No validate run has written to the graph yet.'));
-
-  body.push(el('h3', {}, 'Pull requests'));
-  if (ws.pull_requests?.error) body.push(el('p', { class: 'note' }, `GitHub did not say: ${ws.pull_requests.error}`));
-  if (M.prs.list.length) M.prs.list.forEach(pr => body.push(prBlock(pr)));
-  else if (!ws.pull_requests?.error) body.push(el('p', { class: 'quiet' }, 'None open, and no position waits on a merge.'));
-
-  body.push(el('h3', {}, 'Last tidy run'));
-  const last = ws.last_upkeep;
-  if (last) {
-    body.push(facts([
-      ['When', when(last.started_at) + (last.finished_at ? lasted(last.started_at, last.finished_at) : ', never finished')],
-      ['Why', `${last.why}, at ${labelOf(last.node)}`],
-      ['Outcome', el('span', {}, dot(outcomeTone(last.outcome)), ' ', outcomeWord(last.outcome))],
-      last.mac ? ['Mac', `skipped: ${last.mac}`] : null,
-    ]));
-    if (last.problems?.length) body.push(el('ul', { class: 'bullets' }, last.problems.map(p => el('li', {}, p))));
-  } else body.push(el('p', { class: 'quiet' }, 'next has not run tidy yet.'));
-  openPanel(body, 'Workspace', { kind: 'workspace' });
-}
-
-let showMachineLog = false;
-function isHumanLogRow(r) {
-  if (r.kind === 'upkeep') return outcomeTone(r.outcome) === 'bad';
-  if (r.kind === 'work') return !r.finished_at || r.launch_state === 'needs_lead';
-  if (r.kind === 'attempt') return Boolean(r.record) || outcomeTone(r.outcome) === 'bad';
-  return true;
-}
-
-// One log row: a script run, a card started with next for a person, a tidy run, or a record by hand.
-function rowText(r) {
-  const at = labelOf(r.node);
-  const moved = r.target && r.target !== r.node && r.outcome !== 'dropped' ? ` → ${labelOf(r.target)}` : '';
-  const noteLine = r.note ? cleanHumanNote(r.note) : '';
-  if (r.kind === 'work') return {
-    title: r.launch_state === 'needs_lead' ? `${at}: launch stopped, needs lead` :
-      r.launch_state === 'active' ? `${at}: ${actorHuman(r.actor)} working` :
-      r.finished_at ? `${at}: ${actorHuman(r.actor)} (${outcomeWord(r.outcome)})` : `${at}: ${actorHuman(r.actor)} working`,
-    sub: noteLine || 'In progress', kind: 'Work session' };
-  if (r.kind === 'upkeep') return {
-    title: `Sync & tidy: ${outcomeWord(r.outcome)}`,
-    sub: `At ${at}${r.mac_skipped ? ', Mac skipped' : ''}`, kind: 'Workspace sync' };
-  if (r.kind === 'attempt') {
-    const merge = r.what === 'merge_check';
-    return {
-      title: `${at}: ${outcomeWord(r.outcome)}${moved}`,
-      sub: noteLine || (merge ? 'Merge check' : `${r.what} check`),
-      kind: merge ? 'Merge check' : 'Automated check' };
-  }
-  const word = r.outcome === 'needs_owner' ? 'waiting on you' : outcomeWord(r.outcome);
-  return { title: `${at}: ${word}${moved}`, sub: noteLine || `By ${actorHuman(r.actor)}`, kind: 'Step update' };
-}
-function logRow(r) {
-  const t = rowText(r);
-  return el('button', { class: 'row', type: 'button', onclick: () => openLogRow(r), 'aria-label': `${hhmm(r.at)} ${t.title}` },
-    el('span', { class: 'row-time' }, hhmm(r.at), el('span', {}, mmdd(r.at))), dot(outcomeTone(r.launch_state === 'needs_lead' ? 'needs_lead' : r.outcome)),
-    el('span', {}, el('div', { class: 'row-title' }, t.title), el('div', { class: 'row-sub' }, t.sub)));
-}
-// What the newest snapshot changed in the log, by row id: 'enter' (a new row) or 'changed' (a run that moved on).
-let rowNews = new Map();
-const rowSig = r => JSON.stringify([r.outcome, r.finished_at, r.record, r.launch_state, r.launch_note]);
-function rowChanges(before, rows) {
-  const known = new Map(before.map(r => [r.id, rowSig(r)]));
-  const news = new Map();
-  for (const r of rows) {
-    if (!known.has(r.id)) news.set(r.id, 'enter');
-    else if (known.get(r.id) !== rowSig(r)) news.set(r.id, 'changed');
-  }
-  return news;
-}
-function rowItem(r) {
-  const li = el('li', {}, logRow(r));
-  const news = rowNews.get(r.id);
-  if (news) {
-    li.classList.add(news); // a new row slides in even under reduced motion: the change is the point (the owner's choice)
-    // Once it has slid in, the row is an ordinary row again (the slide clips it while it runs).
-    li.addEventListener('animationend', e => { if (e.target === li) li.classList.remove('enter'); });
-  }
-  return li;
-}
-function renderLog() {
-  const all = M.view.log?.rows || [];
-  const human = all.filter(isHumanLogRow);
-  const shownRows = human.length ? human : all;
-  $('log-rows').replaceChildren(...(shownRows.length ? shownRows.slice(0, 6).map(rowItem)
-    : [el('li', {}, el('p', { class: 'empty' }, M.view.log ? 'No updates recorded yet.' : 'This snapshot has no log.'))]));
-  $('log-all').textContent = M.view.log ? `All ${human.length || M.view.log.total}` : 'All';
-  fitLog();
-}
-// The log under the positions ends above the legend (or above the strip where the legend is hidden) at any window
-// height: the newest rows that fit whole are shown, the rest left out, and with no room for one row the log is
-// left out. A row's height is its content's, so a row still sliding in counts at its full height.
-function fitLog() {
-  const log = $('log'), rows = [...$('log-rows').children];
-  log.hidden = false;
-  rows.forEach(li => { li.hidden = false; });
-  if (!log.getClientRects().length) return;  // a narrow window hides the log by its own rule
-  const legend = $('legend');
-  const floor = (legend.getClientRects().length ? legend.getBoundingClientRect().top : $('strip').getBoundingClientRect().top) - 12;
-  let y = $('log-rows').getBoundingClientRect().top, shown = 0;
-  for (const li of rows) {
-    y += li.scrollHeight;
-    if (y > floor) li.hidden = true; else shown += 1;
-    y += 1;  // the rows' gap
-  }
-  if (!shown) log.hidden = true;
-}
-function openLog(keepScroll = false) {
-  selected = null; applyHighlight();
-  const log = M.view.log;
-  const body = [el('h2', {}, 'History')];
-  if (!log) body.push(el('p', { class: 'quiet' }, 'This snapshot was written before the page showed the log. Run the snapshot again.'));
-  else {
-    const all = log.rows || [];
-    const human = all.filter(isHumanLogRow);
-    const hiddenCount = all.length - human.length;
-    const visible = showMachineLog ? all : human;
-    body.push(el('div', { class: 'filter-bar' },
-      el('span', { class: 'quiet' }, showMachineLog ? `Showing all ${all.length} entries` : `${human.length} step ${human.length === 1 ? 'update' : 'updates'}`),
-      hiddenCount > 0 ? el('button', {
-        class: 'tool', type: 'button', style: 'padding:5px 10px;font-size:12px',
-        'aria-pressed': String(showMachineLog),
-        onclick: () => { showMachineLog = !showMachineLog; openLog(true); },
-      }, showMachineLog ? 'Hide machine runs' : `Show machine runs (+${hiddenCount})`) : null));
-    body.push(visible.length
-      ? el('ol', { class: 'log-rows' }, visible.map(rowItem))
-      : el('p', { class: 'quiet' }, 'No step transitions yet.'));
-  }
-  openPanel(body, 'History', { kind: 'log' }, keepScroll);
-}
-function openLogRow(r, keepScroll = false) {
-  selected = M.nodes.has(r.node) ? r.node : null; applyHighlight();
-  const t = rowText(r);
-  const body = [
-    el('button', { class: 'link back', type: 'button', onclick: () => openLog() }, '← History'),
-    el('p', { class: 'where' }, t.kind),
-    el('h2', {}, t.title),
-    el('span', { class: 'state' }, dot(outcomeTone(r.outcome)), outcomeWord(r.outcome)),
-  ];
-  const report = r.report_read;
-  if (r.note) body.push(el('p', { class: 'note', style: 'margin-top:12px' }, cleanHumanNote(r.note)));
-  if (r.evidence?.length) {
-    body.push(el('h3', {}, 'Attached files'),
-      el('ul', { class: 'bullets' }, r.evidence.map(p => el('li', {}, repoFileLink(p, p)))));
-  }
-  body.push(el('h3', {}, 'Details'), facts([
-    ['Step', nodeRef(r.node)],
-    r.kind === 'upkeep' ? ['Trigger', r.what] : null,
-    r.kind === 'attempt' ? ['Check', mono(r.what)] : null,
-    [r.kind === 'record' ? 'When' : 'Started', `${agoText(r.at)} (${when(r.at)})`],
-    r.kind === 'work' ? ['Closed', r.finished_at ? when(r.finished_at) + lasted(r.at, r.finished_at) : 'Still working'] : null,
-    r.launch_state ? ['Launch', r.launch_state === 'needs_lead' ? `Needs lead: ${r.launch_note}` : r.launch_state] : null,
-    r.kind === 'attempt' || r.kind === 'upkeep' ? ['Finished', r.finished_at ? when(r.finished_at) + lasted(r.at, r.finished_at) : 'Not finished'] : null,
-    r.target ? ['Moved to', r.target === r.node ? el('span', {}, 'Stayed at ', nodeRef(r.node)) : nodeRef(r.target)] : null,
-    r.actor ? ['By', actorHuman(r.actor)] : null,
-    r.report ? ['Report', repoFileLink(r.report, r.report)] : null,
-    r.kind === 'upkeep' && r.finished_at ? ['Mac', r.mac_skipped ? `skipped: ${r.mac_skipped}` : 'synced'] : null,
-  ]));
-  if (r.kind === 'attempt') {
-    if (report?.error) body.push(el('h3', {}, 'Error'), el('p', { class: 'note' }, report.error));
-    if (report?.findings?.length) {
-      body.push(el('h3', {}, `Findings (${report.findings_total})`), el('ul', { class: 'bullets' }, report.findings.map(f => el('li', {}, f))));
-      if (report.findings_total > report.findings.length) body.push(el('p', { class: 'quiet' }, `${report.findings_total - report.findings.length} more in the report.`));
-    } else if (report) body.push(el('h3', {}, 'Findings'), el('p', { class: 'quiet' }, 'None.'));
-    if (report?.differ?.length) body.push(el('h3', {}, "Main's files that differ"), el('ul', { class: 'bullets' }, report.differ.map(f => el('li', {}, repoFileLink(f, f)))));
-    if (r.report && !report) body.push(el('p', { class: 'quiet', style: 'margin-top:12px' }, 'The report is not in the checkout the snapshot was taken from.'));
-  }
-  if (r.kind === 'upkeep') {
-    if (r.problems?.length) body.push(el('h3', {}, 'Why sync paused'), el('ul', { class: 'bullets' }, r.problems.map(p => el('li', {}, p))));
-    body.push(el('h3', {}, 'Sync output'), r.said ? el('pre', { class: 'said' }, r.said + (r.said_cut ? '\n(cut here; the database keeps the rest)' : ''))
-      : el('p', { class: 'quiet' }, 'Nothing yet: the run had not finished.'));
-  }
-  openPanel(body, `History: ${t.title}`, { kind: 'row', id: r.id }, keepScroll);
-}
-
-$('close').addEventListener('click', closePanel);
-$('reset').addEventListener('click', () => resetView());
-$('list').addEventListener('click', () => panelMode?.kind === 'list' ? closePanel() : openList());
-$('log-open').addEventListener('click', () => panelMode?.kind === 'log' || panelMode?.kind === 'row' ? closePanel() : openLog());
-$('log-all').addEventListener('click', () => openLog());
-$('save').addEventListener('click', () => savePng());
-addEventListener('keydown', e => { if (e.key === 'Escape') closePanel(); });
-
-// ---------------------------------------------------------------- PNG: the page as a picture, never the panel
-const PICTURE_WIDTH = 1920; // the page's sizes hold at this width; a picture scales them by W / PICTURE_WIDTH
-function captionText() {
-  const b = M.tracks[MAIN];
-  if (MAIN !== STAGED) {
-    const head = trackHead(M.g.tracks[0]), ids = M.g.nodes.map(x => x.id), at = ids.indexOf(b?.position);
-    if (b?.done) return `${M.g.milestone}: every card on the ${head} track has passed.`;
-    return at < 0 ? `${M.g.milestone}. ${head}: ${ids.length} cards.`
-      : `${M.g.milestone}. ${head} is at ${M.nodes.get(b.position).label}, card ${at + 1} of ${ids.length}.`;
-  }
-  const main = STAGED === 'board' ? 'board' : trackHead(M.g.tracks.find(t => t.id === STAGED) || { label: STAGED });
-  if (b.done) return M.whereTracks[MAIN]?.dropped ? `${M.g.milestone}: dropped at ${M.whereTracks[MAIN].dropped.label}.`
-    : `${M.g.milestone}: every node on the ${main} track has passed.`;
-  const n = M.nodes.get(b.position), i = M.stageIndex.get(n.stage);
-  return `${M.g.milestone}. ${STAGED === 'board' ? 'The board' : main} is at ${n.label}, stage ${i + 1} of ${M.g.stages.length} (${M.g.stages[i].label}).`;
-}
-// The band along the bottom. With the left column in the picture it holds the legend alone, at the left as on
-// the page: the title, the milestone and the snapshot stamp are in the column. Without the column (the browser
-// could not make its image) it holds the title, the position and the stamp, the legend at the right, and says so.
-function drawCaption(g, W, H, column) {
-  const s = W / PICTURE_WIDTH;
-  const band = (column ? 120 : 210) * s;
-  const fade = g.createLinearGradient(0, H - band, 0, H);
-  fade.addColorStop(0, 'rgba(0,0,0,0)'); fade.addColorStop(0.55, 'rgba(0,0,0,0.78)'); fade.addColorStop(1, 'rgba(0,0,0,0.9)');
-  g.fillStyle = fade; g.fillRect(0, H - band, W, band);
-  const x = (column ? 24 : 60) * s;
-  g.textBaseline = 'alphabetic';
-  if (!column) {
-    g.fillStyle = INK.primary; g.font = `600 ${38 * s}px ${FONT_DISPLAY}`;
-    g.fillText(titleText(), x, H - 112 * s);
-    g.fillStyle = INK.secondary; g.font = `400 ${24 * s}px ${FONT}`;
-    g.fillText(captionText(), x, H - 72 * s);
-    g.fillStyle = INK.muted; g.font = `400 ${20 * s}px ${FONT}`;
-    g.fillText(`Snapshot ${when(M.view.generated_at)}. The page's left column could not be drawn in this browser.`, x, H - 40 * s);
-  }
-
-  // Legend, right-aligned on the caption's last line.
-  const S = steps(MAIN);
-  const items = [
-    ['Passed', (cx, cy) => { rr(g, cx, cy - 7 * s, 26 * s, 14 * s, 4 * s); g.fillStyle = S.lit; g.fill(); g.lineWidth = 1.5 * s; g.strokeStyle = S.glow; g.stroke(); }],
-    ['On it', (cx, cy) => { rr(g, cx, cy - 7 * s, 26 * s, 14 * s, 4 * s); g.fillStyle = S.bright; g.fill(); }],
-    ['Between cards', (cx, cy) => { g.strokeStyle = S.glow; g.lineWidth = 2.5 * s; g.beginPath(); g.moveTo(cx, cy); g.lineTo(cx + 26 * s, cy); g.stroke(); g.fillStyle = S.bright; g.beginPath(); g.arc(cx + 13 * s, cy, 4 * s, 0, Math.PI * 2); g.fill(); }],
-    ['Next', (cx, cy) => { rr(g, cx, cy - 7 * s, 26 * s, 14 * s, 4 * s); g.fillStyle = '#0b0b0b'; g.fill(); g.lineWidth = 2 * s; g.strokeStyle = S.next; g.stroke(); }],
-    ['Ahead', (cx, cy) => { rr(g, cx, cy - 7 * s, 26 * s, 14 * s, 4 * s); g.fillStyle = '#0b0b0b'; g.fill(); g.lineWidth = 1.5 * s; g.strokeStyle = S.dim; g.stroke(); }],
-    ['Pass', (cx, cy) => { g.strokeStyle = S.glow; g.lineWidth = 2.5 * s; g.beginPath(); g.moveTo(cx, cy); g.lineTo(cx + 26 * s, cy); g.stroke(); }],
-    ['Returned', (cx, cy) => { g.fillStyle = S.bright; for (let k = 0; k < 4; k++) { g.beginPath(); g.arc(cx + 3 * s + k * 7 * s, cy, 2 * s, 0, Math.PI * 2); g.fill(); } }],
-    ['Requires', (cx, cy) => { g.strokeStyle = SLOTS[0]; g.lineWidth = 1.6 * s; g.beginPath(); g.moveTo(cx, cy + 5 * s); g.quadraticCurveTo(cx + 13 * s, cy - 9 * s, cx + 26 * s, cy + 5 * s); g.stroke(); }],
-  ];
-  g.font = `400 ${(column ? 14 : 19) * s}px ${FONT}`;
-  const widths = items.map(([t]) => 26 * s + 9 * s + g.measureText(t).width);
-  const gap = (column ? 20 : 26) * s;
-  let lx = column ? x : W - 60 * s - widths.reduce((a, b) => a + b, 0) - gap * (items.length - 1);
-  const ly = H - (column ? 40 : 46) * s;
-  items.forEach(([t, draw], k) => {
-    draw(lx, ly);
-    g.fillStyle = INK.secondary; g.fillText(t, lx + 35 * s, ly + (column ? 5 : 6.5) * s);
-    lx += widths[k] + gap;
-  });
-}
-// A stylesheet's text without its @media blocks: the picture is one wide, tall window, whatever this one is.
-function withoutMediaQueries(css) {
-  let out = '', i = 0;
-  while (i < css.length) {
-    const at = css.indexOf('@media', i);
-    if (at < 0) { out += css.slice(i); break; }
-    out += css.slice(i, at);
-    let j = css.indexOf('{', at), depth = 0;
-    for (; j < css.length; j++) { if (css[j] === '{') depth++; else if (css[j] === '}' && --depth === 0) break; }
-    i = j + 1;
-  }
-  return out;
-}
-// The left column (title, milestone, positions, stamp and log) as an image: the page's own markup and styles
-// inside an SVG foreignObject, laid out at the page's width and drawn at the picture's scale, so the picture
-// shows what the page shows. Left out: the media queries, the row animations (an SVG image is drawn at time
-// zero, where a sliding row is still invisible) and the live line, which is about this page's connection, not
-// the graph. Rejects when the browser cannot make the image.
-const COLUMN_PAD = { left: 60, right: 90, top: 40 }; // room for the column's shade, which reaches past its box
-function hudImage(s, H) {
-  const copy = document.querySelector('.hud').cloneNode(true);
-  for (const node of copy.querySelectorAll('.enter, .changed, .flash')) node.classList.remove('enter', 'changed', 'flash');
-  copy.querySelector('#live')?.remove();
-  const xml = text => text.replace(/&/g, '&amp;').replace(/</g, '&lt;');
-  const css = withoutMediaQueries(document.querySelector('style').textContent) +
-    `\n.hud { position: relative; top: auto; left: auto; margin: ${COLUMN_PAD.top}px 0 0 ${COLUMN_PAD.left}px; }`;
-  const w = COLUMN_PAD.left + 352 + COLUMN_PAD.right, h = Math.ceil(H / s);
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}"><foreignObject width="${w}" height="${h}">` +
-    `<div xmlns="http://www.w3.org/1999/xhtml" style="width:${w}px;height:${h}px;font:400 15px/1.5 var(--font);color:var(--ink-1);-webkit-font-smoothing:antialiased">` +
-    `<style>${xml(css)}</style>${new XMLSerializer().serializeToString(copy)}</div></foreignObject></svg>`;
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    img.onload = () => resolve({ img, x: (24 - COLUMN_PAD.left) * s, y: (20 - COLUMN_PAD.top) * s, w: w * s, h: h * s });
-    img.onerror = () => reject(new Error('the column image did not load'));
-    img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
-  });
-}
-// The page as a picture at 16:9: the scene, the left column as it stands on the page, and the legend along the
-// bottom. The panel is never drawn. The scene sits right of the column as on a wide window: from the default
-// view it is refit to the picture; after the camera has moved, the picture keeps the camera as it is.
-async function pngBlob(W = 2560, H = 1440) {
-  const s = W / PICTURE_WIDTH;
-  endShow(); // the picture shows the state as it settles, not a change mid-way
-  const column = await hudImage(s, H).catch(error => { console.warn(error); return null; });
-  const prevSize = renderer.getSize(new THREE.Vector2()), prevRatio = renderer.getPixelRatio(), prevAspect = camera.aspect;
-  const prevPos = camera.position.clone(), prevQuat = camera.quaternion.clone();
-  const prevSelected = selected, prevHovered = hovered;
-  selected = hovered = null; applyHighlight(); // the picture shows the graph's state, not what is selected
-  renderer.setPixelRatio(1);
-  renderer.setSize(W, H, false);
-  camera.aspect = W / H;
-  const reserve = column ? hudReserve(PICTURE_WIDTH, true) : 0; // the column's width at the page's scale, as hudW()
-  if (atDefault) {
-    const v = fitView(W / H, { x0: -0.9, x1: 0.9 - reserve / PICTURE_WIDTH, y0: column ? -0.72 : -0.6, y1: 0.86 });
-    camera.position.setFromSpherical(new THREE.Spherical(v.radius, v.phi, v.theta)).add(v.target);
-    camera.lookAt(v.target);
-  }
-  if (reserve) camera.setViewOffset(W, H, -reserve / 2 * s, 0, W, H); else camera.clearViewOffset(); // as screenShift()
-  camera.updateProjectionMatrix();
-  animate(clock.elapsedTime);
-  renderer.render(scene, camera);
-  const out = document.createElement('canvas'); out.width = W; out.height = H;
-  const g = out.getContext('2d');
-  g.drawImage(renderer.domElement, 0, 0, W, H);
-  drawCaption(g, W, H, !!column);
-  if (column) g.drawImage(column.img, column.x, column.y, column.w, column.h);
-  renderer.setPixelRatio(prevRatio);
-  renderer.setSize(prevSize.x, prevSize.y, false);
-  camera.aspect = prevAspect;
-  camera.position.copy(prevPos); camera.quaternion.copy(prevQuat);
-  selected = prevSelected; hovered = prevHovered; applyHighlight();
-  applyShift(true);
-  return new Promise(resolve => out.toBlob(resolve, 'image/png'));
-}
-async function savePng() {
-  const blob = await pngBlob();
-  const stamp = new Date().toISOString().slice(0, 16).replace(/[-:]/g, '').replace('T', '-');
-  const a = el('a', { href: URL.createObjectURL(blob), download: `board-graph-${stamp}.png` });
-  document.body.append(a); a.click(); a.remove();
-  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
-}
-window.boardGraphPng = pngBlob; // the same PNG as a Blob, for a check from the console
-
-// ---------------------------------------------------------------- loop, resize, data
-let shift = 0;
-function applyShift(now = false, dt = 0) {
-  const goal = screenShift();
-  shift = now || REDUCED ? goal : shift + (goal - shift) * (1 - Math.exp(-dt * 9));
-  if (Math.abs(shift) < 0.5) camera.clearViewOffset();
-  else camera.setViewOffset(innerWidth, innerHeight, -shift, 0, innerWidth, innerHeight);
-  camera.updateProjectionMatrix();
-}
-function resize() {
-  const w = innerWidth, h = innerHeight;
-  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
-  renderer.setSize(w, h, false);
-  camera.aspect = w / h;
-  applyShift(true);
-}
-addEventListener('resize', () => {
-  if (M) fitLog();
-  resize();
-  if (!M) return;
-  stripEdge();
-  defaultView = computeDefaultView();
-  if (atDefault) resetView();
-});
-// The legend wraps to another line when the panel narrows it, and a late font changes every line's height: the log
-// is fitted again.
-new ResizeObserver(() => { if (M) fitLog(); }).observe($('legend'));
-document.fonts?.ready.then(() => { if (M) fitLog(); });
-
-const clock = new THREE.Clock();
-function frame() {
-  const dt = Math.min(clock.getDelta(), 0.1), t = clock.elapsedTime;
-  applyShift(false, dt);
-  orbit.update(dt);
-  animate(t);
-  renderer.render(scene, camera);
-  requestAnimationFrame(frame);
-}
-// Pulses and the light flowing into the current node, at time t (seconds); also called before a PNG.
-function animate(t) {
-  let u = 1;
-  if (show) {
-    // A slow frame slows the show rather than skipping it: each frame moves it on by 1/30 s at most.
-    show.played += Math.min(t - (show.last ?? t), 1 / 30);
-    show.last = t;
-    u = show.played / SHOW;
-  }
-  // A node whose look changed brings up its own light (halo, ring, the light flowing into it) with its new look.
-  const gate = id => { const s = show?.spans.get(id); return s ? smooth(span01(u, s[0], s[1])) : 1; };
-  for (const p of pulses) p.mat.opacity = (REDUCED ? p.base : p.base + p.amp * Math.sin(t * 2.1 + p.phase)) * gate(p.id);
-  // The working light beats about once every two seconds; with reduced motion it stays still, half lit.
-  for (const b of beacons) {
-    const beat = REDUCED ? 0.5 : 0.5 + 0.5 * Math.sin(t * 3.2), g = gate(b.id);
-    b.head.material.opacity = (0.65 + 0.35 * beat) * g;
-    b.head.scale.setScalar(0.75 + 0.45 * beat);
-    b.glow.material.opacity = (0.3 + 0.4 * beat) * g;
-    b.trail.material.opacity = 0.9 * g;
-  }
-  for (const f of flows) {
-    const pos = f.geo.attributes.position, col = f.geo.attributes.color;
-    const travel = REDUCED ? 0 : (t * 1.5) / f.length, g = gate(f.id);
-    for (let i = 0; i < f.n; i++) {
-      const u = (f.offsets[i] + travel) % 1;
-      const p = f.curve.getPointAt(u);
-      pos.setXYZ(i, p.x, p.y, p.z);
-      const k = (Math.sin(Math.PI * u) * 0.85 + 0.15) * g;
-      col.setXYZ(i, f.color.r * k, f.color.g * k, f.color.b * k);
-    }
-    pos.needsUpdate = true; col.needsUpdate = true;
-  }
-  if (show) { if (u >= 1) endShow(); else playShow(u); }
-}
-
-// ---------------------------------------------------------------- watching a change happen
-// When the server's event brings a changed view.json, the difference plays for about a second, then settles. On each track whose
-// position moved, a light travels from the old node to the new one along the edge it moved by; the node it left fades
-// to its new look with a flash (a pass lights it up); the node it reached lights up as the light arrives; any other
-// card that changed fades to its new look. A move from a node someone was working starts at its working light; a
-// working light that goes out where it is fades there, and a new one comes up with its card.
-// A first load or a reload shows the new state at once.
-const SHOW = 1.2; // seconds
-const smooth = u => u * u * (3 - 2 * u);
-const ease = u => u < 0.5 ? 4 * u * u * u : 1 - Math.pow(-2 * u + 2, 3) / 2;
-const span01 = (u, a, b) => THREE.MathUtils.clamp((u - a) / (b - a), 0, 1);
-const TRAVEL = [0.08, 0.84], LEAVE = [0.04, 0.4], ARRIVE = [0.66, 0.96], OTHER = [0.3, 0.86];
-
-const spotOf = (track, id) => id === 'done' ? doneSpots.get(track) : P.get(id);
-// The way a position moved: along pass edges when it went forward by them (one step or several), along the returned
-// arc when a finding sent it back, else a plain arc between the two cards.
-function travelCurve(track, from, to) {
-  const path = new THREE.CurvePath();
-  for (let at = from, hops = 0; at !== 'done' && hops < 64; hops++) {
-    const next = M.nodes.get(at)?.outcomes.pass, a = spotOf(track, at), b = next && spotOf(track, next);
-    if (!a || !b) break;
-    path.add(passCurve(a, b));
-    if (next === to) return path;
-    at = next;
-  }
-  const arc = arcs.find(x => x.from === from && x.to === to);
-  if (arc) return arc.curve;
-  const a = spotOf(track, from), b = spotOf(track, to);
-  return a && b ? arcCurve(a.top.clone(), b.top.clone(), 1.2) : null;
-}
-// Where on `curve` a move ends: halfway along its last leg, the edge into the card the track now stands before.
-function arrival(curve) {
-  const legs = curve.curves;
-  if (!legs?.length) return BETWEEN_AT;
-  const total = curve.getLength(), last = legs[legs.length - 1].getLength();
-  return total > 0 ? (total - last * (1 - BETWEEN_AT)) / total : BETWEEN_AT;
-}
-function addMarker(curve, track, begin = 0, end = 1) {
-  const n = 18, geo = keep(new THREE.BufferGeometry());
-  geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(n * 3), 3));
-  geo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(n * 3), 3));
-  const trail = new THREE.Points(geo, keep(new THREE.PointsMaterial({ map: shared.spark, size: 1.1, vertexColors: true,
-    transparent: true, blending: THREE.AdditiveBlending, depthWrite: false })));
-  trail.frustumCulled = false;
-  const head = new THREE.Sprite(keep(new THREE.SpriteMaterial({ map: shared.spark, color: steps(track).next, transparent: true,
-    opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false })));
-  head.scale.setScalar(2.2);
-  world.add(trail, head);
-  return { curve, trail, head, n, begin, end, color: new THREE.Color(steps(track).next) };
-}
-function glowAt(spot, color, peak) {
-  return { peak, mesh: leaningPlane(spot.w + 2.6 * spot.scale, spot.h + 2.0 * spot.scale, new THREE.MeshBasicMaterial({
-    map: shared.halo, color, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false }), spot.center, 0.03) };
-}
-const lookKey = (model, n) => `${n.status}|${model.next.get(n.id) || ''}|${model.tracks[n.track]?.done ? 1 : 0}`;
-const workKey = n => n.attempt?.run_id || '';
-
-// Called right after build() drew the new model, with the model that was on screen before it.
-function startShow(prev) {
-  const left = new Set(), reached = new Set(), markers = [], covers = [], flashes = [], fades = [], spans = new Map();
-  for (const t of M.g.tracks.filter(t => t.ordered)) {
-    const from = prev.tracks[t.id]?.position, to = M.tracks[t.id]?.position;
-    if (!from || !to || from === to) continue;
-    left.add(from); reached.add(to);
-    // The change plays even under reduced motion: it is short and only runs when the graph moves;
-    // the always-running glows and flows still obey REDUCED.
-    const curve = travelCurve(t.id, from, to);
-    if (!curve) continue;
-    markers.push(addMarker(curve, t.id, 0, arrival(curve)));
-  }
-  for (const [id, now] of M.nodes) {
-    const was = prev.nodes.get(id), spot = P.get(id);
-    if (!was || !spot) continue;
-    const looks = lookKey(prev, was) !== lookKey(M, now), works = workKey(was) !== workKey(now);
-    if (!looks && !works) continue;
-    const span = left.has(id) ? LEAVE : reached.has(id) ? ARRIVE : OTHER;
-    if (looks) spans.set(id, span);
-    if (works) spans.set(`work:${id}`, reached.has(id) ? ARRIVE : OTHER); // a new working light comes up
-    // The card as it was, laid over the card as it is, fading out.
-    const look = cardLook(was, spot.track, prev);
-    const tex = keep(texture(cardCanvas(was, look, cardTag(was, look, prev.next.get(id), prev), prev.issues(id).length, was.attempt, cardBadge(id, prev))));
-    covers.push({ span: looks ? span : OTHER, mesh: leaningPlane(spot.w, spot.h, new THREE.MeshBasicMaterial({ map: tex,
-      transparent: true, depthWrite: false }), spot.center, -0.01) });
-    const S = steps(spot.track), into = inCurves.get(id);
-    // The between light of the card the track left fades where it sat.
-    if (left.has(id) && !was.attempt && into) {
-      fades.push({ span: LEAVE, sprite: lightSprite(shared.spark, S.next, into.getPointAt(BETWEEN_AT), 1.3) });
-    }
-    // A start carries the light from between the cards onto the card; a record that keeps the card carries it back.
-    if (works && !left.has(id) && !reached.has(id) && now.status === 'current' && into) {
-      markers.push(addMarker(into, spot.track, now.attempt ? BETWEEN_AT : 1, now.attempt ? 1 : BETWEEN_AT));
-    }
-    if (!looks) continue;
-    if (reached.has(id)) flashes.push({ span: [ARRIVE[0] - 0.08, 1], ...glowAt(spot, S.next, 1) });
-    else if (now.status === 'passed' && was.status !== 'passed') flashes.push({ span: [0, 0.62], ...glowAt(spot, S.glow, 0.95) });
-  }
-  if (markers.length || covers.length) show = { played: 0, last: null, markers, covers, flashes, fades, spans };
-}
-function endShow() {
-  if (!show) return;
-  for (const m of show.markers) m.trail.visible = m.head.visible = false;
-  for (const c of [...show.covers, ...show.flashes]) c.mesh.visible = false;
-  for (const f of show.fades) f.sprite.visible = false;
-  show = null;
-}
-// The show at u, 0 to 1: the travelling light with its trail, the old cards fading out, the flashes.
-function playShow(u) {
-  const eased = ease(span01(u, TRAVEL[0], TRAVEL[1]));
-  const fadeIn = smooth(span01(u, 0, TRAVEL[0])), fadeOut = 1 - smooth(span01(u, TRAVEL[1], 1));
-  for (const m of show.markers) {
-    const travel = m.begin + (m.end - m.begin) * eased, lit = Math.min(fadeIn, fadeOut), dir = m.end >= m.begin ? 1 : -1;
-    const at = m.curve.getPointAt(Math.min(travel, 0.9999));
-    if (at) m.head.position.copy(at);
-    m.head.material.opacity = lit;
-    const pos = m.trail.geometry.attributes.position, col = m.trail.geometry.attributes.color;
-    for (let i = 0; i < m.n; i++) {
-      const p = m.curve.getPointAt(THREE.MathUtils.clamp(travel - dir * i * 0.016, 0, 0.9999)) || at || m.head.position;
-      pos.setXYZ(i, p.x, p.y, p.z);
-      const k = lit * Math.pow(1 - i / m.n, 1.6);
-      col.setXYZ(i, m.color.r * k, m.color.g * k, m.color.b * k);
-    }
-    pos.needsUpdate = true; col.needsUpdate = true;
-  }
-  for (const c of show.covers) c.mesh.material.opacity = 1 - smooth(span01(u, c.span[0], c.span[1]));
-  for (const f of show.flashes) f.mesh.material.opacity = f.peak * Math.sin(Math.PI * span01(u, f.span[0], f.span[1]));
-  for (const f of show.fades) f.sprite.material.opacity = 1 - smooth(span01(u, f.span[0], f.span[1]));
-}
-
-// Several boards in one repository (scripts/boards.py): the page shows one board's graph at a time, the board
-// ?board=<name> names, else the first. Each board's view.json and snapshot.js are in a folder of their own beside
-// the page, DATA: this folder for the first board, boards/<name>/ for another.
-const BOARD = new URLSearchParams(location.search).get('board');
-const DATA = BOARD && /^[a-z0-9][a-z0-9_-]*$/.test(BOARD) ? `boards/${BOARD}/` : '';
-
-async function loadView() {
-  try {
-    const r = await fetch(DATA + 'view.json', { cache: 'no-store' });
-    if (r.ok) {
-      const text = await r.text();
-      return { view: JSON.parse(text), text, from: 'view.json' };
-    }
-  } catch { /* a file:// open, or view.json caught mid-write, lands here */ }
-  const view = await loadCopy();
-  return view ? { view, text: null, from: 'snapshot.js' } : null;
-}
-
-// snapshot.js beside the page: the copy a full snapshot keeps in git (scripts/board_graph_view.py), a classic script
-// that sets one global, so a page opened as a file from disk still has a snapshot. A page without it shows the
-// message below instead.
-function loadCopy() {
-  return new Promise(resolve => {
-    const s = document.createElement('script');
-    s.src = DATA + 'snapshot.js';
-    s.onload = () => resolve(window.BOARD_GRAPH_SNAPSHOT || null);
-    s.onerror = () => resolve(null);
-    document.head.append(s);
-  });
-}
-
-// The project's name comes with the snapshot (its board description's), so the page itself names no project.
-// With several boards, the board's name follows it.
-const graphKind = () => M && !M.view.graph.tracks.some(t => t.id === 'board') ? 'graph' : 'board graph';
-function titleText() {
-  const kind = graphKind();
-  const title = M?.view?.project ? `${M.view.project} ${kind}` : kind[0].toUpperCase() + kind.slice(1);
-  const named = M?.view?.boards?.length && M.view.board ? `${title}: ${M.view.board}` : title;
-  return M && MAIN !== STAGED ? `${named}: ${trackHead(M.g.tracks[0])}` : named;
-}
-
-// The tabs: every track with cards, the board's first as the graph has it; the one shown is marked. A graph with
-// one such track has none.
-function renderTabs() {
-  const tracks = M.whole.tracks.filter(t => M.whole.nodes.some(n => n.track === t.id));
-  const nav = $('tabs');
-  nav.hidden = tracks.length < 2;
-  nav.replaceChildren(...tracks.map(t => el('a', { href: trackHref(t.id), ...(t.id === MAIN ? { 'aria-current': 'page' } : {}) },
-    trackHead(t))));
-}
-
-// The legend's swatches are drawn in the board's blues; on a track's page they take that track's steps.
-const LEGEND_BLUES = { '#2a4f7f': 'dim', '#1c5cab': 'lit', '#3987e5': 'glow', '#86b6ef': 'bright', '#cde2fb': 'next' };
-function tintLegend() {
-  const S = steps(MAIN);
-  for (const node of $('legend').querySelectorAll('[fill], [stroke]')) for (const attr of ['fill', 'stroke']) {
-    const was = node.dataset[attr] ?? node.getAttribute(attr);
-    if (was && LEGEND_BLUES[was]) { node.dataset[attr] = was; node.setAttribute(attr, S[LEGEND_BLUES[was]]); }
-  }
-}
-
-// Where a board stands, in a few words, from its view: the card its ordered track is at.
-function boardStands(view) {
-  const t = (view?.where?.tracks || []).find(x => x.id === 'board') || (view?.where?.tracks || []).find(x => x.ordered);
-  if (!t) return 'no position';
-  if (t.position === 'done') return t.dropped ? `dropped at ${t.dropped.label}` : 'done';
-  const n = t.node;
-  if (!n) return `at ${t.position}`;
-  if (n.on) return `working on ${n.label}`;
-  if (n.waiting_on) return isOwnerWait(n.waiting_on) ? `${n.label} · needs you` : `${n.label} · waiting on ${whoHuman(n.waiting_on.who)}`;
-  return n.after ? `${n.after_label} → ${n.label}` : `before ${n.label}`;
-}
-
-function ownerNeedFromView(view, boardName, shown = false) {
-  for (const t of view?.where?.tracks || []) {
-    const n = t.node;
-    if (isOwnerWait(n?.waiting_on)) {
-      return {
-        board: boardName,
-        shown,
-        nodeId: t.position,
-        label: n.label,
-        note: cleanHumanNote(n.waiting_on.note || ''),
-      };
-    }
-  }
-  return null;
-}
-
-function renderNeedsYou(needs) {
-  const box = $('needs-you');
-  box.hidden = !needs.length;
-  if (!needs.length) {
-    box.replaceChildren();
-    return;
-  }
-  box.replaceChildren(...needs.map(item => {
-    const title = item.board ? `${item.board} · ${item.label} needs you` : `${item.label} needs you`;
-    const sub = item.note ? brief(item.note, 130) : 'Click to view details and open files';
-    if (item.shown && M.nodes.has(item.nodeId)) {
-      return el('button', { class: 'needs-item', type: 'button', onclick: () => select(item.nodeId, true) },
-        el('div', { class: 'needs-head' }, dot('warn'), title),
-        el('div', { class: 'needs-sub' }, sub));
-    }
-    const href = item.data ? `?board=${item.board}` : location.pathname;
-    return el('a', { class: 'needs-item', href },
-      el('div', { class: 'needs-head' }, dot('warn'), title),
-      el('div', { class: 'needs-sub' }, sub));
-  }));
-}
-
-// The boards row: every board the snapshot lists, each with where it stands, read from that board's own view.json
-// (over http) so the row is as new as the page; the board shown is marked. A repository with one board lists none.
-// A graph's running notes (its pack names the file): the text the snapshot carried, then, on a served page, the
-// file as it stands now, read again each time the server says something changed (it looks at the notes files'
-// stamps itself). A card's panel shows the card's part of them (cardNotesBlock), and an open panel is drawn again
-// when the words change.
-let notesText = null, notesFrom = null, notesRead = 0;
-async function renderNotes() {
-  const notes = M?.view?.notes;
-  if (!notes) { notesText = null; return; }
-  if (notesFrom !== notes.path || notesText === null) { notesFrom = notes.path; notesText = notes.text || ''; }
-  if (!SERVED || privateHidden) return;
-  const turn = ++notesRead;
-  let words = null;
-  try {
-    const r = await fetch(fileHref(notes.path, true), { cache: 'no-store' });
-    if (r.ok) words = await r.text(); else if (r.status === 404) words = '';
-  } catch { /* the server stopped: the next event brings the notes */ }
-  if (turn !== notesRead || words === null || words === notesText) return;
-  notesText = words;
-  if (selected && M.nodes.has(selected)) select(selected, false, true);
-}
-// The notes file in parts: a part starts at each "## " heading and belongs to the card its heading names (the
-// card's label, with or without a leading "the"). A part whose heading names no card, and what stands before the
-// first heading, is shown on no card: a card shows what was settled at it, never the talk that led there.
-const noteKey = text => String(text || '').toLowerCase().replace(/^the\s+/, '').replace(/[^a-z0-9]+/g, ' ').trim();
-function notesParts() {
-  const cards = new Map(M.g.nodes.map(n => [noteKey(n.label), n.id]));
-  const parts = [];
-  let part = null;
-  for (const line of String(notesText || '').split(/\r?\n/)) {
-    const head = /^##\s+(.*\S)\s*$/.exec(line);
-    if (head) {
-      part = { card: cards.get(noteKey(head[1])) || null, heading: head[1], lines: [] };
-      parts.push(part);
-    } else if (part) part.lines.push(line);
-  }
-  return parts;
-}
-function cardNotesBlock(n) {
-  const notes = M?.view?.notes;
-  if (!notes || privateHidden || notesText === null) return [];
-  const mine = notesParts().filter(p => p.card === n.id);
-  const href = fileHref(notes.path);
-  const out = [el('h3', {}, 'Notes', href && notesText.trim() ? [' ', el('a', { class: 'link', href, target: '_blank', rel: 'noopener' }, 'Open all ↗')] : null)];
-  if (!mine.length) out.push(el('div', { class: 'notes-text empty' }, 'Nothing written for this card yet.'));
-  for (const part of mine) {
-    out.push(el('div', { class: 'notes-text' }, part.lines.join('\n').trim() || '(empty)'));
-  }
-  return out;
-}
-let boardsRead = 0;
-async function renderBoards() {
-  renderNotes();
-  const list = $('boards'), all = M?.view?.boards || [];
-  if (all.length < 2) {
-    list.hidden = true;
-    const singleNeed = ownerNeedFromView(M?.view, null, true);
-    renderNeedsYou(singleNeed ? [singleNeed] : []);
-    fitLog();
-    return;
-  }
-  list.hidden = false;
-  const turn = ++boardsRead;
-  const rows = await Promise.all(all.map(async b => {
-    const isShown = (b.data || '') === DATA;
-    let bView = isShown ? M.view : null;
-    if (!isShown && location.protocol.startsWith('http')) {
+    es.onmessage = (ev) => {
       try {
-        const r = await fetch((b.data || '') + 'view.json', { cache: 'no-store' });
-        if (r.ok) bView = shown(await r.json());
-      } catch { /* that board has no view yet, or it was caught mid-write: the next change brings it */ }
-    }
-    const stands = bView ? boardStands(bView) : null;
-    const need = bView ? ownerNeedFromView(bView, b.name, isShown) : null;
-    if (need) need.data = b.data;
-    return { b, shown: isShown, stands, need };
-  }));
-  if (turn !== boardsRead) return;  // a newer snapshot is being drawn
-  list.replaceChildren(...rows.map(({ b, shown, stands, need }) => el('li', {},
-    el('a', {
-      href: b.data ? `?board=${b.name}` : location.pathname,
-      class: need ? 'needs-owner' : '',
-      ...(shown ? { 'aria-current': 'page' } : {}),
-    },
-      el('span', { class: 'name' }, b.title || b.name),
-      stands ? el('span', { class: 'at' }, stands) : null))));
-  renderNeedsYou(rows.map(r => r.need).filter(Boolean));
-  fitLog();
-}
-function showTitle() {
-  const title = titleText();
-  document.title = title;
-  $('title').textContent = title;
-  $('scene').setAttribute('aria-label', `The ${M?.view?.project ? M.view.project + ' ' : ''}${graphKind()} in 3D. Use the track positions at the top left or All nodes for a list.`);
-}
-
-// A new snapshot redraws the scene, the positions, the log and the workspace, and the panel shows what it showed.
-// With `play` (the server told the page while it is in view), the difference plays as it lands.
-// Hide private: the page is drawn from a copy of the snapshot with the private details taken out, so nothing on
-// it, the 3D labels, the lists, the panel text or a Save PNG picture, holds them while the flag is on; nothing is
-// covered. What is taken out: the workspace block whole (machines, accounts, paths, links, branches), and in every
-// other string: links, local paths, commit hashes, and the machine and account names. The names come with the
-// snapshot (`private_names`: the site settings' SSH user and host, and the names the machines that wrote it gave),
-// so the page itself names no machine; the list goes too. `source` (the graph file's name and hash) and every `id`
-// stay, because the page compares them and shows neither.
-const PRIVATE = [
-  [/https?:\/\/\S+/g, '[link hidden]'],
-  [/[A-Za-z]:\\[^\s"'<>]+/g, '[path hidden]'],
-  [/\/(?:Users|home)\/[^\s"'<>]+/g, '[path hidden]'],
-  [/\b[0-9a-f]{7,40}\b/g, '[commit hidden]'],
-];
-const escapeRe = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-function privatePatterns(view) {
-  const names = [...new Set((view?.private_names || []).filter(n => typeof n === 'string' && n.trim()))]
-    .sort((a, b) => b.length - a.length).map(escapeRe);
-  if (!names.length) return PRIVATE;
-  // A name is a whole word: not inside a longer name or word. The character before it is kept.
-  return [...PRIVATE, [new RegExp(`(^|[^A-Za-z0-9_])(?:${names.join('|')})(?![A-Za-z0-9_])`, 'gi'), '$1[name hidden]']];
-}
-let privateHidden = false, fullView = null;
-function hidePrivate(value, patterns = privatePatterns(value)) {
-  if (typeof value === 'string') return patterns.reduce((s, [re, to]) => s.replace(re, to), value);
-  if (Array.isArray(value)) return value.map(v => hidePrivate(v, patterns));
-  if (value && typeof value === 'object') {
-    const out = {};
-    for (const [k, v] of Object.entries(value)) {
-      out[k] = k === 'workspace' || k === 'private_names' ? null : (k === 'source' || k === 'id') ? v : hidePrivate(v, patterns);
-    }
-    return out;
-  }
-  return value;
-}
-const shown = view => privateHidden ? hidePrivate(view) : view;
-$('private').addEventListener('click', () => {
-  privateHidden = !privateHidden;
-  const b = $('private');
-  b.setAttribute('aria-pressed', String(privateHidden));
-  b.textContent = privateHidden ? 'Show private' : 'Hide private';
-  document.documentElement.dataset.private = privateHidden ? 'hidden' : 'shown';
-  if (fullView) apply(shown(fullView));
-});
-
-function apply(view, play = false) {
-  const mode = panelMode, prev = play ? M : null;
-  const before = prev ? { positions: texts('positions'), strip: texts('strip') } : {};
-  build(buildModel(view));
-  showTitle();
-  renderTabs();
-  tintLegend();
-  renderBoards();
-  rowNews = prev ? rowChanges(prev.view.log?.rows || [], M.view.log?.rows || []) : new Map();
-  renderPositions(before.positions);
-  renderLog();
-  renderWorkspace(before.strip);
-  defaultView = computeDefaultView();  // whether the log holds the left column is known once it is fitted
-  if (!mode) applyHighlight();
-  else if (mode.kind === 'node' && M.nodes.has(mode.id)) select(mode.id, false, true);
-  else if (mode.kind === 'list') openList();
-  else if (mode.kind === 'log') openLog(true);
-  else if (mode.kind === 'workspace') openWorkspace();
-  else if (mode.kind === 'row') {
-    const row = (M.view.log?.rows || []).find(r => r.id === mode.id);
-    if (row) openLogRow(row, true); else openLog();
-  } else closePanel();
-  rowNews = new Map();
-  if (prev && prev.view.source?.graph_sha256 === view.source?.graph_sha256) startShow(prev);
-  // Hand the new cards to the GPU now, so the first frames of the show do not stall on them.
-  for (const d of disposables) if (d.isTexture) renderer.initTexture(d);
-}
-
-resize();
-const loaded = await loadView();
-if (!loaded) {
-  showMessage('No snapshot to show', 'Run py -3 scripts/board_graph_view.py snapshot, then open this page again.');
-} else {
-  fullView = loaded.view;
-  apply(shown(fullView));
-  resetView(true);
-  document.documentElement.dataset.source = loaded.from;
-  requestAnimationFrame(frame);
-  // Served over http, the page never asks whether something changed: it is told. It holds the server's /events
-  // stream (scripts/board_graph_serve.py), which sends the files' stamps when it opens and again each time the Mac
-  // says the folder changed: every write of view.json and every fast-forward of main say so. A page stamp other
-  // than the one this page was served with means index.html itself changed on main, so the page reloads; otherwise
-  // view.json is read again and a difference plays as it lands. The browser reopens a dropped stream by itself,
-  // and the stamp line says while it is down.
-  if (location.protocol.startsWith('http')) {
-    let last = loaded.text, reading = false, again = false;
-    const live = $('live');
-    live.hidden = false;
-    const setLive = (on) => {
-      live.textContent = on ? 'Live: told of every change' : 'Not connected: reconnecting';
-      live.classList.toggle('off', !on);
-      document.documentElement.dataset.live = on ? 'yes' : 'no';
+        const msg = JSON.parse(ev.data);
+        if (pageStamp !== null && msg.page && msg.page !== pageStamp) {
+          location.reload();
+          return;
+        }
+        if (msg.page) pageStamp = msg.page;
+      } catch (_) {}
+      loadView();
     };
-    setLive(false);
-    const servedWith = fetch('index.html', { method: 'HEAD', cache: 'no-store' })
-      .then(r => Math.floor(Date.parse(r.headers.get('Last-Modified')) / 1000))
-      .catch(() => null);
-    async function readView() {
-      if (reading) { again = true; return; }
-      reading = true;
-      let text = null, view = null;
-      try {
-        const r = await fetch(DATA + 'view.json', { cache: 'no-store' });
-        if (r.ok) text = await r.text();
-        if (text && text !== last) view = JSON.parse(text);
-      } catch { /* the server stopped between the event and the read: the next event brings it */ }
-      reading = false;
-      if (view) {
-        last = text;
-        fullView = view;
-        document.documentElement.dataset.source = 'view.json';
-        apply(shown(view), !document.hidden);
-      } else renderBoards();  // this board's view is as it was: the change may be another board's position
-      if (again) { again = false; readView(); }
-    }
-    const events = new EventSource('events');
-    events.onopen = () => setLive(true);
-    events.onerror = () => setLive(false);
-    events.onmessage = async (e) => {
-      const stamps = JSON.parse(e.data);
-      const mine = await servedWith;
-      if (mine !== null && stamps.page !== mine) { location.reload(); return; }
-      readView();
+    es.onerror = () => {
+      $('live-dot').className = 'dot stale';
+      $('live-text').textContent = 'Reconnecting';
     };
   }
-}
+
+  loadView();
+  connectEvents();
+})();
 </script>
 </body>
 </html>

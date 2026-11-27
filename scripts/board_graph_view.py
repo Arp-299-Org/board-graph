@@ -767,6 +767,7 @@ def build(graph, state, section, root=ROOT):
             "graph": graph_path.relative_to(ROOT).as_posix() if graph_path.is_relative_to(ROOT) else str(graph.path),
             "graph_sha256": hashlib.sha256(graph_path.read_bytes()).hexdigest(),
         },
+        "tool": tool_paths.tool_status(),
         "graph": graph.data,
         "autonomy": board_autonomy.summary(graph),
         "where": where(graph, state),

@@ -29,6 +29,7 @@ import tempfile
 
 import board_copper_origin
 import board_description
+import board_pre_schematic
 import board_review_inputs
 import boards
 import kicad_rules_geom
@@ -804,19 +805,18 @@ def bom(root):
     missing = not_there_yet(root, SCHEMATIC, BOARD, BOM)
     if missing:
         return result(missing, {})
-    report = bom_report(Project(root))
-    return result(report["findings"], {
-        "grouped_rows": len(report["rows"]), "fitted_components": report["fitted_components"],
-        "rows": report["rows"],
-        "note": "Identity and consistency only. Stock, price and assembly eligibility are the Stock and Quote "
-                "nodes' work."})
+    project = Project(root)
+    report = bom_report(project)
+    findings = list(report["findings"]) + (datasheet_findings(project) if (pathlib.Path(root) / PARTS).is_file() else [])
+    return result(findings, {"grouped_rows": len(report["rows"]), "fitted_components": report["fitted_components"],
+        "rows": report["rows"], "note": "Identity, consistency, and parts.json datasheet coverage verified."})
 
 
 def datasheets(root):
     """Every BOM part is in parts.json with its datasheet on hand and a height taken from it."""
-    missing = not_there_yet(root, BOARD, BOM)
-    if missing:
-        return result(missing, {})
+    if not_there_yet(root, BOARD, BOM):
+        findings, detail = board_pre_schematic.pre_schematic_datasheets(pathlib.Path(root), PARTS, DATASHEETS, STOCK_LISTINGS)
+        return result(findings, detail)
     project = Project(root)
     return result(datasheet_findings(project), {"left_for_footprints": footprint_findings(project)})
 
@@ -1092,10 +1092,10 @@ def supply_receipt(root, now=None):
     """supply_findings(): a dated listing, at most LISTING_AGE_DAYS days old, for every part the factory places,
     read from the Stock card's listings file (STOCK_LISTINGS), and the owner's accepted plan for every
     shortage."""
-    missing = not_there_yet(root, BOARD)
-    if missing:
-        return result(missing, {})
     now = now or datetime.datetime.now(datetime.timezone.utc)
+    if not (pathlib.Path(root) / BOARD).is_file():
+        findings, _, detail = board_pre_schematic.pre_schematic_supply(pathlib.Path(root) / STOCK_LISTINGS, now, listing_time, LISTING_AGE_DAYS)
+        return result(findings, detail)
     project = Project(root)
     needed, unnamed = factory_parts(project)
     detail = {"listings": STOCK_LISTINGS, "factory_parts": len(needed),

@@ -357,7 +357,8 @@ def mac_bash(script: str, timeout=300) -> str:
     try:
         return mac.bash(script, timeout=timeout)
     except mac.MacError as error:
-        raise Refused(f"on the Mac: {error}") from None
+        host = "on this machine" if mac.ONE_MACHINE else "on the Mac"
+        raise Refused(f"{host}: {error}") from None
 
 
 def _external_tool_sync_checks(manifest: dict, tool_commit: str | None, blob: str, manifest_sha: str | None) -> str:
