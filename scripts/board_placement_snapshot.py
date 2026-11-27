@@ -17,6 +17,7 @@ if str(HERE) not in sys.path:
 import board_description  # noqa: E402
 import kicad_sexp  # noqa: E402
 import tool_paths  # noqa: E402
+from no_window import KWARGS as NO_WINDOW  # noqa: E402
 
 if __name__ == "__main__":
     tool_paths.take_argument()
@@ -60,12 +61,81 @@ def extract_placement(board_text: str) -> dict:
     return {"parts": {ref: parts[ref] for ref in sorted(parts, key=_ref_sort_key)}}
 
 
+def normalize_pcb(board_path: pathlib.Path) -> bool:
+    """Save `board_path` once via offline pcbnew so KiCad 10 boilerplate/setup blocks are settled."""
+    tools_dir = TOOL_ROOT / "tools" / "kicad"
+    if str(tools_dir) not in sys.path:
+        sys.path.insert(0, str(tools_dir))
+    import kicad_install  # noqa: E402
+
+    kicad_py = getattr(kicad_install, "KICAD_PYTHON", None)
+    if not isinstance(kicad_py, pathlib.Path) or not kicad_py.is_file():
+        return False
+    code = "import sys, pcbnew; p = sys.argv[1]; b = pcbnew.LoadBoard(p); pcbnew.SaveBoard(p, b)"
+    done = subprocess.run([str(kicad_py), "-B", "-c", code, str(board_path)], capture_output=True, text=True, **NO_WINDOW)
+    if done.returncode != 0:
+        raise RuntimeError(done.stderr.strip() or done.stdout.strip() or f"pcbnew normalize failed (exit {done.returncode})")
+    return True
+
+
+def _is_hidden_text(node: list) -> bool:
+    if any(part == "hide" or part == ["hide", "yes"] for part in node[2:]):
+        return True
+    eff = kicad_sexp.child(node, "effects")
+    return bool(eff and any(part == "hide" or part == ["hide", "yes"] for part in eff[1:]))
+
+
+def _check_silk_node(node: list, prefix: str, min_height_mm: float, min_thickness_mm: float) -> str | None:
+    layer = kicad_sexp.child(node, "layer")
+    layer_name = str(layer[1]) if layer and len(layer) > 1 else ""
+    if layer_name not in ("F.SilkS", "B.SilkS") or _is_hidden_text(node):
+        return None
+    text = str(node[2] if node[0] in ("fp_text", "property") and len(node) > 2 else (node[1] if len(node) > 1 else "")).strip()
+    if not text:
+        return None
+    eff = kicad_sexp.child(node, "effects")
+    font = kicad_sexp.child(eff, "font") if eff else None
+    size = kicad_sexp.child(font, "size") if font else None
+    thick = kicad_sexp.child(font, "thickness") if font else None
+    try:
+        h = min(float(size[1]), float(size[2])) if size and len(size) > 2 else 0.0
+        t = float(thick[1]) if thick and len(thick) > 1 else 0.0
+    except (TypeError, ValueError):
+        return None
+    if h + 1e-6 < min_height_mm or t + 1e-6 < min_thickness_mm:
+        return f"{prefix} '{text}' on {layer_name}: size {h:.2f} mm / stroke {t:.2f} mm below {min_height_mm:.2f}/{min_thickness_mm:.2f} mm"
+    return None
+
+
+def silkscreen_minimum_findings(board_text: str, min_height_mm: float = 1.0, min_thickness_mm: float = 0.15) -> list[str]:
+    """Flag visible silkscreen labels below JLCPCB's legible height or stroke-width minimums."""
+    tree = kicad_sexp.parse(board_text)
+    findings: list[str] = []
+    for item in kicad_sexp.children(tree, "gr_text"):
+        msg = _check_silk_node(item, "gr_text", min_height_mm, min_thickness_mm)
+        if msg:
+            findings.append(msg)
+    for fp in kicad_sexp.children(tree, "footprint"):
+        ref = _footprint_ref(fp) or "?"
+        for tag in ("fp_text", "property"):
+            for node in kicad_sexp.children(fp, tag):
+                msg = _check_silk_node(node, ref, min_height_mm, min_thickness_mm)
+                if msg:
+                    findings.append(msg)
+    return findings
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--board", type=pathlib.Path, help="Input .kicad_pcb file")
     parser.add_argument("--out", type=pathlib.Path, help="Output owner_placement.json file")
     parser.add_argument("--render-dir", type=pathlib.Path, help="Render output directory")
     parser.add_argument("--no-render", action="store_true", help="Skip rendering 2D/3D review views")
+    parser.add_argument("--no-normalize", action="store_true", help="Skip KiCad 10 load/save normalization")
+    parser.add_argument("--normalize-only", action="store_true", help="Normalize PCB to KiCad 10 and exit")
+    parser.add_argument("--strict-silk", action="store_true", help="Exit 1 if any silkscreen text is undersized")
+    parser.add_argument("--min-silk-height", type=float, default=1.0, help="Min silkscreen height mm (default 1.0)")
+    parser.add_argument("--min-silk-thickness", type=float, default=0.15, help="Min silkscreen stroke mm (default 0.15)")
     default_quality = "basic" if os.environ.get("LIBGL_ALWAYS_SOFTWARE") == "1" else "high"
     parser.add_argument("--quality", choices=("basic", "high"), default=default_quality)
     board_description.add_argument(parser)
@@ -76,10 +146,24 @@ def main(argv: list[str] | None = None) -> int:
     out = (args.out or desc.path("owner_placement")).resolve()
     render_dir = (args.render_dir or (desc.path("reports") / "placement")).resolve()
 
-    placement = extract_placement(board.read_text(encoding="utf-8"))
+    if not args.no_normalize:
+        normalized = normalize_pcb(board)
+        if normalized:
+            print(f"normalized {board} via offline pcbnew")
+    if args.normalize_only:
+        return 0
+
+    board_text = board.read_text(encoding="utf-8")
+    placement = extract_placement(board_text)
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(placement, indent=2) + "\n", encoding="utf-8")
     print(f"wrote {out} ({len(placement['parts'])} part(s))")
+
+    silk_warnings = silkscreen_minimum_findings(board_text, args.min_silk_height, args.min_silk_thickness)
+    for warning in silk_warnings:
+        print(f"warning: silkscreen {warning}", file=sys.stderr)
+    if args.strict_silk and silk_warnings:
+        return 1
 
     if not args.no_render:
         renderer = TOOL_ROOT / "tools" / "kicad" / "render_board_views.py"

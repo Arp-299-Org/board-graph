@@ -301,7 +301,8 @@ def review(board: pathlib.Path, task: str, pictures: list, table: str, earlier: 
             prompt += (f'{entry["pad"]}: {entry["picture"]}, offset {crossing["offset_mm"]:.4f} mm, '
                        f'{crossing["angle_deg"]:.2f} degrees from perpendicular.\n')
             pictures = [*pictures, log.parent / entry["picture"]]
-        prompt += ("In addition to the verdict, write one line per pad: PAD <ref.pad>: "
+        prompt += ("Give the verdict before the PAD lines. If there are no new findings, first include a standalone NOTHING line. "
+                   "Then write one line per pad: PAD <ref.pad>: "
                    "describe where the track meets the edge and where it first bends. Flag poor entries as MUST FIX.")
     for path in pictures:
         with path.open("rb") as image:

@@ -9,12 +9,21 @@ import kicad_rules_geom as rg
 import kicad_sexp
 
 
+def _pad_first(line: str, pads) -> str:
+    """Rewrite verdict-led pad lines ('MUST FIX: PAD J1.1: ...') as 'PAD J1.1: MUST FIX: ...'."""
+    lead = re.match(r"MUST FIX\s*:\s*PAD (\S+?):\s*(\S.*)", line, flags=re.IGNORECASE)
+    if lead and lead[1] in pads and "MUST FIX" not in lead[2].upper():
+        return f"PAD {lead[1]}: MUST FIX: {lead[2]}"
+    return line
+
+
 def review_findings(earlier: list, answer: str, pads=(), warnings=()) -> list:
     """Accept an explicit assessment of the pictures. An error message or unrelated prose cannot clear review."""
     seen = set()
-    lines = [line.strip() for line in answer.splitlines() if line.strip()]
+    lines = [_pad_first(line.strip(), pads) for line in answer.splitlines() if line.strip()]
     if not lines:
         raise ValueError("Review gave no answer")
+    answer = "\n".join(lines)
     observed = set()
     pad_findings = []
     for line in lines:
@@ -36,7 +45,7 @@ def review_findings(earlier: list, answer: str, pads=(), warnings=()) -> list:
         if not found or not 1 <= int(found[1]) <= len(earlier) or int(found[1]) in seen:
             raise ValueError(f"Cannot verify the review verdict: {line[:300]}")
         seen.add(int(found[1]))
-    if observed != set(pads) or (pads and len(lines) == len(observed)):
+    if observed != set(pads) or (pads and len(lines) == len(observed) and not pad_findings):
         raise ValueError("Review requires an observation for each pad and an explicit verdict")
     findings = list(dict.fromkeys(still_open(earlier, answer) + pad_findings))
     if warnings and not findings:

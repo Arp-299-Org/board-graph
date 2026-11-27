@@ -41,7 +41,9 @@ SUBCOMMANDS = {
     "kicad-cli": "tools/kicad/invoke_kicad_cli.py",
     "site-settings": "scripts/site_settings.py",
     "board-description": "scripts/board_description.py",
+    "part-search": "scripts/board_part_search.py",
     "part-fetch": "scripts/board_part_fetch.py",
+    "sync-models": "scripts/board_sync_models.py",
     "placement-snapshot": "scripts/board_placement_snapshot.py",
     "quote-package": "scripts/board_quote_package.py",
 }
@@ -57,6 +59,7 @@ VALUE_FLAGS = frozenset({
     "--branch", "--tokens", "--reason", "--prompt", "--after", "--board-description",
     "--board-name", "--project-title", "--source", "--config", "--bind", "--port", "--started-at",
     "--lcsc", "--planning-qty", "--render-dir", "--quality", "--listings", "--parts", "--datasheets-dir",
+    "--query", "--limit", "--min-stock", "--models-dir", "--min-silk-height", "--min-silk-thickness",
     "--mac-tool-checkout", "--mac-tree", "--mac-steps", "--ref", "--version", "--root", "--skip",
     "--track", "--node", "--output", "--json", "--timeout", "--exclusions", "--production", "--base-name", "--name",
 })
@@ -92,8 +95,10 @@ def usage(out=None) -> None:
         "  kicad-preflight ...    scripts/kicad_preflight.ps1 (via pwsh)\n"
         "  site-settings ...      scripts/site_settings.py\n"
         "  board-description ...  scripts/board_description.py\n"
+        "  part-search ...        scripts/board_part_search.py (search in-stock JLCPCB SMT parts)\n"
         "  part-fetch ...         scripts/board_part_fetch.py (JLCPCB stock & datasheets)\n"
-        "  placement-snapshot ... scripts/board_placement_snapshot.py (write owner_placement & renders)\n"
+        "  sync-models ...        scripts/board_sync_models.py (attach STEP models & sync .pretty/ offline)\n"
+        "  placement-snapshot ... scripts/board_placement_snapshot.py (normalize, check silkscreen, snapshot & render)\n"
         "  quote-package ...      scripts/board_quote_package.py (Gerbers, IPC netlist, BOM/CPL, checksums)\n"
         "  help                   show this message\n"
     )
@@ -411,7 +416,8 @@ def _run_init(explicit_project: pathlib.Path | None, tail: list[str]) -> int:
     gitignore = target / ".gitignore"
     if not gitignore.exists():
         gitignore.write_bytes(
-            b"logs/board-graph/\n*.kicad_prl\nfp-info-cache\n~*.lck\n__pycache__/\n"
+            b"logs/board-graph/\nboard/.history/\n*.kicad_prl\nfp-info-cache\n~*.lck\n__pycache__/\n"
+            b"tools/board_graph_view/snapshot.js\n"
             b"tools/board_graph_view/view.json\ntools/board_graph_view/view.json.*.tmp\n"
         )
         print("  wrote .gitignore")

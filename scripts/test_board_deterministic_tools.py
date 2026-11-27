@@ -19,9 +19,11 @@ if str(SCRIPTS_DIR) not in sys.path:
 import board_graph_actions  # noqa: E402
 import board_graph_cli  # noqa: E402
 import board_part_fetch  # noqa: E402
+import board_part_search  # noqa: E402
 import board_placement_snapshot  # noqa: E402
 import board_pre_schematic  # noqa: E402
 import board_quote_package  # noqa: E402
+import board_sync_models  # noqa: E402
 
 
 class DeterministicToolsTests(unittest.TestCase):
@@ -34,7 +36,9 @@ class DeterministicToolsTests(unittest.TestCase):
 
     def test_cli_registers_three_deterministic_commands(self) -> None:
         for cmd, script in (
+            ("part-search", "scripts/board_part_search.py"),
             ("part-fetch", "scripts/board_part_fetch.py"),
+            ("sync-models", "scripts/board_sync_models.py"),
             ("placement-snapshot", "scripts/board_placement_snapshot.py"),
             ("quote-package", "scripts/board_quote_package.py"),
         ):
@@ -146,6 +150,52 @@ class DeterministicToolsTests(unittest.TestCase):
         report = board_graph_actions.bom_report(proj)
         self.assertEqual(report["findings"], [])
         self.assertEqual(report["rows"][0]["mpn"], "MJ56881-B011")
+
+    def test_part_search_sync_models_and_silkscreen_minimum_checks(self) -> None:
+        sample = {
+            "data": {
+                "componentPageInfo": {
+                    "list": [
+                        {
+                            "componentCode": "C501473",
+                            "componentBrandEn": "Heling",
+                            "componentModelEn": "MJ56881-B011-HLRN1-C",
+                            "componentLibraryType": "expand",
+                            "stockCount": 3246,
+                            "initialPrice": 0.5753,
+                            "componentSpecificationEn": "SMD",
+                            "describe": "RJ45 8P8C",
+                        },
+                        {
+                            "componentCode": "C999999",
+                            "componentBrandEn": "LowStock",
+                            "componentModelEn": "LOW-STOCK",
+                            "componentLibraryType": "base",
+                            "stockCount": 10,
+                            "initialPrice": 0.10,
+                        },
+                    ]
+                }
+            }
+        }
+        rows = board_part_search.parse_search_results(sample, min_stock=50)
+        self.assertEqual([r["part"] for r in rows], ["C501473"])
+        self.assertEqual(rows[0]["unit_price_usd"], 0.5753)
+
+        models_dir = self.root / "board" / "models"
+        models_dir.mkdir(parents=True)
+        step = models_dir / "MJ56881-B011-HLRN1-C.step"
+        step.write_text("ISO-10303-21;\n", encoding="utf-8")
+        self.assertEqual(board_sync_models.match_model_file(models_dir, mpn="MJ56881-B011-HLRN1-C"), step)
+        pcb = """(kicad_pcb
+  (footprint "lib:MJ56881" (layer "F.Cu")
+    (property "Reference" "J1" (at 0 0) (layer "F.SilkS") (effects (font (size 1 1) (thickness 0.15))))
+    (fp_text user "tiny" (at 0 0) (layer "F.SilkS") (effects (font (size 0.8 0.8) (thickness 0.12)))))
+  (gr_text "big" (at 0 0) (layer "B.SilkS") (effects (font (size 1.2 1.2) (thickness 0.18))))
+  (gr_text "hidden" (at 0 0) (layer "F.SilkS") (effects (font (size 0.5 0.5) (thickness 0.08)) (hide yes))))"""
+        warnings = board_placement_snapshot.silkscreen_minimum_findings(pcb)
+        self.assertEqual(len(warnings), 1)
+        self.assertIn("tiny", warnings[0])
 
     def test_placement_snapshot_matches_placement_findings(self) -> None:
         pcb = """(kicad_pcb

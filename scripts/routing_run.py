@@ -137,6 +137,16 @@ def git(*args, check=True, timeout=180) -> str:
     return git_in(ROOT, *args, check=check, timeout=timeout)
 
 
+def _ensure_folder_arg(tasks: pathlib.Path) -> bool:
+    raw = str(tasks)
+    if "\n" in raw or "\r" in raw or len(tasks.name) > 120:
+        raise Refused("pass a folder of .txt routing task files, not inline task text")
+    try:
+        return tasks.is_dir()
+    except OSError:
+        raise Refused("pass a folder of .txt routing task files, not inline task text") from None
+
+
 def preflight(tasks: pathlib.Path) -> tuple:
     """(branch, the task folder's path in the checkout) or Refused."""
     branch = git("symbolic-ref", "--short", "-q", "HEAD", check=False).strip()
@@ -150,13 +160,17 @@ def preflight(tasks: pathlib.Path) -> tuple:
     ahead, behind = git("rev-list", "--left-right", "--count", f"HEAD...origin/{branch}").split()
     if ahead != "0" or behind != "0":
         raise Refused(f"{branch} here is {ahead} ahead and {behind} behind GitHub's: push or pull first")
-    tasks = tasks.resolve()
+    try:
+        tasks = tasks.resolve()
+    except OSError:
+        raise Refused("pass a folder of .txt routing task files, not inline task text") from None
+    is_folder = _ensure_folder_arg(tasks)
     root = ROOT.resolve()
     try:
         rel = tasks.relative_to(root).as_posix()
     except ValueError:
         raise Refused(f"{tasks} is not inside this checkout") from None
-    if not tasks.is_dir():
+    if not is_folder:
         raise Refused(f"{rel} is not a folder")
     files = sorted(path for path in tasks.iterdir() if path.is_file())
     if not files:
@@ -171,7 +185,8 @@ def preflight(tasks: pathlib.Path) -> tuple:
 def check_tasks(tasks: pathlib.Path, board_path: pathlib.Path | None = None) -> int:
     """Validate every task file in `tasks` against the saved board before starting KiCad or an attempt."""
     tasks = pathlib.Path(tasks)
-    if not tasks.is_dir():
+    is_folder = _ensure_folder_arg(tasks)
+    if not is_folder:
         raise Refused(f"{tasks} is not a folder")
     files = sorted(path for path in tasks.iterdir() if path.is_file())
     if not files:

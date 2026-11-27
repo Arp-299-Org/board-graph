@@ -2299,12 +2299,18 @@ class ReviewAnswerFormat(unittest.TestCase):
         self.assertIn("read line by line by a script", editor_step_prompts.REVIEW)
         self.assertIn('never "MUST FIX: none"', editor_step_prompts.REVIEW)
         self.assertIn("Write no preamble", editor_step_prompts.REVIEW)
+        self.assertIn("include a standalone NOTHING line", editor_step_prompts.REVIEW)
+        self.assertIn("or pad observations", editor_step_prompts.REVIEW)
 
     def test_the_gate_still_refuses_a_preamble_and_counts_must_fix_none_as_open(self):
         import routing_evidence
         pads = ("J1.1", "J2.1")
         body = "PAD J1.1: straight out of the south edge.\nPAD J2.1: straight into the north edge."
         self.assertEqual(routing_evidence.review_findings([], "NOTHING\n" + body, pads=pads), [])
+        with self.assertRaisesRegex(ValueError, "an explicit verdict"):
+            routing_evidence.review_findings([], body, pads=pads)
+        self.assertEqual(routing_evidence.review_findings([], "MUST FIX: PAD J1.1: exits off-center.\nPAD J2.1: centered.", pads=pads),
+                         ["MUST FIX: J1.1: exits off-center."])
         with self.assertRaisesRegex(ValueError, "Cannot verify the review verdict"):
             routing_evidence.review_findings([], "Done checking.\nNOTHING\n" + body, pads=pads)
         self.assertEqual(routing_evidence.review_findings([], "MUST FIX: none.\n" + body, pads=pads),

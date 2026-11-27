@@ -65,10 +65,10 @@ What moved, from the board files:
 
 Look for what those scripts cannot see: a needless detour or corner, tracks bunched or kinked where another route would be plainly better, and a sensitive net{nets} pushed somewhere worse. You read only: never change anything.
 {earlier}
-Answer one line per new finding, after any lines for earlier findings, and nothing else, at most 5, most serious first:
+After any lines for earlier findings, give at most five new findings, most serious first:
 MUST FIX: what, which net and where, what to do instead. Use this only if the board or the player would really be hurt, or a plainly better route exists.
 FINE AS IS: what, and why it is not worth changing.
-If you find nothing new, answer: NOTHING.
+If you find nothing new, include a standalone NOTHING line. Include that line even when you also report earlier findings or pad observations.
 Your final message is read line by line by a script, not by a person. Every line in it must start with FIXED <n>:, STILL OPEN <n>:, MUST FIX:, FINE AS IS:, PAD <ref.pad>: or be the single word NOTHING. Write no preamble, summary or closing remark (not even "Done checking"), and never "MUST FIX: none": any other line makes the review unreadable and any MUST FIX line is an open finding."""
 
 EARLIER = """

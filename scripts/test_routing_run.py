@@ -1612,6 +1612,11 @@ class ProviderDefaultHintTests(unittest.TestCase):
         text = pathlib.Path(__file__).with_name("routing_run.py").read_text(encoding="utf-8")
         self.assertIn("(--provider gemini uses agy)", text)
 
+    def test_check_tasks_rejects_inline_prose_path_without_oserror(self):
+        long_prose = "All eight nets on F.Cu, no vias. " * 20
+        with self.assertRaisesRegex(routing_run.Refused, "not inline task text"):
+            routing_run.check_tasks(pathlib.Path(long_prose))
+
 
 if __name__ == "__main__":
     unittest.main()
