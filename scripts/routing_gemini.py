@@ -80,8 +80,8 @@ def _settings(images, *, operator=False, extra_read_paths=()):
 
 
 def _argv(binary, model, effort, board, pid, settings_path, seconds, prompt):
-    if not isinstance(model, str) or not re.fullmatch(r"[A-Za-z0-9._-]+", model) or "opus" in model.lower():
-        raise ValueError(f"A valid non-Opus Gemini/Antigravity model is required, got {model!r}")
+    if not isinstance(model, str) or not re.fullmatch(r"[A-Za-z0-9._-]+", model):
+        raise ValueError(f"A valid Gemini/Antigravity model is required, got {model!r}")
     if pid is not None and (type(pid) is not int or pid <= 0 or not board or not pathlib.Path(board).is_absolute()):
         raise ValueError("The routing operator needs the live pid and absolute board path")
     timeout_s = max(1, int(math.ceil(seconds)))

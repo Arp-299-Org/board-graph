@@ -31,7 +31,7 @@ MANAGED_PROVIDERS = ("codex", "gemini")
 CODEX_MODEL = "gpt-6.1-terra"
 GEMINI_MODEL = "gemini-4-neon-medium"
 GEMINI_REVIEW_MODEL = "gemini-4-neon-low"
-ROUTING_MODEL = "claude-fable-5-2"
+ROUTING_MODEL = "sonnet"
 TOKEN_KINDS = ("input", "output", "thinking", "cache_read", "cache_write")
 NO_AGENT = "none: a stand-in agent (--agent) ran, with no agent transcript to count"
 

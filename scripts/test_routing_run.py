@@ -559,28 +559,15 @@ class RunState(unittest.TestCase):
         self.assertIn("so the step runner cannot start: nothing was run", text)
         self.assertLess(text.index("scripts/board_graph_tool.py check"), text.index("setup_kicad_ipc.ps1"))
 
-    def test_opus_models_are_banned_from_routing_by_name_and_by_what_the_steps_logs_say(self):
+    def test_any_valid_model_name_passes_run_args_and_adoption(self):
         import editor_step
-        self.assertEqual(routing_run.BANNED_MODELS, editor_step.BANNED_MODELS)
-        self.assertFalse(editor_step.banned_model(editor_step.ROUTING_MODEL))
-        for name in ("claude-opus-5-5", "opus", "claude-opus-5[1m]", "Claude-Opus-4"):
-            self.assertTrue(routing_run.banned_model(name), name)
-            self.assertTrue(editor_step.banned_model(name), name)
-        for name in (None, "", "claude-fable-5-2", "claude-sonnet-5-5"):
-            self.assertFalse(routing_run.banned_model(name), name)
-        args = argparse.Namespace(model="claude-opus-5-5", review_model=None)
-        with self.assertRaises(routing_run.Refused) as refused:
-            routing_run.run(args)
-        self.assertIn("claude-opus-5-5 is banned from routing", str(refused.exception))
-        steps = [{"kept": True, "tokens": {"agent": {"by_model": {"claude-fable-5-2": {}}},
-                                           "reviews": [{"by_model": {"claude-opus-5-5": {}}}]}},
-                 {"kept": True, "tokens": "none counted (a stand-in agent)"}, {"kept": False}]
-        self.assertEqual(routing_run.banned_models_used(steps), ["claude-opus-5-5"])
-        self.assertEqual(routing_run.banned_models_used(steps[1:]), [])
-        text = routing_run.note([{"kept": True, "task": "a.txt"}], {"tasks": 1, "stopped": "end"},
-                                ["claude-opus-5-5 did work in this run, and Opus models are banned from routing"], "abc")
-        self.assertIn("Not adopted: claude-opus-5-5 did work in this run, and Opus models are banned from routing.", text)
-        self.assertEqual(routing_run.outcome([{"kept": True}], {"tasks": 1}, ["x banned from routing"]), "needs_lead")
+        self.assertEqual(editor_step.ROUTING_MODEL, "sonnet")
+        for name in ("claude-opus-5-5", "opus", "claude-sonnet-5-5", "sonnet"):
+            args = argparse.Namespace(model=name, review_model=name, effort=None, provider="claude", review_provider="claude", agent=None)
+            with mock.patch.object(routing_run.boards, "unnamed", return_value=[]):
+                profile, adopt_from = routing_run._validate_run_args(args)
+            self.assertIsNone(adopt_from)
+            self.assertIsInstance(profile, dict)
 
     def test_shell_words(self):
         self.assertEqual(routing_run.sh("~/a b"), '"$HOME/a b"')
@@ -952,10 +939,6 @@ class AdoptFromTests(unittest.TestCase):
             ("bad_review", {"state": "finished"}, base_meta, base_out, clean_download + b"\n", "Downloaded PCB differs from the independently reviewed"),
             ("footprint_moved", {"state": "finished"}, moved_meta, moved_out, moved_download, "footprint R36 changed"),
         ]
-        # Case with opus in by_model.
-        opus_lines = [json.loads(line) for line in base_out.splitlines()]
-        opus_lines[0]["tokens"] = {"agent": {"by_model": {"claude-opus-5-5-high": {"input": 1}}}}
-        cases.append(("opus_used", {"state": "finished"}, base_meta, "\n".join(map(json.dumps, opus_lines)), clean_download, "banned from routing"))
 
         args = argparse.Namespace(
             tasks=tasks, attempt=None, adopt_from=prior_id, provider="gemini", review_provider=None,

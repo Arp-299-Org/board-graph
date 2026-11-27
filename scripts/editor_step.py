@@ -8,7 +8,7 @@ Run on the Mac, on a throwaway copy, with no PCB Editor running there: the edito
 script refuses to start beside one. It knows its editor by the board's full path. --task is a run of one step; --tasks runs one step per text file in FOLDER, in
 name order, all in ONE editor, opened at the start and closed at the end. --minutes sets the operator handoff
 time and the time available to a separate read-only review.
-An Opus model is refused as the agent and as the reviewer; the agent is claude-fable-5-2 unless --model names another.
+For the Claude provider, the agent defaults to sonnet unless --model names another.
 
 The script opens the editor on BOARD, refills the pours, saves, and runs the design check and audits. Each step then
 locks the file and starts the agent. When the agent stops, the script refills and saves what the editor holds and
@@ -176,13 +176,8 @@ SCRIPTS_PREFIX = str(TOOL_ROOT / "scripts") if tool_paths.is_external() else "sc
 sys.path.insert(0, str(TOOL_ROOT / "tools" / "kicad"))
 from kicad_install import KICAD_CLI, KICAD_PCBNEW as PCBNEW  # noqa: E402
 
-BANNED_MODELS = ("opus",)
 HANDOFF_GRACE_SECONDS = 60
 MAX_PROGRESS_EXTENSIONS = 3
-
-
-def banned_model(name) -> bool:
-    return bool(name) and any(word in str(name).lower() for word in BANNED_MODELS)
 
 
 CLAUDE = str(pathlib.Path.home() / ".local/bin/claude")
@@ -961,10 +956,6 @@ def configure_provider(args):
     else:
         args.model = args.model or ROUTING_MODEL
     args.review_model = _effective_review_model(args)
-    for model in (args.model, args.review_model):
-        if banned_model(model):
-            raise ValueError(f"{model} is banned from routing: nothing ran. Name another "
-                             "model with --model or --review-model")
     if "codex" in (args.provider, args.review_provider):
         import routing_codex
         args.codex_binary = routing_codex.preflight()

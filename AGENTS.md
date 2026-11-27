@@ -54,9 +54,6 @@ wrong while doing something else, say so with the file and line.
   and unauthorized external autorouters remain forbidden. Report the mode and
   solver provenance honestly in receipts; only the owner's own record accepts
   copper laid outside a run. If the run fails, stop and report it.
-- **Opus is banned from routing.** An Opus model does not route, start the
-  routing run or record on the Routing batch card: it says so and stops. The
-  routing run refuses an Opus model as its agent or its reviewer.
 - **Board.** The schematic is the source; the board is updated from it, never
   changed behind it. Never route ahead of placement the owner approved on a
   rendered view; placement settles position, rotation and side. After every

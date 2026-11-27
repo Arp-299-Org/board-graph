@@ -47,9 +47,8 @@ engine safely while building real circuit boards.
 
 ## Model policy for upstream PRs
 
-- Forks are free to experiment locally with any model, including models listed in
-  `BANNED_MODELS` (`scripts/routing_run.py`).
+- Any provider or model supported by Claude, Codex, or Gemini (`agy`) may be
+  used locally.
 - Upstream pull requests to `Arp-299-Org/board-graph` must reproduce reported
-  failures on a supported provider. Pull requests that weaken `BANNED_MODELS`
-  or work around failures caused by running a banned model on routing will not
-  be merged.
+  tool or KiCad failures cleanly without weakening verification or live-editor
+  checks.

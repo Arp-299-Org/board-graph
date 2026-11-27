@@ -1039,7 +1039,7 @@ class GeminiAndCrossProviderStep(unittest.TestCase):
         self.assertIn("disabled in review mode", rev_ev[5])
         self.assertEqual(result["tokens_total"]["input"], 20)
 
-    def test_gemini_operator_with_codex_reviewer_and_opus_ban(self):
+    def test_gemini_operator_with_codex_reviewer_and_custom_model(self):
         args = SimpleNamespace(provider="gemini", review_provider="codex", model=None, review_model=None,
                                effort="high", agent=None, keep_going=False, once=True, minutes=4)
         editor_step.configure_provider(args)
@@ -1058,8 +1058,8 @@ class GeminiAndCrossProviderStep(unittest.TestCase):
 
         opus_args = SimpleNamespace(provider="gemini", review_provider="gemini", model="claude-opus-5-5-high",
                                     review_model=None, effort=None, agent=None, keep_going=False, once=True, minutes=4)
-        with self.assertRaisesRegex(ValueError, "banned from routing"):
-            editor_step.configure_provider(opus_args)
+        editor_step.configure_provider(opus_args)
+        self.assertEqual(opus_args.model, "claude-opus-5-5-high")
 
     def test_gemini_default_models_and_explicit_overrides(self):
         cases = [

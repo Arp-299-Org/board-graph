@@ -39,8 +39,10 @@ checks fail, while the branch holds copper that no adopted run committed
 (`scripts/board_copper_origin.py`). Only the owner's own record on the card
 accepts copper laid another way.
 
-Opus models are banned from routing: the run refuses one as its agent or its
-reviewer, and adopts nothing from a run one did work in.
+Model choice is open: `board-graph` does not ban any model. Note that in earlier
+routing trials Claude Opus models repeatedly tried to bypass the live KiCad
+editor (using offline scripts or pitching autorouters instead of the locked
+editor), so watch Opus routing runs closely or prefer another model.
 
 When the run cannot lay a connection, record `needs_lead` with what the tool
 returned, word for word, and bring it to the owner. Do not bypass the locked run

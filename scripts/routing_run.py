@@ -24,9 +24,7 @@ name order, one locked step of scripts/editor_step.py each) and committed. In or
 4. Waits, then brings back the runner's step lines and the board file as it left it (a step not kept is already put
    back, so this is the board after the last kept step).
 5. Adopts that board only when nothing but tracks, arcs and vias changed against the commit the run started from; zone
-   fills are redrawn by every refill and do not count. Nothing is adopted from a run in which an Opus model did work:
-   Opus models are banned from routing; --model and --review-model refuse one before anything
-   starts, and the steps' own logs are read for one that served under another name.
+   fills are redrawn by every refill and do not count.
 6. Stages the reviewed board and evidence in a private worktree. The graph checks and records that revision first.
 7. Fast-forwards the active branch and pushes only after the graph accepts the evidence. A retry resumes the
    retained delivery. The run records more_work when all steps were kept and needs_lead otherwise.
@@ -75,13 +73,10 @@ import routing_codex  # noqa: E402
 from kicad_sexp import child, normalize_angles, parse, prop  # noqa: E402
 from no_window import KWARGS as NO_WINDOW  # noqa: E402
 from routing_guard import (  # noqa: E402
-    BANNED_MODELS,
     COPPER,
     FILLS,
     HEADER,
     Refused,
-    banned_model,
-    banned_models_used,
     beyond_copper,
     frozen,
     guard,
@@ -700,8 +695,6 @@ def _validate_adopt_from(args, state, branch: str, rel: str) -> tuple:
     if problem:
         raise Refused(f"cannot adopt run {adopt_from}: {problem}")
     changed = guard(base, board.decode("utf-8"), allow_pours=allow_pours)
-    changed += [f"{model} did work in this run, and Opus models are banned from routing"
-                for model in banned_models_used(steps)]
     if changed:
         raise Refused(f"cannot adopt run {adopt_from}: {'; '.join(changed)}")
     return meta, prior_found, prior_folder, prior_commit, provider, review_provider, steps, summary
@@ -746,8 +739,6 @@ def _deliver_run(args, graph, state, where_from, context, branch, rel, tree, att
             changed = ["the board here is neither the one the run started from nor the one it left"]
         else:
             changed = guard(base, board.decode("utf-8"), allow_pours=allow_pours)
-        changed += [f"{model} did work in this run, and Opus models are banned from routing"
-                    for model in banned_models_used(steps)]
         try:
             board_graph.check_routing_terms(board_graph.Graph(args.graph), state, NODE, ROOT, attempt)
         except ValueError as error:
@@ -805,12 +796,6 @@ def _validate_run_args(args):
     for field in ("model", "review_model", "effort"):
         if not getattr(args, field, None):
             setattr(args, field, profile.get(field))
-    for model in (args.model, args.review_model):
-        if banned_model(model):
-            raise Refused(
-                f"{model} is banned from routing: nothing was started. Name "
-                "another model with --model or --review-model"
-            )
     if (
         getattr(args, "provider", None) in ("codex", "gemini")
         or getattr(args, "review_provider", None) in ("codex", "gemini")

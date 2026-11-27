@@ -353,7 +353,7 @@ each piece of work:
   new graph's files; a path without it names the same file in every copy,
   and `new` lists those.
 
-`AGENTS.md` and `CLAUDE.md` must exist, as `check` requires. Then
+`AGENTS.md` must exist, as `check` requires. Then
 `python3 scripts/board_graph.py check`, `where`, `next --track <track> --by
 <who>` and `record` work as for a board, and
 `python3 scripts/board_graph_serve.py --bind 127.0.0.1` serves the page at
@@ -415,6 +415,11 @@ live IPC Docker smoke on pull requests and pushes.
   `Mode: interactive` GUI shoving (`scripts/kicad_route.py`) and `launchd` graph
   page installation remain macOS-only. `scripts/editor_step.py` supports Codex,
   Gemini (`agy`), and Claude providers.
+- **Routing model choice.** `board-graph` allows any model supported by Claude,
+  Codex, or Gemini (`agy`). Note that in earlier routing trials, Claude Opus
+  models repeatedly tried to bypass the live KiCad editor (writing offline
+  scripts or pitching autorouters instead of driving the locked editor), so
+  watch Opus routing runs closely or prefer another model.
 - **Cross-board coordination.** Each board keeps its own cards, records, and
   position; shared constraints across boards are tracked via open issues rather
   than cross-board `requires` edges.
