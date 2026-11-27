@@ -629,11 +629,9 @@ def _start_person_card(graph, state, node, spec, action, actions, root, out, err
         err.write(f"{refusal}\n")
         return 1, None, f"{spec['label']} was not started (above)"
     for other in taken:
-        out.write(f"took {spec['label']} over from {other['actor']} (since {_bg().stamp(other['started_at'])}); "
-                  f"theirs ends as taken\n")
+        out.write(f"took {spec['label']} over from {other['actor']} (since {_bg().stamp(other['started_at'])}); theirs ends as taken\n")
     out.write(text)  # the brief, kept on the attempt open_work opened: what the one on it was given
-    out.write(f"{spec['label']} is on: {_bg().held(_bg().work(attempt))}"
-              + (" (already; nothing new started)" if already else "") + "\n")
+    out.write(f"{spec['label']} is on: {_bg().held(_bg().work(attempt))}" + (" (already; nothing new started)" if already else "") + "\n")
     if codex and not already:
         return _bg().run_codex(graph, state, node, root, attempt, text, handoff, minutes, out, err, after,
                          launcher or _bg().board_graph_codex.run, state_path)
@@ -647,6 +645,8 @@ def _start_person_card(graph, state, node, spec, action, actions, root, out, err
             out.write(f"Its script {action} failed: {report['detail']['error']}. Report: {name}\n")
         else:
             out.write(f"Its script {action} reports {report['outcome']}: {said}\nReport: {name}\n")
+            if report["outcome"] == "needs_lead":
+                out.write("These are starting baseline findings to resolve during this card's work (not a broken tool); do the task, recheck, and record pass once resolved.\n")
         out.write(after_report(name, f"Report: {spec['label']}'s script for {by.strip()}: {said}"))
         out.write("Do its task and record the outcome with record, citing the report; that record closes it.\n")
     elif action in _bg().COMMANDS:

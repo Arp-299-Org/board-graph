@@ -1261,6 +1261,7 @@ class NextTests(unittest.TestCase):
         self.assertIn("Placement is on: working since", text)
         self.assertIn("Its script placement reports needs_lead: 1 finding: R1: turned to 90 degrees, approved at 0 "
                       "degrees\nReport: board/reports/placement/placement.json", text)
+        self.assertIn("These are starting baseline findings to resolve during this card's work", text)
         self.assertIn("carried\nDo its task and record the outcome with record, citing the report; that record "
                       "closes it.", text)
         [report] = self.reports()
@@ -1395,6 +1396,7 @@ class NextTests(unittest.TestCase):
         self.assertEqual(code, 2, err)
         self.assertIn("Its script placement failed: RuntimeError: boom. Report: board/reports/placement/placement.json",
                       out)
+        self.assertNotIn("starting baseline findings", out)
         self.assertEqual([(row["actor"], row["outcome"]) for row in self.state.attempts("placement")],
                          [("owner", None), ("script:placement", "error")])
 

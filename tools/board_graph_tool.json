@@ -1,7 +1,7 @@
 {
   "name": "board-graph",
   "repository": "Arp-299-Org/board-graph",
-  "version": "0.38.0",
+  "version": "0.38.1",
   "files": {
     "docs/BOARD_APPROVALS.md": "0f95089a0522654ff995ca99e4a104c61632fc15fe93ee8bb42aa6ee1f1244d3",
     "docs/BOARD_EVIDENCE.md": "386390a77d7905f7aff82c3402694cc0fcc45660110c9da5a51d8e692858fbd1",
@@ -23,7 +23,7 @@
     "scripts/board_graph_state.py": "abc4d2f69da21d660a0411af8358380f15ac70ae7455bfca06784bd0a44ca29c",
     "scripts/board_graph_tool.py": "ddd186ab15dc09bb8670115b0bb0406bd21f2b17f13bcf59bf83ca20fec0d64e",
     "scripts/board_graph_view.py": "862019cff0460593e2d081c6cc66b9c8e8db443a7dbbe18e3676152646876ba4",
-    "scripts/board_graph_workspace.py": "d12585db0b61e751774f53529132fe4c6d59ce29ffaa3575f1a308125e95bd5e",
+    "scripts/board_graph_workspace.py": "65f4b367e4c5425e2de82c5b31eea0f92e8a03a927759a8b83b8140892f90245",
     "scripts/board_manual_joints.py": "e53a827e6f1390d42082bc5b33e41b208557190d15fff287f39229cabebba324",
     "scripts/board_part_fetch.py": "db554fda52967b8c88629fa08aaf32221a674ae6fc496c229290cff6ba03a8d6",
     "scripts/board_placement_snapshot.py": "bc403c195f3f79619f317478e02334b6205873b8d75079c361c9fbf17342c95c",
@@ -103,7 +103,7 @@
     "scripts/test_board_copper_origin.py": "82ce5bf88a2bada9b57125076defeaa6f875ea54d429716603c97d1dcd21f660",
     "scripts/test_board_description.py": "6ade1f77b69595e9825a6f40264ed67dfae0318b33a466a1f178e5cf4d7bf0d7",
     "scripts/test_board_deterministic_tools.py": "39b73988bde811c4b0c811bfaa4afbc06caf910e4b30159b73f29739878c400a",
-    "scripts/test_board_graph.py": "3750499e38515561ec9b1973a9714b131025d9f8cc1e704b8d22b6678cf9cf15",
+    "scripts/test_board_graph.py": "0328aa201f40888e2c1b8f542bf3914d8551b43ce8eda27388f251c7efd1febc",
     "scripts/test_board_graph_codex.py": "9f4d8116c6826c7232a141250a1f22c48aa1e73933b091f5dab0c051c77d2d51",
     "scripts/test_board_graph_e2e.py": "033cbbea822f8c3c606184e7447af8dc872d89087db0c583c9170b37e0732d5d",
     "scripts/test_board_graph_hub.py": "630a673069ed692b783795fad9a0a2d78d36902a00ba8287750f0b258d637e3f",
