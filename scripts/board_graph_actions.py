@@ -79,9 +79,9 @@ MADE_LATER = {BOARD: "the board, which the first update from the schematic makes
               RULES: "the board's rules file",
               BOM: "the exported BOM, which the first BOM export from the schematic writes"}
 BOM_COLUMNS = ("Refs", "Qty", "Value", "Manufacturer", "MPN", "Supplier", "Supplier Part")
-BOM_FIELDS = (("Value", "Value"), ("Manufacturer", "Manufacturer"), ("MPN", "Manufacturer Part"),
+BOM_FIELDS = (("Value", "Value"), ("Manufacturer", "Manufacturer"), ("MPN", ("Manufacturer Part", "MPN")),
               ("Supplier", "Supplier"), ("Supplier Part", "Supplier Part"))
-TARGET_FIELDS = {"manufacturer": "Manufacturer", "mpn": "Manufacturer Part", "supplier": "Supplier",
+TARGET_FIELDS = {"manufacturer": "Manufacturer", "mpn": ("Manufacturer Part", "MPN"), "supplier": "Supplier",
                  "supplier_part": "Supplier Part"}
 LIBRARY_READS = (GRAPH, SCHEMATIC, BOARD, BOM, DATASHEETS, *MODEL_DIRS, LIBRARY_DIR, EXCLUSIONS)
 FOOTPRINT_READS = (BOARD, PROJECT_FILE, TABLE, LIBRARY_DIR, EXCLUSIONS, PARTS, "scripts/board_manual_joints.py")
@@ -1084,7 +1084,7 @@ def factory_parts(project):
         if not part:
             unnamed.append(ref)
             continue
-        entry = needed.setdefault(part, {"refs": [], "mpn": (prop(fp, "Manufacturer Part") or "").strip()})
+        entry = needed.setdefault(part, {"refs": [], "mpn": (prop(fp, ("Manufacturer Part", "MPN")) or "").strip()})
         entry["refs"].append(ref)
     return needed, unnamed
 

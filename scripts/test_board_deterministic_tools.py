@@ -118,6 +118,35 @@ class DeterministicToolsTests(unittest.TestCase):
         self.assertEqual(fb_name, "Hdr_MPN.pdf")
         self.assertEqual(rec["datasheet_url"], "https://good.invalid/real.pdf")
 
+    def test_bom_accepts_mpn_property_fallback(self) -> None:
+        sch = """(kicad_sch (version 20250114)
+  (symbol (lib_id "Conn:J") (at 100 100 0)
+    (property "Reference" "J1") (property "Value" "MJ56881")
+    (property "Manufacturer" "Heling") (property "MPN" "MJ56881-B011")
+    (property "Supplier" "LCSC") (property "Supplier Part" "C501473")))"""
+        pcb = """(kicad_pcb (version 20250114)
+  (footprint "lib:J" (layer "F.Cu") (attr smd)
+    (property "Reference" "J1") (property "Value" "MJ56881")
+    (property "Manufacturer" "Heling") (property "MPN" "MJ56881-B011")
+    (property "Supplier" "LCSC") (property "Supplier Part" "C501473")
+    (property "LCSC Part #" "C501473")))"""
+        self.write_text = lambda rel, txt: (
+            (self.root / rel).parent.mkdir(parents=True, exist_ok=True),
+            (self.root / rel).write_text(txt, encoding="utf-8"),
+        )
+        self.write_text(board_graph_actions.GRAPH, '{"nodes": []}')
+        self.write_text(board_graph_actions.SCHEMATIC, sch)
+        self.write_text(board_graph_actions.BOARD, pcb)
+        self.write_text(
+            board_graph_actions.BOM,
+            '"Refs","Qty","Value","Manufacturer","MPN","Supplier","Supplier Part"\n'
+            '"J1","1","MJ56881","Heling","MJ56881-B011","LCSC","C501473"\n',
+        )
+        proj = board_graph_actions.Project(self.root)
+        report = board_graph_actions.bom_report(proj)
+        self.assertEqual(report["findings"], [])
+        self.assertEqual(report["rows"][0]["mpn"], "MJ56881-B011")
+
     def test_placement_snapshot_matches_placement_findings(self) -> None:
         pcb = """(kicad_pcb
   (footprint "lib:RJ45" (layer "F.Cu") (at 116 110.45 180)

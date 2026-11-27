@@ -309,7 +309,7 @@ def report(board_path: pathlib.Path = BOARD, parts_path: pathlib.Path = PARTS,
         pads = [p for p in children(fp, "pad") if len(p) > 2 and p[2] == "thru_hole"]
         if not pads:
             continue
-        mpn = prop(fp, "Manufacturer Part")
+        mpn = prop(fp, ("Manufacturer Part", "MPN"))
         spec = parts.get(mpn, {}) if mpn else {}
         pins = spec.get("pins", [])
         attr = child(fp, "attr") or []

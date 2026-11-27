@@ -285,7 +285,7 @@ def hand_solder_document(base_name, footprints, manual_refs, smt_refs, productio
     for ref in sorted(manual_refs | set(smt_work_by_ref)):
         fp = footprints[ref]
         fields = {f.GetName(): f.GetText() for f in fp.GetFields()}
-        part = fields.get('Manufacturer Part') or fp.GetValue()
+        part = fields.get('Manufacturer Part') or fields.get('MPN') or fp.GetValue()
         if ref in smt_work_by_ref:
             item = smt_work_by_ref[ref]
             pth = item['pad_numbers']

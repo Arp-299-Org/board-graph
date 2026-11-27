@@ -88,11 +88,18 @@ def copper_layers(board) -> list[str]:
     return [name for name in ("F.Cu",) if name in names] + inner + [name for name in ("B.Cu",) if name in names]
 
 
-def prop(node, name: str):
-    """Value of a (property "name" "value" ...) child, or None."""
-    for c in children(node, "property"):
-        if len(c) >= 3 and c[1] == name:
-            return c[2]
+def prop(node, name: str | tuple[str, ...]):
+    """Value of a (property "name" "value" ...) child, or None (tries tuple names in order)."""
+    names = (name,) if isinstance(name, str) else tuple(name)
+    props = children(node, "property")
+    for target in names:
+        for c in props:
+            if len(c) >= 3 and c[1] == target and c[2]:
+                return c[2]
+    for target in names:
+        for c in props:
+            if len(c) >= 3 and c[1] == target:
+                return c[2]
     return None
 
 
