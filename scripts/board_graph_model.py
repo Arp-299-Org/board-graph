@@ -299,7 +299,35 @@ class Graph:
                     if count > _bg().DOC_LINES:
                         found.append(f"{path.relative_to(self.root).as_posix()} is {count} lines, over {_bg().DOC_LINES}: a Read "
                                      f"stops there; put the long list in a file beside the report")
+        found.extend(self._stale_example_problems())
         return found
+
+    def _stale_example_problems(self):
+        """Flag leftover starter `board/example.*` paths once `board/board.json` names a concrete board."""
+        board_file = self.root / "board" / "board.json"
+        if not board_file.is_file():
+            return []
+        try:
+            board_data = json.loads(board_file.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return []
+        board_name = board_data.get("name") if isinstance(board_data, dict) else None
+        if not isinstance(board_name, str) or not board_name or board_name == "example":
+            return []
+        stale: list[str] = []
+        for node in self.data["nodes"]:
+            paths = list(node.get("owns") or []) + list(node.get("approval_files") or [])
+            integ = node.get("integration")
+            if isinstance(integ, dict) and isinstance(integ.get("boards"), dict):
+                if "example" in integ["boards"]:
+                    stale.append(f"{node['id']}: stale starter path 'example' in tools/board_graph.json "
+                                 f"does not match board/board.json name {board_name!r}")
+                paths.extend(v for v in integ["boards"].values() if isinstance(v, str))
+            for path in paths:
+                if "board/example." in path or "board/exports/example-" in path:
+                    stale.append(f"{node['id']}: stale starter path {path} in tools/board_graph.json "
+                                 f"does not match board/board.json name {board_name!r}")
+        return stale
 
     def order_problems(self):
         """Cards that can never pass because they wait on each other in a loop. One card must pass before another

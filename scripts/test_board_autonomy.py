@@ -224,6 +224,55 @@ class BoardAutonomyTests(unittest.TestCase):
             self.assertEqual(rev.verdict("decisions")["status"], "unproven")
             self.assertEqual(rev.verdict("placement")["status"], "unproven")
 
+    def test_stale_example_paths_flagged_and_init_identity_rewrites_them(self) -> None:
+        import board_graph_cli
+        import board_graph_tool
+
+        (self.root / "board").mkdir(parents=True, exist_ok=True)
+        (self.root / "tools").mkdir(parents=True, exist_ok=True)
+        (self.root / "docs").mkdir(parents=True, exist_ok=True)
+        (self.root / "AGENTS.md").write_text("# Agents\n", encoding="utf-8")
+        (self.root / "docs" / "PRODUCT_TRUTH.md").write_text("# Truth\n", encoding="utf-8")
+        starter_graph = json.loads((REPO_ROOT / "tools" / "board_graph.json").read_text(encoding="utf-8"))
+        for node in starter_graph.get("nodes", []):
+            node["docs"] = []
+        (self.root / "tools" / "board_graph.json").write_text(json.dumps(starter_graph, indent=2) + "\n", encoding="utf-8")
+        starter_board = json.loads((REPO_ROOT / "board" / "board.json").read_text(encoding="utf-8"))
+        (self.root / "board" / "board.json").write_text(json.dumps(starter_board, indent=2) + "\n", encoding="utf-8")
+
+        # Mutate board/board.json name without updating tools/board_graph.json -> flagged by reading_problems().
+        stale_board = dict(starter_board, name="rj45_breakout")
+        (self.root / "board" / "board.json").write_text(json.dumps(stale_board, indent=2) + "\n", encoding="utf-8")
+        graph = bg.Graph(self.root / "tools" / "board_graph.json")
+        probs = graph.reading_problems()
+        self.assertTrue(any("stale starter path board/example.kicad_sch" in p for p in probs), probs)
+
+        # Rewriting identity via _apply_board_identity clears stale starter paths and sets project title.
+        self.assertIsNone(board_graph_cli._apply_board_identity(self.root, "rj45_breakout", "RJ45 Breakout (Test)"))
+        updated_board = json.loads((self.root / "board" / "board.json").read_text(encoding="utf-8"))
+        self.assertEqual(updated_board["name"], "rj45_breakout")
+        self.assertEqual(updated_board["package_name"], "RJ45_BREAKOUT")
+        self.assertEqual(updated_board["project"], "RJ45 Breakout (Test)")
+        self.assertEqual(updated_board["schematic"], "board/rj45_breakout.kicad_sch")
+        rewritten_graph = bg.Graph(self.root / "tools" / "board_graph.json")
+        self.assertFalse(any("stale starter path" in p for p in rewritten_graph.reading_problems()))
+        self.assertIn("board/rj45_breakout.kicad_sch", rewritten_graph.nodes["schematic"]["owns"])
+
+        # CLI `init --autonomous --board-name ... --project-title ...` works end-to-end.
+        init_dir = self.root / "init_proj"
+        init_dir.mkdir()
+        rc = board_graph_cli.main([
+            "--project", str(init_dir), "init",
+            "--from", str(REPO_ROOT), "--ref", "HEAD",
+            "--autonomous", "--board-name", "rj45_breakout", "--project-title", "RJ45 Breakout (Codex)",
+        ])
+        self.assertEqual(rc, 0)
+        cli_board = json.loads((init_dir / "board" / "board.json").read_text(encoding="utf-8"))
+        self.assertEqual(cli_board["project"], "RJ45 Breakout (Codex)")
+        cli_graph = bg.Graph(init_dir / "tools" / "board_graph.json")
+        self.assertFalse(any("stale starter path" in p for p in cli_graph.reading_problems()))
+        self.assertEqual(board_graph_cli.main(["--project", str(init_dir), "check"]), 0)
+
 
 if __name__ == "__main__":
     unittest.main()

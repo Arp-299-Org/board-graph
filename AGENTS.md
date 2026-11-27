@@ -18,6 +18,12 @@ yes or no. "Go" or "fix" authorizes the agreed step, not a new scope, part,
 purchase or unattended run. A question, brainstorm or audit is not permission
 to edit. Record a decision only after the owner adopts it, in the owner's
 words, on main the day it is made.
+When `tools/board_graph.json` enables autonomous delegation (`autonomy.mode`
+is `"delegated"` through `autonomy.until`), the owner has pre-authorized the
+agent to choose in-stock parts, placement, and board tradeoffs up through that
+stop card without stopping for `needs_owner` (recording each choice and its
+basis in `board/DECISIONS.md` and card records); `order` and anything beyond
+`autonomy.until` always require the owner.
 
 ## Honesty
 

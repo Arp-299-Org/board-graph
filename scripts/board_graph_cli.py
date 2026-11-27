@@ -51,6 +51,7 @@ VALUE_FLAGS = frozenset({
     "--records", "--view", "--out", "--base", "--from", "--to", "--minutes", "--model",
     "--review-model", "--provider", "--review-provider", "--effort", "--agent",
     "--branch", "--tokens", "--reason", "--prompt", "--after", "--board-description",
+    "--board-name", "--project-title",
     "--mac-tool-checkout", "--mac-tree", "--mac-steps", "--ref", "--version", "--root", "--skip",
     "--track", "--node", "--output", "--json", "--timeout", "--exclusions", "--production", "--base-name", "--name",
 })
@@ -63,7 +64,7 @@ def usage(out=None) -> None:
         "For multi-board repos, --board NAME works before or after the command\n"
         "(where, next, record, check, route, validate, run-checks, view, board-description).\n\n"
         "Commands (run against the active project):\n"
-        "  init [--skip PATH ...] [--autonomous [--until CARD] [--reason TEXT]]\n"
+        "  init [--skip PATH ...] [--board-name SLUG] [--project-title TITLE] [--autonomous [--until CARD] [--reason TEXT]]\n"
         "                         copy starter files, .gitattributes, and .gitignore into this folder\n"
         "  version                print installed board-graph version and location\n"
         "  where, next, record, brief, settle, check, graph, approvals, checks\n"
@@ -211,11 +212,13 @@ def _run_version() -> int:
     return 0
 
 
-def _split_init_args(tail: list[str]) -> tuple[bool, str, str, list[str]]:
-    """Extract --autonomous/--until/--reason from init args and leave starter args intact."""
+def _split_init_args(tail: list[str]) -> tuple[bool, str, str, str | None, str | None, list[str]]:
+    """Extract init options (--autonomous/--until/--reason/--board-name/--project-title) and forward the rest."""
     autonomous = False
     until = "quote_files"
     reason = "Autonomous run authorized via board-graph init --autonomous"
+    board_name: str | None = None
+    project_title: str | None = None
     forwarded: list[str] = []
     i = 0
     while i < len(tail):
@@ -223,24 +226,82 @@ def _split_init_args(tail: list[str]) -> tuple[bool, str, str, list[str]]:
         if word == "--autonomous":
             autonomous = True
             i += 1
-        elif word in ("--until", "--reason"):
+        elif word in ("--until", "--reason", "--board-name", "--project-title"):
             if i + 1 >= len(tail) or not tail[i + 1].strip():
                 raise ValueError(f"{word} requires a value")
+            val = tail[i + 1]
             if word == "--until":
-                until = tail[i + 1]
+                until = val
+            elif word == "--reason":
+                reason = val
+            elif word == "--board-name":
+                board_name = val
             else:
-                reason = tail[i + 1]
+                project_title = val
             i += 2
-        elif word.startswith("--until="):
-            until = word.split("=", 1)[1]
-            i += 1
-        elif word.startswith("--reason="):
-            reason = word.split("=", 1)[1]
+        elif word.startswith(("--until=", "--reason=", "--board-name=", "--project-title=")):
+            flag, val = word.split("=", 1)
+            if not val.strip():
+                raise ValueError(f"{flag} requires a value")
+            if flag == "--until":
+                until = val
+            elif flag == "--reason":
+                reason = val
+            elif flag == "--board-name":
+                board_name = val
+            else:
+                project_title = val
             i += 1
         else:
             forwarded.append(word)
             i += 1
-    return autonomous, until, reason, forwarded
+    return autonomous, until, reason, board_name, project_title, forwarded
+
+
+def _rewrite_example_value(value, board_name: str):
+    if isinstance(value, str):
+        return (value
+                .replace("board/example.", f"board/{board_name}.")
+                .replace("board/exports/example-", f"board/exports/{board_name}-"))
+    if isinstance(value, list):
+        return [_rewrite_example_value(item, board_name) for item in value]
+    if isinstance(value, dict):
+        return {k: _rewrite_example_value(v, board_name) for k, v in value.items()}
+    return value
+
+
+def _apply_board_identity(target: pathlib.Path, board_name: str | None, project_title: str | None) -> str | None:
+    """Update starter board/board.json and tools/board_graph.json paths to match board_name and project_title."""
+    import json
+    import re
+
+    if not board_name and not project_title:
+        return None
+    if board_name and not re.fullmatch(r"[A-Za-z0-9_-]+", board_name):
+        return f"--board-name must match [A-Za-z0-9_-]+, got {board_name!r}"
+
+    board_file = target / "board" / "board.json"
+    if board_file.is_file():
+        bdata = json.loads(board_file.read_text(encoding="utf-8"))
+        if board_name:
+            bdata = _rewrite_example_value(bdata, board_name)
+            bdata["name"] = board_name
+            bdata["package_name"] = board_name.upper()
+        if project_title:
+            bdata["project"] = project_title
+        board_file.write_text(json.dumps(bdata, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+
+    graph_file = target / "tools" / "board_graph.json"
+    if board_name and graph_file.is_file():
+        gdata = json.loads(graph_file.read_text(encoding="utf-8"))
+        gdata = _rewrite_example_value(gdata, board_name)
+        for node in gdata.get("nodes", []):
+            integ = node.get("integration")
+            if isinstance(integ, dict) and isinstance(integ.get("boards"), dict) and "example" in integ["boards"]:
+                val = integ["boards"].pop("example")
+                integ["boards"][board_name] = val
+        graph_file.write_text(json.dumps(gdata, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    return None
 
 
 def _enable_autonomous(target: pathlib.Path, until: str, reason: str) -> str | None:
@@ -277,7 +338,7 @@ def _enable_autonomous(target: pathlib.Path, until: str, reason: str) -> str | N
 def _run_init(explicit_project: pathlib.Path | None, tail: list[str]) -> int:
     """Scaffold starter project files, .gitattributes, and .gitignore into target directory."""
     try:
-        autonomous, until, reason, starter_args = _split_init_args(tail)
+        autonomous, until, reason, board_name, project_title, starter_args = _split_init_args(tail)
     except ValueError as error:
         print(f"board-graph: {error}", file=sys.stderr)
         return 2
@@ -291,6 +352,10 @@ def _run_init(explicit_project: pathlib.Path | None, tail: list[str]) -> int:
     done = subprocess.run(cmd, cwd=str(target), check=False)
     if done.returncode != 0:
         return done.returncode
+    identity_err = _apply_board_identity(target, board_name, project_title)
+    if identity_err:
+        print(f"board-graph: {identity_err}", file=sys.stderr)
+        return 2
     if autonomous:
         err = _enable_autonomous(target, until, reason)
         if err:
