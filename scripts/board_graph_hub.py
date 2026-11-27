@@ -40,69 +40,85 @@ HUB_HTML = """<!doctype html>
     --mono: ui-monospace, "Cascadia Mono", Menlo, Consolas, monospace;
   }
   * { box-sizing: border-box; }
-  body { margin: 0; background: var(--bg); color: var(--ink-1); font: 400 13.5px/1.5 var(--font); -webkit-font-smoothing: antialiased; }
+  body { margin: 0; background: var(--bg); color: var(--ink-1); font: 400 13px/1.45 var(--font); -webkit-font-smoothing: antialiased; }
   a { color: var(--copper-soft); text-decoration: none; }
   a:hover { text-decoration: underline; }
   button { font: inherit; color: inherit; cursor: pointer; background: none; border: none; }
-  code { font-family: var(--mono); }
-  .header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px;
-            padding: 14px 20px; border-bottom: 1px solid var(--hair); background: var(--surface); position: sticky; top: 0; z-index: 20; }
-  .header h1 { margin: 0; font-size: 18px; font-weight: 650; }
-  .sub { font-size: 12px; color: var(--ink-3); }
-  .pill { display: inline-flex; align-items: center; gap: 6px; padding: 3px 9px; border-radius: 999px;
-          border: 1px solid var(--hair); background: var(--surface-2); font-size: 12px; color: var(--ink-2); }
+  code, pre { font-family: var(--mono); }
+  .header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px;
+            padding: 10px 16px; border-bottom: 1px solid var(--hair); background: var(--surface); position: sticky; top: 0; z-index: 20; }
+  .header h1 { margin: 0; font-size: 16.5px; font-weight: 650; }
+  .sub { font-size: 11.5px; color: var(--ink-3); }
+  .hdr-right { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+  select.btn { background: var(--surface-2); color: var(--ink-1); cursor: pointer; }
+  .pill { display: inline-flex; align-items: center; gap: 5px; padding: 2px 8px; border-radius: 999px;
+          border: 1px solid var(--hair); background: var(--surface-2); font-size: 11.5px; color: var(--ink-2); }
   .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--ink-3); }
   .dot.live { background: var(--green-soft); box-shadow: 0 0 7px var(--green); }
-  .wrap { padding: 18px 20px 44px; display: flex; flex-direction: column; gap: 16px; }
-  .run-row { background: var(--surface); border: 1px solid var(--hair); border-left-width: 4px; border-radius: 10px; padding: 14px 16px;
-             display: flex; flex-direction: column; gap: 10px; }
-  .run-top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; }
-  .run-title { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
-  .run-title h2 { margin: 0; font-size: 16px; }
-  .model-pill { padding: 2px 9px; border-radius: 999px; font-size: 11.5px; font-weight: 600; font-family: var(--mono); border: 1px solid; }
-  .timer-pill { padding: 2px 9px; border-radius: 999px; font-size: 11.5px; font-weight: 600; font-family: var(--mono); border: 1px solid rgba(232,145,73,0.52); color: var(--copper-soft); background: var(--copper-bg); }
+  .wrap { padding: 10px 16px 24px; display: flex; flex-direction: column; gap: 10px; }
+  .run-row { background: var(--surface); border: 1px solid var(--hair); border-left-width: 4px; border-radius: 8px;
+             padding: 9px 12px; display: flex; flex-direction: column; gap: 7px; }
+  .run-top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
+  .run-title { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; }
+  .run-title h2 { margin: 0; font-size: 15px; font-weight: 650; }
+  .model-pill { padding: 1px 8px; border-radius: 999px; font-size: 11px; font-weight: 600; font-family: var(--mono); border: 1px solid; }
+  .timer-pill { padding: 1px 8px; border-radius: 999px; font-size: 11px; font-weight: 600; font-family: var(--mono);
+                border: 1px solid rgba(232,145,73,0.52); color: var(--copper-soft); background: var(--copper-bg); }
   .timer-pill.done { border-color: rgba(34,197,94,0.48); color: var(--green-soft); background: var(--green-bg); }
-  .badge { padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 600; border: 1px solid var(--hair); color: var(--ink-2); }
-  .badge.ok { color: var(--green-soft); border-color: rgba(34,197,94,0.48); background: var(--green-bg); }
-  .badge.working { color: var(--copper-soft); border-color: rgba(232,145,73,0.62); background: var(--copper-bg); }
+  .badge { padding: 1px 7px; border-radius: 999px; font-size: 11px; font-weight: 600; border: 1px solid var(--hair); color: var(--ink-2); }
   .badge.owner { color: var(--amber); border-color: rgba(250,204,21,0.58); background: var(--amber-bg); }
   .badge.lead { color: var(--red); border-color: rgba(244,63,94,0.58); background: var(--red-bg); }
-  .badge.off { color: var(--red); border-color: rgba(244,63,94,0.4); }
-  .btn { padding: 5px 10px; border: 1px solid var(--hair); border-radius: 6px; background: var(--surface-2); color: var(--ink-2); font-size: 12px; }
+  .badge.off { color: var(--red); border-color: rgba(244,63,94,0.45); background: var(--red-bg); }
+  .btn { padding: 4px 9px; border: 1px solid var(--hair); border-radius: 6px; background: var(--surface-2); color: var(--ink-2); font-size: 11.5px; }
   .btn:hover { background: var(--surface-hover); color: var(--ink-1); border-color: var(--hair-strong); }
   .btn.pcb-btn { border-color: rgba(232,145,73,0.48); color: var(--copper); }
   .btn.pcb-btn:hover { background: var(--copper-bg); color: var(--ink-1); }
-  .prog-track { height: 5px; width: 100%; border-radius: 999px; background: #101014; overflow: hidden; border: 1px solid var(--hair); }
+  .prog-track { height: 3px; width: 100%; border-radius: 999px; background: #101014; overflow: hidden; }
   .prog-fill { height: 100%; background: linear-gradient(90deg, var(--green), var(--copper)); transition: width .2s ease; }
-  .strip { display: flex; flex-wrap: wrap; gap: 6px; }
-  .chip { padding: 6px 9px; border-radius: 7px; border: 1px solid var(--hair); background: var(--surface-2);
-          font-size: 12px; text-align: left; display: flex; flex-direction: column; gap: 2px; min-width: 112px; }
+  .strip { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; }
+  .chip { padding: 3px 8px; border-radius: 6px; border: 1px solid var(--hair); background: var(--surface-2);
+          font-size: 11.5px; line-height: 1.3; white-space: nowrap; display: inline-flex; align-items: center; gap: 5px; color: var(--ink-1); }
   .chip:hover { border-color: var(--hair-strong); background: var(--surface-hover); }
-  .chip.passed { border-color: rgba(34,197,94,0.52); background: var(--green-bg); }
-  .chip.current { border-color: rgba(232,145,73,0.85); background: var(--copper-bg); }
-  .chip.owner { border-color: rgba(250,204,21,0.82); background: var(--amber-bg); }
-  .chip.lead { border-color: rgba(244,63,94,0.85); background: var(--red-bg); }
-  .chip.ahead { opacity: 0.72; }
-  .chip-lbl { font-weight: 600; color: var(--ink-1); }
-  .chip-st { font-size: 10.5px; color: var(--ink-3); font-family: var(--mono); }
-  .thumbs { display: flex; flex-wrap: wrap; gap: 8px; }
-  .thumb-btn { display: flex; flex-direction: column; gap: 4px; padding: 5px; border-radius: 7px; border: 1px solid var(--hair); background: #101014; max-width: 148px; }
-  .thumb-btn:hover { border-color: var(--copper); }
-  .thumb-btn img { width: 136px; height: 82px; object-fit: cover; border-radius: 4px; background: #08080a; }
-  .thumb-btn span { font-size: 10.5px; color: var(--ink-3); font-family: var(--mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 136px; }
-  .last-line { font-size: 12.5px; color: var(--ink-2); background: #101014; border: 1px solid var(--hair);
-               border-radius: 6px; padding: 8px 10px; white-space: pre-wrap; word-break: break-word; }
-  .tool-note { font-size: 11.5px; color: var(--ink-2); font-family: var(--mono); }
-  .drawer-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.55); z-index: 30; display: none; }
+  .chip.passed { border-color: rgba(34,197,94,0.52); background: var(--green-bg); color: var(--green-soft); }
+  .chip.current { border-color: rgba(232,145,73,0.88); background: var(--copper-bg); color: #ffd7b3; font-weight: 600; }
+  .chip.owner { border-color: rgba(250,204,21,0.85); background: var(--amber-bg); color: var(--amber); font-weight: 600; }
+  .chip.lead { border-color: rgba(244,63,94,0.85); background: var(--red-bg); color: var(--red); font-weight: 600; }
+  .chip.ahead { opacity: 0.65; color: var(--ink-2); }
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.35; } }
+  .chip-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--copper-soft); animation: pulse 1.4s infinite; }
+  .later-note { font-size: 11px; color: var(--ink-3); font-family: var(--mono); padding: 0 4px; }
+  .last-line { width: 100%; text-align: left; font-size: 11.5px; color: var(--ink-2); background: #101014; border: 1px solid var(--hair);
+               border-radius: 5px; padding: 4px 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; }
+  .last-line.expanded { white-space: pre-wrap; word-break: break-word; overflow: visible; }
+  .tool-note { font-size: 11px; color: var(--ink-3); font-family: var(--mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .drawer-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.58); z-index: 30; display: none; }
   .drawer-backdrop.open { display: block; }
-  .drawer { position: fixed; top: 0; right: 0; bottom: 0; width: min(560px, 100vw); background: var(--surface);
+  .drawer { position: fixed; top: 0; right: 0; bottom: 0; width: min(680px, 100vw); background: var(--surface);
             border-left: 1px solid var(--hair-strong); z-index: 35; display: flex; flex-direction: column;
             transform: translateX(100%); transition: transform .15s ease-out; }
   .drawer.open { transform: translateX(0); }
-  .drawer-head { display: flex; align-items: center; justify-content: space-between; padding: 14px 18px; border-bottom: 1px solid var(--hair); }
-  .drawer-head h3 { margin: 0; font-size: 16px; }
-  .drawer-body { flex: 1; overflow-y: auto; padding: 16px 18px 28px; display: flex; flex-direction: column; gap: 12px; }
-  pre.box { margin: 0; padding: 10px; border-radius: 6px; border: 1px solid var(--hair); background: #0f0f13; white-space: pre-wrap; word-break: break-word; font-size: 12px; font-family: var(--mono); }
+  .drawer-head { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-bottom: 1px solid var(--hair); }
+  .drawer-head h3 { margin: 0; font-size: 15.5px; }
+  .drawer-body { flex: 1; overflow-y: auto; padding: 14px 16px 28px; display: flex; flex-direction: column; gap: 14px; }
+  .sec-lbl { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-3); font-weight: 600; margin-bottom: 5px; }
+  pre.box { margin: 0; padding: 9px 11px; border-radius: 6px; border: 1px solid var(--hair); background: #0f0f13;
+            white-space: pre-wrap; word-break: break-word; font-size: 12px; color: var(--ink-1); }
+  .doc-card { border: 1px solid var(--hair); border-radius: 7px; background: #101014; overflow: hidden; }
+  .doc-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 10px;
+              border-bottom: 1px solid var(--hair); background: var(--surface-2); font-size: 11.5px; font-family: var(--mono); color: var(--ink-2); }
+  .doc-body { padding: 10px 12px; font-size: 12.5px; color: var(--ink-1); overflow-x: auto; line-height: 1.5; }
+  .doc-body h1, .doc-body h2, .doc-body h3 { margin: 10px 0 5px; font-size: 14px; color: var(--ink-1); }
+  .doc-body h1:first-child, .doc-body h2:first-child { margin-top: 0; }
+  .doc-body p { margin: 0 0 8px; }
+  .doc-body ul { margin: 0 0 8px; padding-left: 18px; }
+  .doc-body li + li { margin-top: 2px; }
+  .doc-body code { background: rgba(255,255,255,0.06); padding: 1px 4px; border-radius: 4px; font-size: 11.5px; }
+  table.rt { width: 100%; border-collapse: collapse; font-size: 11.5px; }
+  table.rt th, table.rt td { padding: 5px 8px; border-bottom: 1px solid var(--hair); text-align: left; vertical-align: top; }
+  table.rt th { color: var(--ink-2); font-weight: 600; background: rgba(255,255,255,0.03); }
+  .img-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 8px; }
+  .img-card { border: 1px solid var(--hair); border-radius: 6px; padding: 5px; background: #0d0d10; display: flex; flex-direction: column; gap: 4px; }
+  .img-card img { width: 100%; max-height: 160px; object-fit: contain; border-radius: 4px; }
   .modal { position: fixed; inset: 0; z-index: 45; display: none; align-items: center; justify-content: center; padding: 20px; background: rgba(0,0,0,0.74); }
   .modal.open { display: flex; }
   .modal-card { width: min(1020px, 100%); max-height: 92vh; background: var(--surface); border: 1px solid var(--hair-strong);
@@ -116,11 +132,22 @@ HUB_HTML = """<!doctype html>
 </head>
 <body>
 <header class="header">
-  <div>
+  <div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap">
     <h1>board-graph Hub</h1>
-    <div class="sub" id="sub">Loading sources...</div>
+    <span class="sub" id="sub">Loading sources...</span>
   </div>
-  <span class="pill"><span id="dot" class="dot"></span><span id="live-lbl">Connecting</span></span>
+  <div class="hdr-right">
+    <select id="scope-select" class="btn" aria-label="Visible target scope">
+      <option value="auto">Scope: Target (auto)</option>
+      <option value="placement">Through Placement</option>
+      <option value="board_checks">Through Board checks</option>
+      <option value="verification">Through Verification</option>
+      <option value="quote_files">Through Quote files</option>
+      <option value="order">Through Order</option>
+      <option value="all">Full lifecycle (all)</option>
+    </select>
+    <span class="pill"><span id="dot" class="dot"></span><span id="live-lbl">Connecting</span></span>
+  </div>
 </header>
 <main class="wrap" id="rows"></main>
 <div class="drawer-backdrop" id="backdrop"></div>
@@ -154,12 +181,79 @@ HUB_HTML = """<!doctype html>
 <script>
 (() => {
   const RUN_ACCENTS = ['#fb923c', '#34d399', '#c084fc', '#facc15', '#fb7185'];
+  const READABLE_EXTS = ['.md', '.json', '.csv', '.txt'];
   const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const $ = (id) => document.getElementById(id);
   let lastSummary = null;
+  let scopePref = null;
   let modalSrc = null;
   let modalIdx = 0;
   let modalTimer = null;
+
+  function inlineMd(text) {
+    return esc(text)
+      .replace(/`([^`]+)`/g, '<code>$1</code>')
+      .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+  }
+
+  function renderMd(md) {
+    const lines = String(md || '').split(/\\r?\\n/);
+    const out = [];
+    let inList = false;
+    let inTable = false;
+    const closeList = () => { if (inList) { out.push('</ul>'); inList = false; } };
+    const closeTable = () => { if (inTable) { out.push('</table>'); inTable = false; } };
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      if (/^#{1,4}\\s+/.test(line)) {
+        closeList(); closeTable();
+        const lvl = Math.min(3, line.match(/^#+/)[0].length);
+        out.push(`<h${lvl}>${inlineMd(line.replace(/^#+\\s+/, ''))}</h${lvl}>`);
+      } else if (/^\\|.*\\|$/.test(line.trim())) {
+        closeList();
+        const cells = line.trim().slice(1, -1).split('|').map((c) => c.trim());
+        if (cells.every((c) => /^[-: ]+$/.test(c))) continue;
+        if (!inTable) {
+          inTable = true;
+          out.push(`<table class="rt"><thead><tr>${cells.map((c) => `<th>${inlineMd(c)}</th>`).join('')}</tr></thead><tbody>`);
+        } else {
+          out.push(`<tr>${cells.map((c) => `<td>${inlineMd(c)}</td>`).join('')}</tr>`);
+        }
+      } else if (/^[-*]\\s+/.test(line.trim())) {
+        closeTable();
+        if (!inList) { out.push('<ul>'); inList = true; }
+        out.push(`<li>${inlineMd(line.trim().replace(/^[-*]\\s+/, ''))}</li>`);
+      } else if (!line.trim()) {
+        closeList(); closeTable();
+      } else {
+        closeList(); closeTable();
+        out.push(`<p>${inlineMd(line)}</p>`);
+      }
+    }
+    closeList();
+    if (inTable) out.push('</tbody></table>');
+    return out.join('');
+  }
+
+  function renderCsv(text) {
+    const rows = String(text || '').trim().split(/\\r?\\n/).filter(Boolean).slice(0, 40).map((r) => r.split(','));
+    if (!rows.length) return '<div class="sub">(empty CSV)</div>';
+    const head = rows[0].map((c) => `<th>${esc(c.replace(/^"|"$/g, ''))}</th>`).join('');
+    const body = rows.slice(1).map((r) => `<tr>${r.map((c) => `<td>${esc(c.replace(/^"|"$/g, ''))}</td>`).join('')}</tr>`).join('');
+    return `<table class="rt"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>`;
+  }
+
+  function formatDocBody(path, rawText) {
+    const low = path.toLowerCase();
+    if (low.endsWith('.md')) return `<div class="doc-body">${renderMd(rawText)}</div>`;
+    if (low.endsWith('.csv')) return `<div class="doc-body">${renderCsv(rawText)}</div>`;
+    if (low.endsWith('.json')) {
+      try {
+        return `<pre class="box" style="border:0;border-radius:0">${esc(JSON.stringify(JSON.parse(rawText), null, 2))}</pre>`;
+      } catch (_) {}
+    }
+    return `<pre class="box" style="border:0;border-radius:0">${esc(rawText)}</pre>`;
+  }
 
   function closeDrawer() { $('drawer').classList.remove('open'); $('backdrop').classList.remove('open'); }
   $('d-close').addEventListener('click', closeDrawer);
@@ -167,9 +261,7 @@ HUB_HTML = """<!doctype html>
 
   function galleryItems(src) {
     const items = [{ label: 'Live view', url: `/api/source/${encodeURIComponent(src.name)}/live-pcb.png` }];
-    for (const p of (src.preview_images || [])) {
-      items.push({ label: `${p.card}: ${p.label}`, url: p.url });
-    }
+    for (const p of (src.preview_images || [])) items.push({ label: `${p.card}: ${p.label}`, url: p.url });
     return items;
   }
 
@@ -188,20 +280,17 @@ HUB_HTML = """<!doctype html>
       modalIdx = Number(b.dataset.idx);
       renderModalImage();
     }));
-    const busted = `${item.url}${item.url.includes('?') ? '&' : '?'}t=${Date.now()}`;
     $('m-raw').href = item.url;
     $('m-meta').textContent = `updated ${new Date().toLocaleTimeString()}`;
     const img = $('m-img');
     img.onload = () => { img.style.display = 'block'; $('m-empty').textContent = ''; };
-    img.onerror = () => { img.style.display = 'none'; $('m-empty').textContent = 'No live PCB render or routing screenshot available for this run yet.'; };
-    img.src = busted;
+    img.onerror = () => { img.style.display = 'none'; $('m-empty').textContent = 'No live PCB render or routing screenshot available yet.'; };
+    img.src = `${item.url}${item.url.includes('?') ? '&' : '?'}t=${Date.now()}`;
   }
 
   function openModal(sourceName, startIdx = 0) {
-    modalSrc = sourceName;
-    modalIdx = startIdx;
-    $('pcb-modal').classList.add('open');
-    $('pcb-modal').setAttribute('aria-hidden', 'false');
+    modalSrc = sourceName; modalIdx = startIdx;
+    $('pcb-modal').classList.add('open'); $('pcb-modal').setAttribute('aria-hidden', 'false');
     renderModalImage();
     if (modalTimer) clearInterval(modalTimer);
     if ($('m-auto').checked) modalTimer = setInterval(renderModalImage, 3000);
@@ -209,8 +298,7 @@ HUB_HTML = """<!doctype html>
 
   function closeModal() {
     modalSrc = null;
-    $('pcb-modal').classList.remove('open');
-    $('pcb-modal').setAttribute('aria-hidden', 'true');
+    $('pcb-modal').classList.remove('open'); $('pcb-modal').setAttribute('aria-hidden', 'true');
     if (modalTimer) { clearInterval(modalTimer); modalTimer = null; }
   }
 
@@ -223,37 +311,84 @@ HUB_HTML = """<!doctype html>
   $('pcb-modal').addEventListener('click', (e) => { if (e.target === $('pcb-modal')) closeModal(); });
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { closeDrawer(); closeModal(); } });
 
+  function bomTablesHtml(view, nodeId) {
+    if (!['bom', 'stock', 'datasheets', 'inventory'].includes(nodeId)) return '';
+    const arts = view.artifacts || {};
+    const rows = (arts.bom && arts.bom.rows) || [];
+    const parts = (arts.datasheets && arts.datasheets.board_parts) || [];
+    const partsHtml = [];
+    if (rows.length) {
+      partsHtml.push(`<div class="doc-card"><div class="doc-head"><span>BOM (${rows.length} line items)</span></div><div class="doc-body"><table class="rt"><thead><tr><th>Refs</th><th>Qty</th><th>Value</th><th>MPN</th><th>LCSC</th></tr></thead><tbody>${rows.map((r) => `<tr><td><code>${esc(r.refs)}</code></td><td>${esc(r.qty)}</td><td>${esc(r.value)}</td><td><code>${esc(r.mpn || '')}</code></td><td><code>${esc(r.lcsc || '')}</code></td></tr>`).join('')}</tbody></table></div></div>`);
+    }
+    if (parts.length && (nodeId === 'datasheets' || nodeId === 'stock')) {
+      partsHtml.push(`<div class="doc-card"><div class="doc-head"><span>Datasheets & Heights</span></div><div class="doc-body"><table class="rt"><thead><tr><th>Refs</th><th>Maker / MPN</th><th>LCSC</th><th>Height</th></tr></thead><tbody>${parts.map((p) => `<tr><td><code>${esc(p.refs)}</code></td><td>${esc((p.maker || '') + ' ' + (p.mpn || ''))}</td><td><code>${esc(p.lcsc || '')}</code></td><td>${esc(p.height_mm != null ? p.height_mm + ' mm' : '')}</td></tr>`).join('')}</tbody></table></div></div>`);
+    }
+    return partsHtml.join('');
+  }
+
   async function inspectCard(sourceName, nodeId) {
     $('d-title').textContent = `${sourceName} / ${nodeId}`;
-    $('d-body').innerHTML = '<div class="sub">Loading view...</div>';
+    $('d-body').innerHTML = '<div class="sub">Loading...</div>';
     $('drawer').classList.add('open'); $('backdrop').classList.add('open');
     try {
-      const resp = await fetch(`/api/source/${encodeURIComponent(sourceName)}/view.json`, { cache: 'no-store' });
-      const view = await resp.json();
+      const encSrc = encodeURIComponent(sourceName);
+      const view = await (await fetch(`/api/source/${encSrc}/view.json`, { cache: 'no-store' })).json();
       const node = ((view.graph && view.graph.nodes) || []).find((n) => n.id === nodeId) || {};
       const st = (view.state && view.state.nodes && view.state.nodes[nodeId]) || {};
-      const last = st.last;
-      const attempt = st.attempt;
+      const artItems = ((view.artifacts && view.artifacts.cards && view.artifacts.cards[nodeId] && view.artifacts.cards[nodeId].items) || []);
       $('d-title').textContent = `${view.project || sourceName} / ${node.label || nodeId}`;
-      const blocks = [`<div><code>${esc(nodeId)}</code> &middot; status <code>${esc(st.status || 'ahead')}</code> &middot; who <code>${esc(node.who || '')}</code></div>`];
-      if (attempt) blocks.push(`<div><strong>Active attempt</strong><pre class="box">${esc(attempt.by)} since ${esc(attempt.since)}\n${esc(attempt.note || '')}</pre></div>`);
-      if (last) blocks.push(`<div><strong>Last transition (${esc(last.outcome)} by ${esc(last.actor)})</strong><pre class="box">${esc(last.note || '')}</pre></div>`);
-      if (node.task) blocks.push(`<div><strong>Task</strong><pre class="box">${esc(node.task)}</pre></div>`);
+
+      const blocks = [`<div class="sub"><code>${esc(nodeId)}</code> &middot; status <code>${esc(st.status || 'ahead')}</code> &middot; who <code>${esc(node.who || '')}</code></div>`];
+      if (node.task) blocks.push(`<div><div class="sec-lbl">Task</div><pre class="box">${esc(node.task)}</pre></div>`);
+
+      const imgItems = artItems.filter((it) => it.exists && (it.kind === 'image' || String(it.path || '').toLowerCase().endsWith('.png')));
+      const tableHtml = bomTablesHtml(view, nodeId);
+      const readablePaths = [];
+      for (const p of (node.owns || []).concat(artItems.filter((it) => it.exists).map((it) => it.path))) {
+        const clean = String(p || '').replace(/^\\/+/, '');
+        if (!clean || readablePaths.includes(clean)) continue;
+        if (READABLE_EXTS.some((ext) => clean.toLowerCase().endsWith(ext))) readablePaths.push(clean);
+        if (readablePaths.length >= 3) break;
+      }
+
+      const realityParts = [];
+      if (tableHtml) realityParts.push(tableHtml);
+      if (imgItems.length) {
+        realityParts.push(`<div class="img-grid">${imgItems.map((it) => {
+          const u = `/api/source/${encSrc}/files/${it.path.split('/').map(encodeURIComponent).join('/')}`;
+          return `<a class="img-card" href="${u}" target="_blank" rel="noopener"><img src="${u}" alt="${esc(it.label || it.path)}"><span class="sub">${esc(it.label || it.path)}</span></a>`;
+        }).join('')}</div>`);
+      }
+      if (readablePaths.length) {
+        const fetched = await Promise.all(readablePaths.map(async (rel) => {
+          const fileUrl = `/api/source/${encSrc}/files/${rel.split('/').map(encodeURIComponent).join('/')}`;
+          try {
+            const r = await fetch(`${fileUrl}?raw=1`, { cache: 'no-store' });
+            if (!r.ok) return null;
+            return { rel, fileUrl, text: (await r.text()).slice(0, 12000) };
+          } catch (_) { return null; }
+        }));
+        for (const doc of fetched.filter(Boolean)) {
+          realityParts.push(`<div class="doc-card"><div class="doc-head"><span>${esc(doc.rel)}</span><a href="${doc.fileUrl}" target="_blank" rel="noopener">Open</a></div>${formatDocBody(doc.rel, doc.text)}</div>`);
+        }
+      }
+      if (realityParts.length) {
+        blocks.push(`<div><div class="sec-lbl">Project Reality</div><div style="display:flex;flex-direction:column;gap:8px">${realityParts.join('')}</div></div>`);
+      }
+
+      const wfParts = [];
+      if (st.attempt) wfParts.push(`<pre class="box">Active: ${esc(st.attempt.by)} since ${esc(st.attempt.since)}\\n${esc(st.attempt.note || '')}</pre>`);
+      if (st.last) wfParts.push(`<pre class="box">Last transition (${esc(st.last.outcome)} by ${esc(st.last.actor)}):\\n${esc(st.last.note || '')}</pre>`);
+      const allLinks = (node.owns || []).concat(node.docs || []);
+      if (allLinks.length) {
+        wfParts.push(`<div class="sub">${allLinks.map((p) => `<a href="/api/source/${encSrc}/files/${String(p).split('/').map(encodeURIComponent).join('/')}" target="_blank" rel="noopener"><code>${esc(p)}</code></a>`).join(' &middot; ')}</div>`);
+      }
+      if (wfParts.length) blocks.push(`<div><div class="sec-lbl">Workflow Record</div><div style="display:flex;flex-direction:column;gap:6px">${wfParts.join('')}</div></div>`);
+
       $('d-body').innerHTML = blocks.join('');
     } catch (err) {
       $('d-body').innerHTML = `<pre class="box">${esc(err.message)}</pre>`;
     }
-  }
-
-  function chipState(c) {
-    if (c.status === 'passed') return ['passed', 'passed'];
-    if (c.status === 'current') {
-      if (c.working) return ['current', `working (${c.working})`];
-      if (c.last_outcome === 'needs_owner') return ['owner', 'needs you'];
-      if (c.last_outcome === 'needs_lead' || c.last_outcome === 'needs_skill') return ['lead', c.last_outcome];
-      return ['current', 'current'];
-    }
-    return ['ahead', c.who || 'ahead'];
   }
 
   function formatDuration(sec) {
@@ -275,10 +410,35 @@ HUB_HTML = """<!doctype html>
     });
   }
 
+  function chipState(c) {
+    if (c.status === 'passed') return ['passed', 'passed', false];
+    if (c.status === 'current') {
+      if (c.working) return ['current', `working (${c.working})`, true];
+      if (c.last_outcome === 'needs_owner') return ['owner', 'needs you', false];
+      if (c.last_outcome === 'needs_lead' || c.last_outcome === 'needs_skill') return ['lead', c.last_outcome, false];
+      return ['current', 'current', false];
+    }
+    return ['ahead', c.who || 'ahead', false];
+  }
+
+  function visibleCardsForSource(src) {
+    const cards = src.cards || [];
+    const sel = scopePref !== null ? scopePref : (lastSummary && lastSummary.default_scope) || 'auto';
+    if (sel === 'all') return { visible: cards, hidden: 0 };
+    const stopId = sel === 'auto' ? src.autonomy_until : sel;
+    if (!stopId) return { visible: cards, hidden: 0 };
+    const stopIdx = cards.findIndex((c) => c.id === stopId);
+    if (stopIdx < 0) return { visible: cards, hidden: 0 };
+    const curIdx = cards.findIndex((c) => c.status === 'current');
+    const cutIdx = Math.max(stopIdx, curIdx);
+    return { visible: cards.slice(0, cutIdx + 1), hidden: Math.max(0, cards.length - (cutIdx + 1)) };
+  }
+
   function render(data) {
     lastSummary = data;
+    if (scopePref === null && data.default_scope) $('scope-select').value = data.default_scope;
     const sources = data.sources || [];
-    $('sub').textContent = `${sources.length} source${sources.length === 1 ? '' : 's'} · updated ${new Date().toLocaleTimeString()}`;
+    $('sub').textContent = `${sources.length} source${sources.length === 1 ? '' : 's'} · ${new Date().toLocaleTimeString()}`;
     const wrap = $('rows');
     wrap.innerHTML = '';
     sources.forEach((src, rowIdx) => {
@@ -286,39 +446,34 @@ HUB_HTML = """<!doctype html>
       const card = document.createElement('section');
       card.className = 'run-row';
       card.style.borderLeftColor = accent;
-      const statusBadge = !src.online
+      const alertBadge = !src.online
         ? `<span class="badge off">Offline</span>`
         : src.blocked_outcome === 'needs_owner'
-          ? `<span class="badge owner">Needs you at ${esc(src.position)}</span>`
+          ? `<span class="badge owner">Needs you: ${esc(src.position)}</span>`
           : src.blocked_outcome
-            ? `<span class="badge lead">${esc(src.blocked_outcome)} at ${esc(src.position)}</span>`
-            : src.working
-              ? `<span class="badge working">Working: ${esc(src.position)}</span>`
-              : `<span class="badge ok">${esc(src.position || 'Ready')}</span>`;
+            ? `<span class="badge lead">${esc(src.blocked_outcome)}: ${esc(src.position)}</span>`
+            : '';
       const modelHtml = src.model
         ? `<span class="model-pill" style="color:${accent};border-color:${accent}66;background:${accent}18">${esc(src.model)}</span>` : '';
       const tm = src.timing || {};
       const timerHtml = tm.started_at
         ? `<span class="timer-pill${tm.finished_at ? ' done' : ''}" data-start="${esc(tm.started_at)}" data-end="${esc(tm.finished_at || '')}">--:--</span>` : '';
       const tool = src.tool;
-      const toolStr = tool ? `tool: ${tool.branch || ''}${tool.commit ? ' @' + tool.commit : ''}${tool.ahead ? ' +' + tool.ahead + ' ahead' : ''}${tool.dirty ? ' dirty' : ''}` : '';
-      const toolCommits = (tool && tool.commits_ahead && tool.commits_ahead.length)
-        ? `<div class="tool-note">${tool.commits_ahead.map((c) => `<code>${esc(c.sha)}</code> ${esc(c.subject)}`).join(' · ')}</div>` : '';
-      const totalCards = (src.cards || []).length;
-      const passedCount = src.passed_count || 0;
-      const pct = totalCards ? Math.round((passedCount / totalCards) * 100) : 0;
-      const openLink = src.url ? `<a class="btn" href="${esc(src.url)}" target="_blank" rel="noopener">Open board</a>` : '';
-      const chips = (src.cards || []).map((c) => {
-        const [cls, stText] = chipState(c);
-        return `<button class="chip ${cls}" type="button" data-src="${esc(src.name)}" data-node="${esc(c.id)}"><span class="chip-lbl">${esc(c.label)}</span><span class="chip-st">${esc(stText)}</span></button>`;
-      }).join('');
-      const previews = (src.preview_images || []).slice(0, 3);
-      const thumbsHtml = previews.length
-        ? `<div class="thumbs">${previews.map((p, idx) => `<button class="thumb-btn" type="button" data-pcb-src="${esc(src.name)}" data-pcb-idx="${idx + 1}"><img src="${esc(p.url)}" alt="${esc(p.label)}"><span>${esc(p.label)}</span></button>`).join('')}</div>`
-        : '';
+      const toolStr = tool ? `${tool.branch || ''}${tool.commit ? ' @' + tool.commit : ''}${tool.ahead ? ' +' + tool.ahead : ''}${tool.dirty ? ' dirty' : ''}` : '';
+      const { visible, hidden } = visibleCardsForSource(src);
+      const passedCount = visible.filter((c) => c.status === 'passed').length;
+      const pct = visible.length ? Math.round((passedCount / visible.length) * 100) : 0;
+      const previewCount = (src.preview_images || []).length;
+      const pcbLabel = previewCount ? `Watch PCB (${previewCount})` : 'Watch PCB';
+      const openLink = src.url ? `<a class="btn" href="${esc(src.url)}" target="_blank" rel="noopener">Open</a>` : '';
+      const chips = visible.map((c) => {
+        const [cls, stText, pulsing] = chipState(c);
+        const dot = pulsing ? '<span class="chip-dot"></span>' : '';
+        return `<button class="chip ${cls}" type="button" title="${esc(c.label + ': ' + stText)}" data-src="${esc(src.name)}" data-node="${esc(c.id)}">${dot}<span>${esc(c.label)}</span></button>`;
+      }).join('') + (hidden ? `<span class="later-note">+${hidden} later</span>` : '');
       const last = src.last;
       const lastHtml = last
-        ? `<div class="last-line"><strong>${esc(last.node)}</strong> <code>${esc(last.outcome)}</code> &rarr; <code>${esc(last.target)}</code> (${esc(last.actor)}): ${esc(last.note || '')}</div>`
+        ? `<button class="last-line" type="button" title="Click to expand"><strong>${esc(last.node)}</strong> <code>${esc(last.outcome)}</code> &rarr; <code>${esc(last.target)}</code> (${esc(last.actor)}): ${esc(last.note || '')}</button>`
         : (src.error ? `<div class="last-line" style="border-color:var(--red-strong)">${esc(src.error)}</div>` : '');
       card.innerHTML = `
         <div class="run-top">
@@ -326,27 +481,32 @@ HUB_HTML = """<!doctype html>
             <h2>${esc(src.project || src.name)}</h2>
             ${modelHtml}
             ${timerHtml}
-            ${statusBadge}
-            ${toolStr ? `<span class="pill" style="font-family:var(--mono);font-size:11.5px">${esc(toolStr)}</span>` : ''}
+            ${alertBadge}
+            ${toolStr ? `<span class="pill" style="font-family:var(--mono)">${esc(toolStr)}</span>` : ''}
           </div>
-          <div style="display:flex;gap:8px;align-items:center">
-            <span class="sub">${passedCount}/${totalCards} passed (${pct}%)</span>
-            <button class="btn pcb-btn" type="button" data-pcb-src="${esc(src.name)}" data-pcb-idx="0">Watch PCB / Routing</button>
+          <div style="display:flex;gap:6px;align-items:center">
+            <span class="sub">${passedCount}/${visible.length} (${pct}%)</span>
+            <button class="btn pcb-btn" type="button" data-pcb-src="${esc(src.name)}" data-pcb-idx="0">${pcbLabel}</button>
             ${openLink}
           </div>
         </div>
         <div class="prog-track"><div class="prog-fill" style="width:${pct}%"></div></div>
-        ${toolCommits}
         <div class="strip">${chips}</div>
-        ${thumbsHtml}
         ${lastHtml}
       `;
       card.querySelectorAll('.chip').forEach((el) => el.addEventListener('click', () => inspectCard(el.dataset.src, el.dataset.node)));
       card.querySelectorAll('[data-pcb-src]').forEach((el) => el.addEventListener('click', () => openModal(el.dataset.pcbSrc, Number(el.dataset.pcbIdx || 0))));
+      const ll = card.querySelector('button.last-line');
+      if (ll) ll.addEventListener('click', () => ll.classList.toggle('expanded'));
       wrap.appendChild(card);
     });
     tickTimers();
   }
+
+  $('scope-select').addEventListener('change', (e) => {
+    scopePref = e.target.value;
+    if (lastSummary) render(lastSummary);
+  });
 
   async function refresh() {
     try {
@@ -558,6 +718,7 @@ def summarize_source(src: dict, timeout: float = 3.0) -> dict:
         "online": True,
         "project": view.get("project") or src["name"],
         "model": model,
+        "autonomy_until": (view.get("autonomy") or {}).get("until"),
         "position": position,
         "passed_count": passed_count,
         "working": working,
@@ -577,7 +738,7 @@ def summarize_source(src: dict, timeout: float = 3.0) -> dict:
     }
 
 
-def _fetch_source_file(src: dict, rel: str, timeout: float = 5.0) -> tuple[bytes, str]:
+def _fetch_source_file(src: dict, rel: str, raw: bool = False, timeout: float = 5.0) -> tuple[bytes, str]:
     """Read raw file bytes and content-type from an HTTP or local project source."""
     parts = [urllib.parse.unquote(p) for p in rel.split("/") if p]
     if not parts or any(p in (".", "..") or "\\" in p for p in parts) or parts[0].startswith("."):
@@ -588,10 +749,11 @@ def _fetch_source_file(src: dict, rel: str, timeout: float = 5.0) -> tuple[bytes
         target.relative_to(base)
         if not target.is_file():
             raise FileNotFoundError(rel)
-        ctype = mimetypes.guess_type(target.name)[0] or "application/octet-stream"
+        ctype = "text/plain; charset=utf-8" if raw else (mimetypes.guess_type(target.name)[0] or "application/octet-stream")
         return target.read_bytes(), ctype
     encoded = "/".join(urllib.parse.quote(p, safe="") for p in parts)
-    with urllib.request.urlopen(f"{src['url']}/files/{encoded}", timeout=timeout) as resp:
+    suffix = "?raw=1" if raw else ""
+    with urllib.request.urlopen(f"{src['url']}/files/{encoded}{suffix}", timeout=timeout) as resp:
         return resp.read(), resp.headers.get_content_type() or "application/octet-stream"
 
 
@@ -662,10 +824,12 @@ class HubServer(socketserver.ThreadingMixIn, http.server.HTTPServer):
     daemon_threads = True
     allow_reuse_address = True
 
-    def __init__(self, server_address: tuple[str, int], sources: list[dict], listeners: HubListeners):
+    def __init__(self, server_address: tuple[str, int], sources: list[dict], listeners: HubListeners,
+                 default_scope: str = "auto"):
         self.sources = sources
         self.source_map = {s["name"]: s for s in sources}
         self.listeners = listeners
+        self.default_scope = default_scope
         super().__init__(server_address, HubHandler)
 
 
@@ -681,7 +845,7 @@ class HubHandler(http.server.BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
-    def _route_source(self, path: str) -> bool:
+    def _route_source(self, path: str, query: str) -> bool:
         rest = path[len("/api/source/"):]
         if "/" not in rest:
             return False
@@ -698,9 +862,10 @@ class HubHandler(http.server.BaseHTTPRequestHandler):
                 self._send(502, "application/json; charset=utf-8", json.dumps({"error": str(exc)}).encode("utf-8"))
             return True
         if sub == "live-pcb.png" or sub.startswith("files/"):
+            raw = urllib.parse.parse_qs(query).get("raw") == ["1"]
             try:
                 data, ctype = (_fetch_live_pcb_bytes(src) if sub == "live-pcb.png"
-                               else _fetch_source_file(src, sub[len("files/"):]))
+                               else _fetch_source_file(src, sub[len("files/"):], raw=raw))
                 self._send(200, ctype, data)
             except (FileNotFoundError, urllib.error.HTTPError):
                 self.send_error(404)
@@ -712,15 +877,20 @@ class HubHandler(http.server.BaseHTTPRequestHandler):
         return False
 
     def do_GET(self) -> None:  # noqa: N802
-        path = urllib.parse.urlsplit(self.path).path
+        parsed = urllib.parse.urlsplit(self.path)
+        path = parsed.path
         if path in ("/", "/index.html"):
             self._send(200, "text/html; charset=utf-8", HUB_HTML.encode("utf-8"))
         elif path == "/api/summary":
             with concurrent.futures.ThreadPoolExecutor(max_workers=max(1, len(self.server.sources))) as pool:
                 rows = list(pool.map(summarize_source, self.server.sources))
-            payload = {"generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"), "sources": rows}
+            payload = {
+                "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+                "default_scope": self.server.default_scope,
+                "sources": rows,
+            }
             self._send(200, "application/json; charset=utf-8", json.dumps(payload).encode("utf-8"))
-        elif path.startswith("/api/source/") and self._route_source(path):
+        elif path.startswith("/api/source/") and self._route_source(path, parsed.query):
             return
         elif path == "/events":
             self._serve_events()
@@ -759,6 +929,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--project", action="append", default=[], help="NAME=DIR of a local board-graph project")
     parser.add_argument("--model", action="append", default=[], help="NAME=MODEL label for a configured source")
     parser.add_argument("--started-at", action="append", default=[], help="NAME=ISO start timestamp for a configured source")
+    parser.add_argument("--until", default="auto",
+                        help="Stop card for visible pipeline scope ('auto' uses each run's autonomy.until, 'all' shows every card)")
     parser.add_argument("--config", help="JSON file with {\"sources\": [{\"name\": ..., \"url\"|\"project\": ...}]}")
     parser.add_argument("--bind", default="127.0.0.1", help="Address to bind (default: 127.0.0.1)")
     parser.add_argument("--port", type=int, default=8000, help="Port to listen on (default: 8000)")
@@ -780,7 +952,7 @@ def main(argv: list[str] | None = None) -> int:
     listeners = HubListeners()
     stop_event = threading.Event()
     _start_source_watchers(sources, listeners, stop_event)
-    httpd = HubServer((args.bind, args.port), sources, listeners)
+    httpd = HubServer((args.bind, args.port), sources, listeners, default_scope=args.until)
     print(f"board-graph hub serving {len(sources)} source(s) at http://{args.bind}:{httpd.server_port}", flush=True)
     try:
         httpd.serve_forever()

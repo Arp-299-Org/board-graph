@@ -171,13 +171,19 @@ class BoardGraphHubTests(unittest.TestCase):
         hub_url = f"http://127.0.0.1:{hub.server_port}"
 
         with urllib.request.urlopen(f"{hub_url}/api/summary", timeout=5) as resp:
-            row = json.loads(resp.read().decode("utf-8"))["sources"][0]
+            summary = json.loads(resp.read().decode("utf-8"))
+        self.assertEqual(summary["default_scope"], "auto")
+        row = summary["sources"][0]
         self.assertEqual(row["model"], "gpt-6.2-sol")
         self.assertEqual(row["preview_images"][0]["path"], "board/reports/front.png")
         with urllib.request.urlopen(f"{hub_url}/api/source/alpha/live-pcb.png", timeout=5) as resp:
             self.assertEqual(resp.read(), png_bytes)
         with urllib.request.urlopen(f"{hub_url}/api/source/alpha/files/board/reports/front.png", timeout=5) as resp:
             self.assertEqual(resp.read(), png_bytes)
+        (proj / "board" / "DECISIONS.md").write_text("# Board decisions\n\n- Keep 32 x 35 mm.\n",
+                                                    encoding="utf-8", newline="\n")
+        with urllib.request.urlopen(f"{hub_url}/api/source/alpha/files/board/DECISIONS.md?raw=1", timeout=5) as resp:
+            self.assertEqual(resp.read().decode("utf-8"), "# Board decisions\n\n- Keep 32 x 35 mm.\n")
 
     def test_seed_exclusions_and_library_findings_when_exclusions_missing(self) -> None:
         import types

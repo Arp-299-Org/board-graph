@@ -148,7 +148,7 @@
   }
   .drawer-backdrop.open { display: block; }
   .drawer {
-    position: fixed; top: 0; right: 0; bottom: 0; width: min(560px, 100vw);
+    position: fixed; top: 0; right: 0; bottom: 0; width: min(680px, 100vw);
     background: var(--surface); border-left: 1px solid var(--hair-strong); z-index: 35;
     display: flex; flex-direction: column; transform: translateX(100%); transition: transform .15s ease-out;
   }
@@ -169,6 +169,21 @@
   .list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 5px; font-size: 12.5px; }
   .list li { padding: 5px 8px; border-radius: 5px; background: var(--surface-2); border: 1px solid var(--hair); word-break: break-word; }
   .thumb { max-width: 100%; border-radius: 6px; border: 1px solid var(--hair); margin-top: 6px; display: block; }
+  .doc-card { border: 1px solid var(--hair); border-radius: 7px; background: #101014; overflow: hidden; margin-bottom: 8px; }
+  .doc-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 10px;
+              border-bottom: 1px solid var(--hair); background: var(--surface-2); font-size: 11.5px; font-family: var(--mono); color: var(--ink-2); }
+  .doc-body { padding: 10px 12px; font-size: 12.5px; color: var(--ink-1); overflow-x: auto; line-height: 1.5; }
+  .doc-body h1, .doc-body h2, .doc-body h3 { margin: 10px 0 5px; font-size: 14px; color: var(--ink-1); }
+  .doc-body h1:first-child, .doc-body h2:first-child { margin-top: 0; }
+  .doc-body p { margin: 0 0 8px; }
+  .doc-body ul { margin: 0 0 8px; padding-left: 18px; }
+  .doc-body code { background: rgba(255,255,255,0.06); padding: 1px 4px; border-radius: 4px; font-size: 11.5px; }
+  table.rt { width: 100%; border-collapse: collapse; font-size: 11.5px; }
+  table.rt th, table.rt td { padding: 5px 8px; border-bottom: 1px solid var(--hair); text-align: left; vertical-align: top; }
+  table.rt th { color: var(--ink-2); font-weight: 600; background: rgba(255,255,255,0.03); }
+  .img-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 8px; margin-bottom: 8px; }
+  .img-card { border: 1px solid var(--hair); border-radius: 6px; padding: 5px; background: #0d0d10; display: flex; flex-direction: column; gap: 4px; font-size: 11px; color: var(--ink-3); }
+  .img-card img { width: 100%; max-height: 160px; object-fit: contain; border-radius: 4px; }
   .error-banner { margin: 16px 20px; padding: 12px 14px; border-radius: 8px; border: 1px solid var(--red-strong); background: var(--red-bg); color: var(--ink-1); }
 
   .modal {
@@ -204,6 +219,15 @@
     <div class="actions">
       <div id="tabs" style="display:flex;gap:6px"></div>
       <select id="board-select" class="board-select" style="display:none" aria-label="Select board"></select>
+      <select id="scope-select" class="board-select" aria-label="Visible target scope">
+        <option value="auto">Scope: Target (auto)</option>
+        <option value="placement">Through Placement</option>
+        <option value="board_checks">Through Board checks</option>
+        <option value="verification">Through Verification</option>
+        <option value="quote_files">Through Quote files</option>
+        <option value="order">Through Order</option>
+        <option value="all">Full lifecycle (all)</option>
+      </select>
       <span class="pill" id="live-pill"><span id="live-dot" class="dot"></span><span id="live-text">Connecting</span></span>
       <button class="btn pcb-btn" id="btn-live-pcb">Live PCB</button>
       <button class="btn" id="btn-log">Activity Log</button>
@@ -294,9 +318,66 @@
   let activeTrack = params.get('track') || null;
   let currentView = null;
   let selectedCard = null;
+  let scopePref = null;
   let drawerMode = null;
   let pageStamp = null;
   let pcbTimer = null;
+  const READABLE_EXTS = ['.md', '.json', '.csv', '.txt'];
+
+  function inlineMd(text) {
+    return esc(text).replace(/`([^`]+)`/g, '<code>$1</code>').replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+  }
+  function renderMd(md) {
+    const lines = String(md || '').split(/\r?\n/);
+    const out = [];
+    let inList = false, inTable = false;
+    const closeList = () => { if (inList) { out.push('</ul>'); inList = false; } };
+    const closeTable = () => { if (inTable) { out.push('</tbody></table>'); inTable = false; } };
+    for (const line of lines) {
+      if (/^#{1,4}\s+/.test(line)) {
+        closeList(); closeTable();
+        const lvl = Math.min(3, line.match(/^#+/)[0].length);
+        out.push(`<h${lvl}>${inlineMd(line.replace(/^#+\s+/, ''))}</h${lvl}>`);
+      } else if (/^\|.*\|$/.test(line.trim())) {
+        closeList();
+        const cells = line.trim().slice(1, -1).split('|').map((c) => c.trim());
+        if (cells.every((c) => /^[-: ]+$/.test(c))) continue;
+        if (!inTable) {
+          inTable = true;
+          out.push(`<table class="rt"><thead><tr>${cells.map((c) => `<th>${inlineMd(c)}</th>`).join('')}</tr></thead><tbody>`);
+        } else {
+          out.push(`<tr>${cells.map((c) => `<td>${inlineMd(c)}</td>`).join('')}</tr>`);
+        }
+      } else if (/^[-*]\s+/.test(line.trim())) {
+        closeTable();
+        if (!inList) { out.push('<ul>'); inList = true; }
+        out.push(`<li>${inlineMd(line.trim().replace(/^[-*]\s+/, ''))}</li>`);
+      } else if (!line.trim()) {
+        closeList(); closeTable();
+      } else {
+        closeList(); closeTable();
+        out.push(`<p>${inlineMd(line)}</p>`);
+      }
+    }
+    closeList(); closeTable();
+    return out.join('');
+  }
+  function renderCsv(text) {
+    const rows = String(text || '').trim().split(/\r?\n/).filter(Boolean).slice(0, 40).map((r) => r.split(','));
+    if (!rows.length) return '<div class="milestone">(empty CSV)</div>';
+    const head = rows[0].map((c) => `<th>${esc(c.replace(/^"|"$/g, ''))}</th>`).join('');
+    const body = rows.slice(1).map((r) => `<tr>${r.map((c) => `<td>${esc(c.replace(/^"|"$/g, ''))}</td>`).join('')}</tr>`).join('');
+    return `<table class="rt"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>`;
+  }
+  function formatDocBody(path, rawText) {
+    const low = path.toLowerCase();
+    if (low.endsWith('.md')) return `<div class="doc-body">${renderMd(rawText)}</div>`;
+    if (low.endsWith('.csv')) return `<div class="doc-body">${renderCsv(rawText)}</div>`;
+    if (low.endsWith('.json')) {
+      try { return `<pre class="note-box" style="border:0;border-radius:0">${esc(JSON.stringify(JSON.parse(rawText), null, 2))}</pre>`; } catch (_) {}
+    }
+    return `<pre class="note-box" style="border:0;border-radius:0">${esc(rawText)}</pre>`;
+  }
 
   const $ = (id) => document.getElementById(id);
 
@@ -511,11 +592,20 @@
 
     const mainTrack = mainTrackId(view);
     const boardPos = (trackStates[mainTrack] && trackStates[mainTrack].position) || null;
+    const allMain = nodes.filter((n) => n.track === mainTrack);
+    const selScope = scopePref !== null ? scopePref : 'auto';
+    const stopId = selScope === 'all' ? null : (selScope === 'auto' ? (view.autonomy && view.autonomy.until) : selScope);
+    let visibleMainIds = null;
+    if (stopId && mainTrack === 'board') {
+      const stopIdx = allMain.findIndex((n) => n.id === stopId);
+      const curIdx = allMain.findIndex((n) => nodeStates[n.id] && nodeStates[n.id].status === 'current');
+      if (stopIdx >= 0) visibleMainIds = new Set(allMain.slice(0, Math.max(stopIdx, curIdx) + 1).map((n) => n.id));
+    }
     const stagesEl = $('stages');
     stagesEl.innerHTML = '';
 
     for (const stage of stages) {
-      const members = nodes.filter((n) => n.track === mainTrack && n.stage === stage.id);
+      const members = nodes.filter((n) => n.track === mainTrack && n.stage === stage.id && (!visibleMainIds || visibleMainIds.has(n.id)));
       if (!members.length) continue;
       const col = document.createElement('section');
       const isCur = members.some((n) => (nodeStates[n.id] && nodeStates[n.id].status === 'current'));
@@ -582,48 +672,67 @@
     renderBoard(currentView);
   }
 
+  function bomTablesHtml(view, nodeId) {
+    if (!['bom', 'stock', 'datasheets', 'inventory'].includes(nodeId)) return '';
+    const arts = view.artifacts || {};
+    const rows = (arts.bom && arts.bom.rows) || [];
+    const parts = (arts.datasheets && arts.datasheets.board_parts) || [];
+    const out = [];
+    if (rows.length) {
+      out.push(`<div class="doc-card"><div class="doc-head"><span>BOM (${rows.length} line items)</span></div><div class="doc-body"><table class="rt"><thead><tr><th>Refs</th><th>Qty</th><th>Value</th><th>MPN</th><th>LCSC</th></tr></thead><tbody>${rows.map((r) => `<tr><td><code>${esc(r.refs)}</code></td><td>${esc(r.qty)}</td><td>${esc(r.value)}</td><td><code>${esc(r.mpn || '')}</code></td><td><code>${esc(r.lcsc || '')}</code></td></tr>`).join('')}</tbody></table></div></div>`);
+    }
+    if (parts.length && (nodeId === 'datasheets' || nodeId === 'stock')) {
+      out.push(`<div class="doc-card"><div class="doc-head"><span>Datasheets & Heights</span></div><div class="doc-body"><table class="rt"><thead><tr><th>Refs</th><th>Maker / MPN</th><th>LCSC</th><th>Height</th></tr></thead><tbody>${parts.map((p) => `<tr><td><code>${esc(p.refs)}</code></td><td>${esc((p.maker || '') + ' ' + (p.mpn || ''))}</td><td><code>${esc(p.lcsc || '')}</code></td><td>${esc(p.height_mm != null ? p.height_mm + ' mm' : '')}</td></tr>`).join('')}</tbody></table></div></div>`);
+    }
+    return out.join('');
+  }
+
   function renderCardDrawer(nodeId) {
     const view = currentView;
     const node = ((view.graph && view.graph.nodes) || []).find((n) => n.id === nodeId);
     if (!node) return;
     const st = (view.state && view.state.nodes && view.state.nodes[nodeId]) || {};
     const art = (view.artifacts && view.artifacts.cards && view.artifacts.cards[nodeId]) || {};
+    const artItems = art.items || [];
     const last = st.last;
     const attempt = st.attempt;
     const issues = ((view.graph && view.graph.open_issues) || []).filter((i) => !i.closed && (i.close_before || []).includes(nodeId));
 
     const parts = [];
     parts.push(`<div class="sec"><div class="kv">
-      <div class="k">Card ID</div><div><code>${esc(node.id)}</code></div>
-      <div class="k">Owner / Who</div><div>${esc(node.who)}</div>
-      <div class="k">Status</div><div><code>${esc(st.status || 'ahead')}</code></div>
-      ${node.action ? `<div class="k">Script action</div><div><code>${esc(node.action)}</code></div>` : ''}
-      <div class="k">Pass -></div><div><code>${esc(node.outcomes && node.outcomes.pass)}</code></div>
-      ${(node.outcomes && node.outcomes.returned && node.outcomes.returned.length) ? `<div class="k">Return -></div><div><code>${esc(node.outcomes.returned.join(', '))}</code></div>` : ''}
+      <div class="k">Card ID</div><div><code>${esc(node.id)}</code> &middot; who <code>${esc(node.who)}</code> &middot; status <code>${esc(st.status || 'ahead')}</code></div>
+      <div class="k">Pass -></div><div><code>${esc(node.outcomes && node.outcomes.pass)}</code>${(node.outcomes && node.outcomes.returned && node.outcomes.returned.length) ? ` &middot; Return -> <code>${esc(node.outcomes.returned.join(', '))}</code>` : ''}</div>
     </div></div>`);
 
-    if (attempt) {
-      parts.push(`<div class="sec"><h4>Active attempt</h4><pre class="note-box">${esc(attempt.by)} since ${esc(attempt.since)}\naction: ${esc(attempt.action)}\n${attempt.note || ''}</pre></div>`);
+    if (node.task) parts.push(`<div class="sec"><h4>Task</h4><pre class="note-box">${esc(node.task)}</pre></div>`);
+
+    const imgItems = artItems.filter((it) => it.exists && it.kind === 'image');
+    const tableHtml = bomTablesHtml(view, nodeId);
+    const readable = [];
+    for (const p of (node.owns || []).concat(artItems.filter((it) => it.exists).map((it) => it.path))) {
+      const clean = String(p || '').replace(/^\/+/, '');
+      if (!clean || readable.includes(clean)) continue;
+      if (READABLE_EXTS.some((ext) => clean.toLowerCase().endsWith(ext))) readable.push(clean);
+      if (readable.length >= 3) break;
     }
-    if (last) {
-      parts.push(`<div class="sec"><h4>Last transition (${esc(last.outcome)} by ${esc(last.actor)})</h4><pre class="note-box">${esc(last.note || '(no note)')}</pre></div>`);
+    const imgsHtml = imgItems.length ? `<div class="img-grid">${imgItems.map((it) => {
+      const href = fileHref(it.path);
+      return `<a class="img-card" href="${href}" target="_blank" rel="noopener"><img src="${href}" alt="${esc(it.label || it.path)}"><span>${esc(it.label || it.path)}</span></a>`;
+    }).join('')}</div>` : '';
+    if (tableHtml || imgsHtml || (readable.length && location.protocol !== 'file:')) {
+      parts.push(`<div class="sec"><h4>Project Reality</h4>${tableHtml}${imgsHtml}<div id="reality-files">${readable.length && location.protocol !== 'file:' ? '<div class="milestone">Loading files...</div>' : ''}</div></div>`);
     }
-    if (issues.length) {
-      parts.push(`<div class="sec"><h4>Blocking open issues</h4><ul class="list">${issues.map((i) => `<li><strong>${esc(i.id)}:</strong> ${esc(i.issue)}</li>`).join('')}</ul></div>`);
-    }
-    if (art.items && art.items.length) {
-      parts.push(`<div class="sec"><h4>Artifacts & Reports</h4><ul class="list">${art.items.map((item) => {
+
+    if (attempt) parts.push(`<div class="sec"><h4>Active attempt</h4><pre class="note-box">${esc(attempt.by)} since ${esc(attempt.since)}\naction: ${esc(attempt.action)}\n${attempt.note || ''}</pre></div>`);
+    if (last) parts.push(`<div class="sec"><h4>Last transition (${esc(last.outcome)} by ${esc(last.actor)})</h4><pre class="note-box">${esc(last.note || '(no note)')}</pre></div>`);
+    if (issues.length) parts.push(`<div class="sec"><h4>Blocking open issues</h4><ul class="list">${issues.map((i) => `<li><strong>${esc(i.id)}:</strong> ${esc(i.issue)}</li>`).join('')}</ul></div>`);
+    if (node.pass_when) parts.push(`<div class="sec"><h4>Pass criteria</h4><pre class="note-box">${esc(node.pass_when)}</pre></div>`);
+    if (artItems.length) {
+      parts.push(`<div class="sec"><h4>Artifacts & Reports</h4><ul class="list">${artItems.map((item) => {
         const href = fileHref(item.path);
         const link = item.exists ? `<a href="${href}" target="_blank" rel="noopener">${esc(item.label || item.path)}</a>` : `${esc(item.label || item.path)} <span style="color:var(--ink-3)">(not yet)</span>`;
-        const thumb = (item.exists && item.kind === 'image') ? `<a href="${href}" target="_blank" rel="noopener"><img class="thumb" src="${href}" alt="${esc(item.label)}"></a>` : '';
-        return `<li>${link} <span style="color:var(--ink-3);font-size:11px;font-family:var(--mono)">${esc(item.path)}</span>${thumb}</li>`;
+        return `<li>${link} <span style="color:var(--ink-3);font-size:11px;font-family:var(--mono)">${esc(item.path)}</span></li>`;
       }).join('')}</ul></div>`);
-    }
-    if (node.task) {
-      parts.push(`<div class="sec"><h4>Task</h4><pre class="note-box">${esc(node.task)}</pre></div>`);
-    }
-    if (node.pass_when) {
-      parts.push(`<div class="sec"><h4>Pass criteria</h4><pre class="note-box">${esc(node.pass_when)}</pre></div>`);
     }
     if (node.owns && node.owns.length) {
       parts.push(`<div class="sec"><h4>Owns</h4><ul class="list">${node.owns.map((p) => `<li><a href="${fileHref(p)}" target="_blank" rel="noopener"><code>${esc(p)}</code></a></li>`).join('')}</ul></div>`);
@@ -632,6 +741,24 @@
       parts.push(`<div class="sec"><h4>Docs</h4><ul class="list">${node.docs.map((p) => `<li><a href="${fileHref(p)}" target="_blank" rel="noopener"><code>${esc(p)}</code></a></li>`).join('')}</ul></div>`);
     }
     showDrawer(node.label || node.id, parts.join(''));
+
+    if (readable.length && location.protocol !== 'file:') {
+      Promise.all(readable.map(async (rel) => {
+        const href = fileHref(rel);
+        const rawUrl = href + (href.includes('?') ? '&' : '?') + 'raw=1';
+        try {
+          const r = await fetch(rawUrl, { cache: 'no-store' });
+          if (!r.ok) return null;
+          return { rel, href, text: (await r.text()).slice(0, 12000) };
+        } catch (_) { return null; }
+      })).then((docs) => {
+        const host = $('reality-files');
+        if (!host || selectedCard !== nodeId || drawerMode !== 'card') return;
+        host.innerHTML = docs.filter(Boolean).map((d) =>
+          `<div class="doc-card"><div class="doc-head"><span>${esc(d.rel)}</span><a href="${d.href}" target="_blank" rel="noopener">Open</a></div>${formatDocBody(d.rel, d.text)}</div>`
+        ).join('');
+      });
+    }
   }
 
   function renderLogDrawer() {
@@ -707,6 +834,10 @@
     u.searchParams.set('board', activeBoard);
     history.replaceState(null, '', u.toString());
     loadView();
+  });
+  $('scope-select').addEventListener('change', (e) => {
+    scopePref = e.target.value;
+    if (currentView) renderBoard(currentView);
   });
   $('tool-pill').addEventListener('click', () => {
     const tool = currentView && currentView.tool;

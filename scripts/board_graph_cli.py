@@ -48,7 +48,7 @@ BOARD_ENV_COMMANDS = frozenset({"validate", "board-description"})
 VALUE_FLAGS = frozenset({
     tool_paths.ARGUMENT,
     boards.ARGUMENT,
-    "--note", "--by", "--evidence", "--attempt", "--adopt-from", "--target", "--graph", "--state",
+    "--note", "--by", "--evidence", "--attempt", "--adopt-from", "--target", "--graph", "--state", "--until",
     "--records", "--view", "--out", "--base", "--from", "--to", "--minutes", "--model",
     "--review-model", "--provider", "--review-provider", "--effort", "--agent",
     "--branch", "--tokens", "--reason", "--prompt", "--after", "--board-description",
