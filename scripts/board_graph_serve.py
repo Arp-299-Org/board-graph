@@ -40,8 +40,12 @@ import pathlib
 import plistlib
 import queue
 import re
+import shutil
+import subprocess
 import sys
+import tempfile
 import threading
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -555,6 +559,10 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         parsed = urllib.parse.urlsplit(self.path)
         if parsed.path == "/files" or parsed.path.startswith("/files/"):
             self.serve_repo_path(parsed, head_only=True)
+        elif parsed.path == "/live-pcb.png":
+            self._send_live_pcb(head_only=True)
+        elif parsed.path == "/live-pcb.json":
+            self._send_live_pcb_meta(head_only=True)
         elif (fallback := self._fallback_index(parsed)) is not None:
             self._send_index(fallback, head_only=True)
         else:
@@ -572,12 +580,40 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             self.send_header("Content-Length", str(len(body)))
             self.end_headers()
             self.wfile.write(body)
+        elif path == "/live-pcb.png":
+            self._send_live_pcb(head_only=False)
+        elif path == "/live-pcb.json":
+            self._send_live_pcb_meta(head_only=False)
         elif path == "/files" or path.startswith("/files/"):
             self.serve_repo_path(parsed, head_only=False)
         elif (fallback := self._fallback_index(parsed)) is not None:
             self._send_index(fallback, head_only=False)
         else:
             super().do_GET()
+
+    def _send_live_pcb_meta(self, head_only: bool) -> None:
+        png, kind, label = latest_live_pcb(self.repo_root)
+        updated_at = png.stat().st_mtime if (png and png.is_file()) else None
+        payload = {"available": bool(png), "kind": kind, "label": label, "updated_at": updated_at, "url": "/live-pcb.png"}
+        self._send_bytes(json.dumps(payload).encode("utf-8"), "application/json", head_only)
+
+    def _send_live_pcb(self, head_only: bool) -> None:
+        png, _, _ = latest_live_pcb(self.repo_root)
+        if not png or not png.is_file():
+            self.send_error(404)
+            return
+        try:
+            data = png.read_bytes()
+        except OSError:
+            self.send_error(404)
+            return
+        self.send_response(200)
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("Content-Type", "image/png")
+        self.send_header("Content-Length", str(len(data)))
+        self.end_headers()
+        if not head_only:
+            self.wfile.write(data)
 
     def _send_bytes(self, body: bytes, content_type: str, head_only: bool, disposition: str | None = None) -> None:
         self.send_response(200)
@@ -673,6 +709,76 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         self.wfile.write(f"data: {json.dumps(found)}\n\n".encode("ascii"))
         self.wfile.flush()
         return found
+
+
+_LIVE_SCREEN_LOCK = threading.Lock()
+_LIVE_SCREEN_AT = 0.0
+_LIVE_SCREEN_PATH = pathlib.Path(tempfile.gettempdir()) / "board-graph-live-pcb.png"
+
+
+def _newest_png(folder: pathlib.Path, *, min_mtime: float = 0.0) -> pathlib.Path | None:
+    if not folder.is_dir():
+        return None
+    best: tuple[int, pathlib.Path] | None = None
+    for path in folder.rglob("*.png"):
+        try:
+            st = path.stat()
+        except OSError:
+            continue
+        if st.st_mtime < min_mtime:
+            continue
+        if best is None or st.st_mtime_ns > best[0]:
+            best = (st.st_mtime_ns, path)
+    return best[1] if best else None
+
+
+def _capture_linux_pcbnew() -> pathlib.Path | None:
+    global _LIVE_SCREEN_AT
+    if not sys.platform.startswith("linux") or not os.environ.get("DISPLAY"):
+        return None
+    if subprocess.run(["pgrep", "-x", "pcbnew"], capture_output=True, check=False).returncode != 0:
+        return None
+    with _LIVE_SCREEN_LOCK:
+        now = time.time()
+        if _LIVE_SCREEN_PATH.is_file() and (now - _LIVE_SCREEN_AT) < 2.0:
+            return _LIVE_SCREEN_PATH
+        cmd = (["import", "-window", "root", str(_LIVE_SCREEN_PATH)] if shutil.which("import")
+               else (["scrot", "-o", str(_LIVE_SCREEN_PATH)] if shutil.which("scrot") else None))
+        if not cmd:
+            return None
+        try:
+            done = subprocess.run(cmd, capture_output=True, timeout=4, check=False)
+        except (OSError, subprocess.SubprocessError):
+            return None
+        if done.returncode == 0 and _LIVE_SCREEN_PATH.is_file():
+            _LIVE_SCREEN_AT = time.time()
+            return _LIVE_SCREEN_PATH
+    return None
+
+
+def latest_live_pcb(repo_root: pathlib.Path) -> tuple[pathlib.Path | None, str, str]:
+    """Return (png_path, kind, label) from recent routing steps, live Linux pcbnew X11, or board/reports."""
+    steps_dir = pathlib.Path(mac.SITE.steps).expanduser()
+    if steps_dir.is_dir():
+        cutoff = time.time() - 900.0
+        best_step: tuple[int, pathlib.Path] | None = None
+        for run_dir in steps_dir.glob("run-*"):
+            png = _newest_png(run_dir, min_mtime=cutoff)
+            if png is None:
+                continue
+            ns = png.stat().st_mtime_ns
+            if best_step is None or ns > best_step[0]:
+                best_step = (ns, png)
+        if best_step is not None:
+            return best_step[1], "routing_step", best_step[1].name
+    screen = _capture_linux_pcbnew()
+    if screen is not None:
+        return screen, "live_screen", "KiCad live screen"
+    reports_dir = pathlib.Path(repo_root) / "board" / "reports"
+    report_png = _newest_png(reports_dir)
+    if report_png is not None:
+        return report_png, "board_report", report_png.relative_to(pathlib.Path(repo_root)).as_posix()
+    return None, "none", ""
 
 
 def server(bind: str = HOST, port: int = PORT, folder: pathlib.Path = FOLDER,

@@ -7,30 +7,32 @@
 <style>
   :root {
     color-scheme: dark;
-    --bg: #08090c;
-    --surface: #111318;
-    --surface-2: #171b24;
-    --surface-hover: #1d222e;
-    --ink-1: #f2f1ed;
-    --ink-2: #c2c1b8;
-    --ink-3: #85847c;
-    --hair: rgba(255, 255, 255, 0.10);
-    --hair-strong: rgba(255, 255, 255, 0.18);
-    --blue: #3987e5;
-    --blue-bg: rgba(57, 135, 229, 0.14);
-    --blue-soft: #86b6ef;
-    --amber: #e2a336;
-    --amber-bg: rgba(226, 163, 54, 0.14);
-    --red: #e5534b;
-    --red-bg: rgba(229, 83, 75, 0.15);
-    --green: #3fb950;
-    --green-bg: rgba(63, 185, 80, 0.14);
+    --bg: #0c0c0e;
+    --surface: #141418;
+    --surface-2: #1b1b21;
+    --surface-hover: #24242c;
+    --ink-1: #f5f2eb;
+    --ink-2: #c7c2b8;
+    --ink-3: #8b867d;
+    --hair: rgba(255, 248, 235, 0.10);
+    --hair-strong: rgba(255, 248, 235, 0.20);
+    --green: #22c55e;
+    --green-soft: #4ade80;
+    --green-bg: rgba(34, 197, 94, 0.14);
+    --copper: #e89149;
+    --copper-soft: #f59e0b;
+    --copper-bg: rgba(232, 145, 73, 0.15);
+    --amber: #facc15;
+    --amber-bg: rgba(250, 204, 21, 0.15);
+    --red: #fb7185;
+    --red-strong: #f43f5e;
+    --red-bg: rgba(244, 63, 94, 0.16);
     --font: "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, sans-serif;
     --mono: ui-monospace, "Cascadia Mono", "SF Mono", Menlo, Consolas, monospace;
   }
   * { box-sizing: border-box; }
   html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink-1); font: 400 13.5px/1.5 var(--font); -webkit-font-smoothing: antialiased; }
-  a { color: var(--blue-soft); text-decoration: none; }
+  a { color: var(--copper-soft); text-decoration: none; }
   a:hover { text-decoration: underline; }
   button { font: inherit; color: inherit; cursor: pointer; background: none; border: none; }
   code, pre { font-family: var(--mono); }
@@ -46,18 +48,18 @@
   h1 { margin: 0; font-size: 18px; font-weight: 650; letter-spacing: -0.01em; }
   .milestone { color: var(--ink-3); font-size: 12.5px; }
 
-  .pills { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
   .pill {
     display: inline-flex; align-items: center; gap: 6px; padding: 3px 9px; border-radius: 999px;
     border: 1px solid var(--hair); background: var(--surface-2); font-size: 12px; color: var(--ink-2);
   }
-  .pill.auto { border-color: rgba(134, 182, 239, 0.4); color: var(--blue-soft); background: var(--blue-bg); }
+  .pill.auto { border-color: rgba(232, 145, 73, 0.45); color: var(--copper-soft); background: var(--copper-bg); }
+  .pill.model { border-color: rgba(74, 222, 128, 0.42); color: var(--green-soft); background: var(--green-bg); font-family: var(--mono); font-size: 11.5px; }
   .pill.tool { cursor: pointer; font-family: var(--mono); font-size: 11.5px; }
   .pill.tool:hover { background: var(--surface-hover); border-color: var(--hair-strong); }
-  .pill.dirty { border-color: rgba(226, 163, 54, 0.45); color: var(--amber); background: var(--amber-bg); }
+  .pill.dirty { border-color: rgba(250, 204, 21, 0.48); color: var(--amber); background: var(--amber-bg); }
   .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--ink-3); display: inline-block; }
-  .dot.live { background: var(--green); box-shadow: 0 0 6px var(--green); }
-  .dot.stale { background: var(--amber); }
+  .dot.live { background: var(--green-soft); box-shadow: 0 0 7px var(--green); }
+  .dot.stale { background: var(--copper-soft); }
 
   .actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
   .btn {
@@ -65,7 +67,9 @@
     background: var(--surface-2); color: var(--ink-2); font-size: 12.5px; font-weight: 500;
   }
   .btn:hover { background: var(--surface-hover); color: var(--ink-1); border-color: var(--hair-strong); }
-  .btn.active { border-color: var(--blue); color: var(--ink-1); background: var(--blue-bg); }
+  .btn.active { border-color: var(--copper); color: var(--ink-1); background: var(--copper-bg); }
+  .btn.pcb-btn { border-color: rgba(232, 145, 73, 0.48); color: var(--copper); }
+  .btn.pcb-btn:hover { background: var(--copper-bg); color: var(--ink-1); }
   select.board-select {
     background: var(--surface-2); color: var(--ink-1); border: 1px solid var(--hair);
     border-radius: 6px; padding: 5px 8px; font: inherit; font-size: 12.5px;
@@ -73,7 +77,7 @@
 
   .status-strip {
     display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px;
-    padding: 9px 20px; border-bottom: 1px solid var(--hair); background: #0c0e13; font-size: 12.5px; color: var(--ink-2);
+    padding: 9px 20px; border-bottom: 1px solid var(--hair); background: #101014; font-size: 12.5px; color: var(--ink-2);
   }
   .legend { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; color: var(--ink-3); font-size: 12px; }
   .legend span { display: inline-flex; align-items: center; gap: 5px; }
@@ -86,7 +90,7 @@
     width: 224px; flex: 0 0 224px; background: var(--surface); border: 1px solid var(--hair);
     border-radius: 10px; padding: 10px; display: flex; flex-direction: column; gap: 8px;
   }
-  .stage-col.current { border-color: rgba(134, 182, 239, 0.45); }
+  .stage-col.current { border-color: rgba(232, 145, 73, 0.55); box-shadow: 0 0 0 1px rgba(232, 145, 73, 0.12); }
   .stage-head {
     display: flex; align-items: center; justify-content: space-between; gap: 6px;
     padding-bottom: 6px; border-bottom: 1px solid var(--hair); font-size: 12px; font-weight: 600; color: var(--ink-2);
@@ -99,11 +103,11 @@
     display: flex; flex-direction: column; gap: 5px; transition: border-color .12s, background .12s;
   }
   .card:hover { background: var(--surface-hover); border-color: var(--hair-strong); }
-  .card.selected { outline: 2px solid var(--blue-soft); outline-offset: 1px; }
-  .card.passed { border-color: rgba(57, 135, 229, 0.55); background: rgba(28, 92, 171, 0.16); }
-  .card.current { border-color: rgba(134, 182, 239, 0.85); background: rgba(134, 182, 239, 0.13); }
-  .card.blocked-owner { border-color: rgba(226, 163, 54, 0.8); background: var(--amber-bg); }
-  .card.blocked-lead { border-color: rgba(229, 83, 75, 0.85); background: var(--red-bg); }
+  .card.selected { outline: 2px solid var(--copper-soft); outline-offset: 1px; }
+  .card.passed { border-color: rgba(34, 197, 94, 0.52); background: var(--green-bg); }
+  .card.current { border-color: rgba(232, 145, 73, 0.85); background: var(--copper-bg); }
+  .card.blocked-owner { border-color: rgba(250, 204, 21, 0.82); background: var(--amber-bg); }
+  .card.blocked-lead { border-color: rgba(244, 63, 94, 0.85); background: var(--red-bg); }
   .card.ahead { opacity: 0.78; }
   .card.returned-before { border-style: dashed; }
 
@@ -113,11 +117,11 @@
     flex: none; padding: 1px 6px; border-radius: 4px; font-size: 10.5px; font-weight: 600;
     text-transform: uppercase; letter-spacing: 0.03em; border: 1px solid var(--hair); color: var(--ink-3);
   }
-  .badge.passed { color: var(--blue-soft); border-color: rgba(57, 135, 229, 0.5); }
-  .badge.working { color: #9ecaff; border-color: rgba(134, 182, 239, 0.6); }
-  .badge.owner { color: var(--amber); border-color: rgba(226, 163, 54, 0.55); }
-  .badge.lead { color: var(--red); border-color: rgba(229, 83, 75, 0.55); }
-  .badge.ready { color: var(--green); border-color: rgba(63, 185, 80, 0.5); }
+  .badge.passed { color: var(--green-soft); border-color: rgba(34, 197, 94, 0.5); }
+  .badge.working { color: var(--copper-soft); border-color: rgba(232, 145, 73, 0.65); }
+  .badge.owner { color: var(--amber); border-color: rgba(250, 204, 21, 0.55); }
+  .badge.lead { color: var(--red); border-color: rgba(244, 63, 94, 0.58); }
+  .badge.ready { color: var(--green-soft); border-color: rgba(34, 197, 94, 0.52); }
   .card-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 11px; color: var(--ink-3); font-family: var(--mono); }
   .card-note { font-size: 11.5px; color: var(--ink-2); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; line-height: 1.35; }
 
@@ -129,16 +133,16 @@
   .popover {
     position: fixed; top: 56px; right: 20px; width: min(460px, calc(100vw - 40px));
     background: var(--surface); border: 1px solid var(--hair-strong); border-radius: 10px;
-    padding: 14px; box-shadow: 0 18px 48px rgba(0, 0, 0, 0.6); z-index: 40; display: none;
+    padding: 14px; box-shadow: 0 18px 48px rgba(0, 0, 0, 0.65); z-index: 40; display: none;
   }
   .popover.open { display: block; }
   .popover h3 { margin: 0 0 8px; font-size: 14px; }
   .commit-list { list-style: none; padding: 0; margin: 8px 0 0; display: flex; flex-direction: column; gap: 6px; font-size: 12px; }
   .commit-list li { display: flex; gap: 8px; color: var(--ink-2); }
-  .commit-list code { color: var(--blue-soft); flex: none; }
+  .commit-list code { color: var(--copper-soft); flex: none; }
 
   .drawer-backdrop {
-    position: fixed; inset: 0; background: rgba(0, 0, 0, 0.45); z-index: 30; display: none;
+    position: fixed; inset: 0; background: rgba(0, 0, 0, 0.55); z-index: 30; display: none;
   }
   .drawer-backdrop.open { display: block; }
   .drawer {
@@ -158,12 +162,28 @@
   .kv .k { color: var(--ink-3); }
   .note-box {
     margin: 0; padding: 10px 12px; border-radius: 6px; border: 1px solid var(--hair);
-    background: #0c0e13; color: var(--ink-1); font-size: 12px; white-space: pre-wrap; word-break: break-word; line-height: 1.45;
+    background: #0f0f13; color: var(--ink-1); font-size: 12px; white-space: pre-wrap; word-break: break-word; line-height: 1.45;
   }
   .list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 5px; font-size: 12.5px; }
   .list li { padding: 5px 8px; border-radius: 5px; background: var(--surface-2); border: 1px solid var(--hair); word-break: break-word; }
   .thumb { max-width: 100%; border-radius: 6px; border: 1px solid var(--hair); margin-top: 6px; display: block; }
-  .error-banner { margin: 16px 20px; padding: 12px 14px; border-radius: 8px; border: 1px solid var(--red); background: var(--red-bg); color: var(--ink-1); }
+  .error-banner { margin: 16px 20px; padding: 12px 14px; border-radius: 8px; border: 1px solid var(--red-strong); background: var(--red-bg); color: var(--ink-1); }
+
+  .modal {
+    position: fixed; inset: 0; z-index: 45; display: none; align-items: center; justify-content: center;
+    padding: 20px; background: rgba(0, 0, 0, 0.72);
+  }
+  .modal.open { display: flex; }
+  .modal-card {
+    width: min(980px, 100%); max-height: 92vh; background: var(--surface); border: 1px solid var(--hair-strong);
+    border-radius: 12px; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 24px 64px rgba(0,0,0,0.7);
+  }
+  .modal-head {
+    display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px;
+    padding: 12px 16px; border-bottom: 1px solid var(--hair);
+  }
+  .modal-body { padding: 14px 16px; overflow: auto; display: flex; flex-direction: column; gap: 10px; align-items: center; background: #0a0a0d; }
+  .modal-body img { max-width: 100%; max-height: 74vh; border-radius: 8px; border: 1px solid var(--hair); }
 </style>
 </head>
 <body>
@@ -172,6 +192,7 @@
     <div class="title-block">
       <div class="title-row">
         <h1 id="proj-title">Graph</h1>
+        <span id="model-pill" class="pill model" style="display:none"></span>
         <span id="autonomy-pill" class="pill auto" style="display:none"></span>
         <button id="tool-pill" class="pill tool" style="display:none" title="Click to view tool commits ahead of main"></button>
       </div>
@@ -181,6 +202,7 @@
       <div id="tabs" style="display:flex;gap:6px"></div>
       <select id="board-select" class="board-select" style="display:none" aria-label="Select board"></select>
       <span class="pill" id="live-pill"><span id="live-dot" class="dot"></span><span id="live-text">Connecting</span></span>
+      <button class="btn pcb-btn" id="btn-live-pcb">Live PCB</button>
       <button class="btn" id="btn-log">Activity Log</button>
       <button class="btn" id="btn-notes" style="display:none">Notes</button>
       <a class="btn" id="btn-files" href="/files/" target="_blank" rel="noopener">Files</a>
@@ -190,10 +212,10 @@
   <div class="status-strip">
     <div id="position-line">Loading track position...</div>
     <div class="legend">
-      <span><i class="swatch" style="background:rgba(28,92,171,0.45);border-color:#3987e5"></i>Passed</span>
-      <span><i class="swatch" style="background:rgba(134,182,239,0.28);border-color:#86b6ef"></i>Current / Working</span>
+      <span><i class="swatch" style="background:var(--green-bg);border-color:var(--green)"></i>Passed</span>
+      <span><i class="swatch" style="background:var(--copper-bg);border-color:var(--copper)"></i>Current / Working</span>
       <span><i class="swatch" style="background:var(--amber-bg);border-color:var(--amber)"></i>Needs you</span>
-      <span><i class="swatch" style="background:var(--red-bg);border-color:var(--red)"></i>Needs lead</span>
+      <span><i class="swatch" style="background:var(--red-bg);border-color:var(--red-strong)"></i>Needs lead</span>
       <span><i class="swatch" style="background:var(--surface-2);border-color:var(--hair)"></i>Ahead</span>
     </div>
   </div>
@@ -225,6 +247,29 @@
   <div class="drawer-body" id="drawer-body"></div>
 </aside>
 
+<div class="modal" id="pcb-modal" aria-hidden="true">
+  <div class="modal-card">
+    <div class="modal-head">
+      <div style="display:flex;align-items:center;gap:10px">
+        <strong id="pcb-title">Live PCB / Routing Preview</strong>
+        <span id="pcb-meta" style="font-size:12px;color:var(--ink-3);font-family:var(--mono)"></span>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px">
+        <label style="font-size:12px;color:var(--ink-2);display:inline-flex;align-items:center;gap:5px;cursor:pointer">
+          <input type="checkbox" id="pcb-auto" checked> Auto-refresh (3s)
+        </label>
+        <button class="btn" id="pcb-refresh">Refresh</button>
+        <a class="btn" id="pcb-raw" href="/live-pcb.png" target="_blank" rel="noopener">Open raw PNG</a>
+        <button class="btn" id="pcb-close">Close</button>
+      </div>
+    </div>
+    <div class="modal-body">
+      <img id="pcb-img" src="" alt="Live PCB Preview" style="display:none">
+      <div id="pcb-empty" style="color:var(--ink-3);padding:28px;text-align:center"></div>
+    </div>
+  </div>
+</div>
+
 <script>
 (() => {
   const PATH_MASKS = [
@@ -246,8 +291,9 @@
   let activeTrack = params.get('track') || null;
   let currentView = null;
   let selectedCard = null;
-  let drawerMode = null; // 'card' | 'log' | 'notes'
+  let drawerMode = null;
   let pageStamp = null;
+  let pcbTimer = null;
 
   const $ = (id) => document.getElementById(id);
 
@@ -305,6 +351,15 @@
     document.title = `${title} graph`;
     $('proj-title').textContent = title;
     $('milestone').textContent = view.milestone || (view.graph && view.graph.milestone) || '';
+
+    const modelName = view.model || (view.autonomy && view.autonomy.model) || '';
+    const modelEl = $('model-pill');
+    if (modelName) {
+      modelEl.style.display = 'inline-flex';
+      modelEl.textContent = modelName;
+    } else {
+      modelEl.style.display = 'none';
+    }
 
     const tracks = (view.graph && view.graph.tracks) || [];
     const tabsEl = $('tabs');
@@ -543,6 +598,54 @@
     showDrawer(n.path || 'Notes', `<pre class="note-box">${esc(n.text || '(empty)')}</pre>`);
   }
 
+  async function refreshLivePcb() {
+    if (location.protocol === 'file:') {
+      $('pcb-img').style.display = 'none';
+      $('pcb-empty').textContent = 'Live PCB preview requires the board-graph serve HTTP server.';
+      return;
+    }
+    try {
+      const meta = await (await fetch('/live-pcb.json', { cache: 'no-store' })).json();
+      if (!meta.available) {
+        $('pcb-img').style.display = 'none';
+        $('pcb-empty').textContent = 'No routing steps or PCB renders yet.';
+        $('pcb-meta').textContent = 'none';
+        return;
+      }
+      const ts = meta.updated_at ? new Date(meta.updated_at * 1000).toLocaleTimeString() : new Date().toLocaleTimeString();
+      $('pcb-meta').textContent = `${meta.kind}: ${meta.label} (${ts})`;
+      $('pcb-empty').textContent = '';
+      $('pcb-img').style.display = 'block';
+      $('pcb-img').src = `/live-pcb.png?t=${Date.now()}`;
+    } catch (err) {
+      $('pcb-img').style.display = 'none';
+      $('pcb-empty').textContent = `Could not load live PCB: ${err.message}`;
+    }
+  }
+
+  function closePcbModal() {
+    $('pcb-modal').classList.remove('open');
+    $('pcb-modal').setAttribute('aria-hidden', 'true');
+    if (pcbTimer) { clearInterval(pcbTimer); pcbTimer = null; }
+  }
+
+  function openPcbModal() {
+    $('pcb-modal').classList.add('open');
+    $('pcb-modal').setAttribute('aria-hidden', 'false');
+    refreshLivePcb();
+    if (pcbTimer) clearInterval(pcbTimer);
+    if ($('pcb-auto').checked) pcbTimer = setInterval(refreshLivePcb, 3000);
+  }
+
+  $('btn-live-pcb').addEventListener('click', openPcbModal);
+  $('pcb-close').addEventListener('click', closePcbModal);
+  $('pcb-refresh').addEventListener('click', refreshLivePcb);
+  $('pcb-auto').addEventListener('change', (e) => {
+    if (pcbTimer) { clearInterval(pcbTimer); pcbTimer = null; }
+    if (e.target.checked && $('pcb-modal').classList.contains('open')) pcbTimer = setInterval(refreshLivePcb, 3000);
+  });
+  $('pcb-modal').addEventListener('click', (e) => { if (e.target === $('pcb-modal')) closePcbModal(); });
+
   $('drawer-close').addEventListener('click', closeDrawer);
   $('backdrop').addEventListener('click', closeDrawer);
   $('btn-log').addEventListener('click', renderLogDrawer);
@@ -568,7 +671,7 @@
     pop.classList.toggle('open');
   });
   $('tool-pop-close').addEventListener('click', () => $('tool-popover').classList.remove('open'));
-  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { closeDrawer(); $('tool-popover').classList.remove('open'); } });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { closeDrawer(); closePcbModal(); $('tool-popover').classList.remove('open'); } });
 
   async function loadView() {
     $('error-box').innerHTML = '';

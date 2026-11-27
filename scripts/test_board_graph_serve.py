@@ -295,6 +295,30 @@ class JobTests(unittest.TestCase):
             self.assertEqual(board_graph_serve.main(["--notify"]), 1)
         self.assertEqual(out.getvalue().strip(), "HTTP 403")
 
+    def test_live_pcb_routes_serve_newest_board_report_png(self):
+        with tempfile.TemporaryDirectory() as td:
+            repo = pathlib.Path(td)
+            view_dir = repo / "tools" / "board_graph_view"
+            view_dir.mkdir(parents=True)
+            (view_dir / "index.html").write_text("<p>ok</p>", encoding="utf-8")
+            reports = repo / "board" / "reports"
+            reports.mkdir(parents=True)
+            png = b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR"
+            (reports / "front-copper.png").write_bytes(png)
+            srv = board_graph_serve.server("127.0.0.1", 0, view_dir, repo_root=repo)
+            threading.Thread(target=srv.serve_forever, daemon=True).start()
+            self.addCleanup(srv.server_close)
+            self.addCleanup(srv.shutdown)
+            base = f"http://127.0.0.1:{srv.server_port}"
+            with mock.patch.object(board_graph_serve.mac.SITE, "steps", str(repo / "no-steps")), \
+                    urllib.request.urlopen(f"{base}/live-pcb.json", timeout=5) as meta_resp:
+                meta = json.loads(meta_resp.read().decode("utf-8"))
+            self.assertTrue(meta["available"])
+            self.assertEqual(meta["kind"], "board_report")
+            with mock.patch.object(board_graph_serve.mac.SITE, "steps", str(repo / "no-steps")), \
+                    urllib.request.urlopen(f"{base}/live-pcb.png", timeout=5) as img_resp:
+                self.assertEqual(img_resp.read(), png)
+
 
 if __name__ == "__main__":
     unittest.main()

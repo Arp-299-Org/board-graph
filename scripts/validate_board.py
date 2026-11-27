@@ -194,7 +194,7 @@ def _ensure_offline_preflight(kicad_python: str) -> None:
         raise ValueError("v2-kicad is historical/reference.")
     if not project_dir.is_dir():
         raise ValueError(f"Project does not exist: {project_dir}")
-    pro_files = list(project_dir.glob("*.kicad_pro"))
+    pro_files = [p for p in project_dir.glob("*.kicad_pro") if not p.name.startswith(".")]
     if len(pro_files) != 1:
         raise ValueError(f"Expected exactly one .kicad_pro under '{project_dir}'; found {len(pro_files)}.")
     stem = pro_files[0].stem

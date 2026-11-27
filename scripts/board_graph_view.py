@@ -768,6 +768,7 @@ def build(graph, state, section, root=ROOT):
             "graph_sha256": hashlib.sha256(graph_path.read_bytes()).hexdigest(),
         },
         "tool": tool_paths.tool_status(),
+        "model": graph.data.get("model") or (graph.data.get("autonomy") or {}).get("model") or os.environ.get("BOARD_GRAPH_MODEL") or None,
         "graph": graph.data,
         "autonomy": board_autonomy.summary(graph),
         "where": where(graph, state),

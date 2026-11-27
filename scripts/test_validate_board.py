@@ -625,6 +625,23 @@ class SpeedupPreflightAndZeroZone(unittest.TestCase):
             probe_calls = [c for c in calls if len(c) >= 2 and c[1] == "-c"]
             self.assertEqual(len(probe_calls), 1)
 
+    def test_ensure_offline_preflight_ignores_hidden_review_dotfiles(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = pathlib.Path(td)
+            proj = root / "board"
+            proj.mkdir()
+            (proj / "demo.kicad_pro").write_text("{}", encoding="utf-8")
+            (proj / ".review-deadbeef.kicad_pro").write_text("{}", encoding="utf-8")
+            (proj / "demo.kicad_pcb").write_text("(kicad_pcb)", encoding="utf-8")
+            (proj / "demo.kicad_sch").write_text("(kicad_sch)", encoding="utf-8")
+            fake_py = root / "python.exe"
+            fake_py.write_text("", encoding="utf-8")
+            with mock.patch.object(validate_board, "ROOT", root), \
+                    mock.patch.object(validate_board, "PROJECT", "board"), \
+                    mock.patch.object(validate_board, "_PREFLIGHT_CACHE", set()), \
+                    mock.patch.object(validate_board, "run", return_value=subprocess.CompletedProcess([], 0, stdout="3.12.0|10.0.8\n", stderr="")):
+                validate_board._ensure_offline_preflight(str(fake_py))
+
 
 if __name__ == "__main__":
     unittest.main()

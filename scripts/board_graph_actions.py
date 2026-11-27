@@ -581,7 +581,8 @@ def library_findings(project):
     maps the library, every board footprint names it and is in it, the library holds nothing else, and each library
     copy carries the 3D models of the part it is written from."""
     try:
-        accepted = read_json(project.root / EXCLUSIONS)["accepted_warning_refs"]
+        exclusions_path = project.root / EXCLUSIONS
+        accepted = read_json(exclusions_path)["accepted_warning_refs"] if exclusions_path.is_file() else []
         exclusions = project.project_file["board"]["design_settings"].get("drc_exclusions", [])
         table = parse((project.root / TABLE).read_text(encoding="utf-8-sig"))
     except (OSError, KeyError, ValueError) as error:

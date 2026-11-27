@@ -137,6 +137,73 @@ class BoardGraphHubTests(unittest.TestCase):
     def test_hub_subcommand_registered_in_cli(self) -> None:
         self.assertEqual(board_graph_cli.SUBCOMMANDS["hub"], "scripts/board_graph_hub.py")
 
+    def test_hub_models_and_live_pcb_fallback_to_artifact_png(self) -> None:
+        proj = self.root / "remote_proj"
+        (proj / "board" / "reports").mkdir(parents=True)
+        png_bytes = b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR"
+        (proj / "board" / "reports" / "front.png").write_bytes(png_bytes)
+        view_dir = proj / "tools" / "board_graph_view"
+        view_dir.mkdir(parents=True)
+        (view_dir / "index.html").write_text("<p>v</p>", encoding="utf-8")
+        view = self._make_sample_view("Alpha", "routing_batch")
+        view["model"] = "model-from-view"
+        view["artifacts"] = {
+            "cards": {
+                "routing_batch": {
+                    "items": [{"path": "board/reports/front.png", "label": "Front copper", "exists": True, "kind": "image"}]
+                }
+            }
+        }
+        (view_dir / "view.json").write_text(json.dumps(view), encoding="utf-8")
+        child = board_graph_serve.server("127.0.0.1", 0, view_dir, repo_root=proj)
+        threading.Thread(target=child.serve_forever, daemon=True).start()
+        self.addCleanup(child.server_close)
+        self.addCleanup(child.shutdown)
+        child_url = f"http://127.0.0.1:{child.server_address[1]}"
+
+        args = board_graph_hub.parse_args(["--source", f"alpha={child_url}", "--model", "alpha=gpt-6.2-sol"])
+        sources = board_graph_hub.load_sources(args)
+        listeners = board_graph_hub.HubListeners()
+        hub = board_graph_hub.HubServer(("127.0.0.1", 0), sources, listeners)
+        threading.Thread(target=hub.serve_forever, daemon=True).start()
+        self.addCleanup(hub.server_close)
+        self.addCleanup(hub.shutdown)
+        hub_url = f"http://127.0.0.1:{hub.server_port}"
+
+        with urllib.request.urlopen(f"{hub_url}/api/summary", timeout=5) as resp:
+            row = json.loads(resp.read().decode("utf-8"))["sources"][0]
+        self.assertEqual(row["model"], "gpt-6.2-sol")
+        self.assertEqual(row["preview_images"][0]["path"], "board/reports/front.png")
+        with urllib.request.urlopen(f"{hub_url}/api/source/alpha/live-pcb.png", timeout=5) as resp:
+            self.assertEqual(resp.read(), png_bytes)
+        with urllib.request.urlopen(f"{hub_url}/api/source/alpha/files/board/reports/front.png", timeout=5) as resp:
+            self.assertEqual(resp.read(), png_bytes)
+
+    def test_seed_exclusions_and_library_findings_when_exclusions_missing(self) -> None:
+        import types
+        import board_graph_actions
+        (self.root / "board").mkdir()
+        (self.root / "board" / "board.json").write_text(
+            '{"drc_exclusions": "board/reports/documented-drc-exclusions.json"}\n', encoding="utf-8"
+        )
+        board_graph_cli._seed_exclusions_file(self.root)
+        seeded = self.root / "board" / "reports" / "documented-drc-exclusions.json"
+        self.assertTrue(seeded.is_file())
+        self.assertEqual(json.loads(seeded.read_text(encoding="utf-8")), {"accepted_warning_refs": []})
+
+        other = self.root / "no_excl"
+        (other / "board").mkdir(parents=True)
+        (other / "board" / "fp-lib-table").write_text("(fp_lib_table)\n", encoding="utf-8")
+        proj = types.SimpleNamespace(
+            root=other,
+            project_file={"board": {"design_settings": {}}},
+            fps={},
+            library={},
+        )
+        findings, detail = board_graph_actions.library_findings(proj)
+        self.assertFalse(any("documented-drc-exclusions.json" in f for f in findings), findings)
+        self.assertEqual(detail["accepted_mismatches"], [])
+
 
 if __name__ == "__main__":
     unittest.main()

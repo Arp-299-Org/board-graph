@@ -65,7 +65,7 @@ def usage(out=None) -> None:
         "For multi-board repos, --board NAME works before or after the command\n"
         "(where, next, record, check, route, validate, run-checks, view, board-description).\n\n"
         "Commands (run against the active project):\n"
-        "  init [--skip PATH ...] [--board-name SLUG] [--project-title TITLE] [--autonomous [--until CARD] [--reason TEXT]]\n"
+        "  init [--skip PATH ...] [--board-name SLUG] [--project-title TITLE] [--model NAME] [--autonomous [--until CARD] [--reason TEXT]]\n"
         "                         copy starter files, .gitattributes, and .gitignore into this folder\n"
         "  version                print installed board-graph version and location\n"
         "  where, next, record, brief, settle, check, graph, approvals, checks\n"
@@ -214,13 +214,14 @@ def _run_version() -> int:
     return 0
 
 
-def _split_init_args(tail: list[str]) -> tuple[bool, str, str, str | None, str | None, list[str]]:
-    """Extract init options (--autonomous/--until/--reason/--board-name/--project-title) and forward the rest."""
+def _split_init_args(tail: list[str]) -> tuple[bool, str, str, str | None, str | None, str | None, list[str]]:
+    """Extract init options (--autonomous/--until/--reason/--board-name/--project-title/--model) and forward rest."""
     autonomous = False
     until = "quote_files"
     reason = "Autonomous run authorized via board-graph init --autonomous"
     board_name: str | None = None
     project_title: str | None = None
+    model_name: str | None = None
     forwarded: list[str] = []
     i = 0
     while i < len(tail):
@@ -228,7 +229,7 @@ def _split_init_args(tail: list[str]) -> tuple[bool, str, str, str | None, str |
         if word == "--autonomous":
             autonomous = True
             i += 1
-        elif word in ("--until", "--reason", "--board-name", "--project-title"):
+        elif word in ("--until", "--reason", "--board-name", "--project-title", "--model"):
             if i + 1 >= len(tail) or not tail[i + 1].strip():
                 raise ValueError(f"{word} requires a value")
             val = tail[i + 1]
@@ -238,10 +239,12 @@ def _split_init_args(tail: list[str]) -> tuple[bool, str, str, str | None, str |
                 reason = val
             elif word == "--board-name":
                 board_name = val
-            else:
+            elif word == "--project-title":
                 project_title = val
+            else:
+                model_name = val
             i += 2
-        elif word.startswith(("--until=", "--reason=", "--board-name=", "--project-title=")):
+        elif word.startswith(("--until=", "--reason=", "--board-name=", "--project-title=", "--model=")):
             flag, val = word.split("=", 1)
             if not val.strip():
                 raise ValueError(f"{flag} requires a value")
@@ -251,13 +254,15 @@ def _split_init_args(tail: list[str]) -> tuple[bool, str, str, str | None, str |
                 reason = val
             elif flag == "--board-name":
                 board_name = val
-            else:
+            elif flag == "--project-title":
                 project_title = val
+            else:
+                model_name = val
             i += 1
         else:
             forwarded.append(word)
             i += 1
-    return autonomous, until, reason, board_name, project_title, forwarded
+    return autonomous, until, reason, board_name, project_title, model_name, forwarded
 
 
 def _rewrite_example_value(value, board_name: str):
@@ -272,18 +277,20 @@ def _rewrite_example_value(value, board_name: str):
     return value
 
 
-def _apply_board_identity(target: pathlib.Path, board_name: str | None, project_title: str | None) -> str | None:
-    """Update starter board/board.json and tools/board_graph.json paths to match board_name and project_title."""
+def _apply_board_identity(
+    target: pathlib.Path, board_name: str | None, project_title: str | None, model: str | None = None
+) -> str | None:
+    """Update starter board/board.json and tools/board_graph.json paths, project title, and model."""
     import json
     import re
 
-    if not board_name and not project_title:
+    if not board_name and not project_title and not model:
         return None
     if board_name and not re.fullmatch(r"[A-Za-z0-9_-]+", board_name):
         return f"--board-name must match [A-Za-z0-9_-]+, got {board_name!r}"
 
     board_file = target / "board" / "board.json"
-    if board_file.is_file():
+    if board_file.is_file() and (board_name or project_title):
         bdata = json.loads(board_file.read_text(encoding="utf-8"))
         if board_name:
             bdata = _rewrite_example_value(bdata, board_name)
@@ -294,14 +301,17 @@ def _apply_board_identity(target: pathlib.Path, board_name: str | None, project_
         board_file.write_text(json.dumps(bdata, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
 
     graph_file = target / "tools" / "board_graph.json"
-    if board_name and graph_file.is_file():
+    if graph_file.is_file() and (board_name or model):
         gdata = json.loads(graph_file.read_text(encoding="utf-8"))
-        gdata = _rewrite_example_value(gdata, board_name)
-        for node in gdata.get("nodes", []):
-            integ = node.get("integration")
-            if isinstance(integ, dict) and isinstance(integ.get("boards"), dict) and "example" in integ["boards"]:
-                val = integ["boards"].pop("example")
-                integ["boards"][board_name] = val
+        if board_name:
+            gdata = _rewrite_example_value(gdata, board_name)
+            for node in gdata.get("nodes", []):
+                integ = node.get("integration")
+                if isinstance(integ, dict) and isinstance(integ.get("boards"), dict) and "example" in integ["boards"]:
+                    val = integ["boards"].pop("example")
+                    integ["boards"][board_name] = val
+        if model:
+            gdata["model"] = model
         graph_file.write_text(json.dumps(gdata, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     return None
 
@@ -337,10 +347,32 @@ def _enable_autonomous(target: pathlib.Path, until: str, reason: str) -> str | N
     return None
 
 
+def _seed_exclusions_file(target: pathlib.Path) -> None:
+    """Create the empty drc_exclusions JSON named by board/board.json when absent in a new repo."""
+    import json
+    board_file = target / "board" / "board.json"
+    if not board_file.is_file():
+        return
+    try:
+        rel = json.loads(board_file.read_text(encoding="utf-8")).get("drc_exclusions")
+    except (OSError, ValueError):
+        return
+    if not isinstance(rel, str) or not rel or pathlib.PurePosixPath(rel).is_absolute():
+        return
+    dest = (target / rel).resolve()
+    try:
+        dest.relative_to(target.resolve())
+    except ValueError:
+        return
+    if not dest.exists():
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest.write_text('{"accepted_warning_refs": []}\n', encoding="utf-8")
+
+
 def _run_init(explicit_project: pathlib.Path | None, tail: list[str]) -> int:
     """Scaffold starter project files, .gitattributes, and .gitignore into target directory."""
     try:
-        autonomous, until, reason, board_name, project_title, starter_args = _split_init_args(tail)
+        autonomous, until, reason, board_name, project_title, model_name, starter_args = _split_init_args(tail)
     except ValueError as error:
         print(f"board-graph: {error}", file=sys.stderr)
         return 2
@@ -354,10 +386,11 @@ def _run_init(explicit_project: pathlib.Path | None, tail: list[str]) -> int:
     done = subprocess.run(cmd, cwd=str(target), check=False)
     if done.returncode != 0:
         return done.returncode
-    identity_err = _apply_board_identity(target, board_name, project_title)
+    identity_err = _apply_board_identity(target, board_name, project_title, model_name)
     if identity_err:
         print(f"board-graph: {identity_err}", file=sys.stderr)
         return 2
+    _seed_exclusions_file(target)
     if autonomous:
         err = _enable_autonomous(target, until, reason)
         if err:
