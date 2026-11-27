@@ -368,7 +368,10 @@ def _run_init(explicit_project: pathlib.Path | None, tail: list[str]) -> int:
         print("  wrote .gitattributes")
     gitignore = target / ".gitignore"
     if not gitignore.exists():
-        gitignore.write_bytes(b"logs/board-graph/\n*.kicad_prl\nfp-info-cache\n~*.lck\n__pycache__/\n")
+        gitignore.write_bytes(
+            b"logs/board-graph/\n*.kicad_prl\nfp-info-cache\n~*.lck\n__pycache__/\n"
+            b"tools/board_graph_view/view.json\ntools/board_graph_view/view.json.*.tmp\n"
+        )
         print("  wrote .gitignore")
     print(
         f"\nInitialized board-graph project in {target}.\n"

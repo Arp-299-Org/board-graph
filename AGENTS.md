@@ -79,9 +79,12 @@ wrong while doing something else, say so with the file and line.
   a project repository holds only project files (`board/`, `tools/board_graph.json`,
   `tools/board_graph_site.json`, records, docs, and starter config). Change tool
   code in the `board-graph` repository, never inside a board repository.
-- **Git.** Before editing, check the checkout matches its branch on GitHub.
-  Board changes go on a branch and a pull request. No attribution footers or
-  co-author trailers in commits.
+- **Git.** Before editing, check the checkout matches its branch on `origin`.
+  Board changes go on a branch: open a pull request when `origin` is on
+  GitHub; when `origin` is a local bare repository with no GitHub remote
+  (such as `one_machine` autonomous runs), push the branch to `origin` and
+  merge it into `main` locally (`git checkout main && git merge --no-edit <branch> && git push origin main`)
+  instead of calling `gh`. No attribution footers or co-author trailers in commits.
 
 ## Writing
 

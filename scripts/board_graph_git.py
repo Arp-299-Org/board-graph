@@ -200,13 +200,33 @@ def merge_ask_readiness(state, item):
     return True, None
 
 
+def _is_local_origin(root) -> str | None:
+    """Return the origin URL when it points to a local repository path rather than GitHub, else None."""
+    try:
+        url = _bg().git_text(root, "remote", "get-url", "origin").strip()
+    except ValueError:
+        return None
+    if not url or "github.com" in url.lower():
+        return None
+    if url.startswith(("/", "./", "../", "~/", "file://")) or (len(url) >= 2 and url[1] == ":"):
+        return url
+    try:
+        if pathlib.Path(url).exists():
+            return url
+    except OSError:
+        pass
+    return None
+
+
 def keep_pull_request(graph, state, item, root, branch, github=None):
     """After a record's push on `branch`: the branch's pull request, opened as a draft when there is none, its
     description made current, and marked ready only when `item` asks the owner to merge and CI's board checks have
     passed on the commit it asks about (merge_ask_readiness); a pass alone leaves it a draft. Returns one line; nothing
     raises, what failed is said, and the branch is pushed either way."""
-    github = _bg().gh if github is None else github
     root = pathlib.Path(root)
+    if (github is None or github is _bg().gh) and (local_origin := _is_local_origin(root)):
+        return f"skipped pull request for {branch}: origin is a local repository ({local_origin}); the branch is pushed to origin"
+    github = _bg().gh if github is None else github
     try:
         head = _bg().git_text(root, "rev-parse", "HEAD").strip()
     except ValueError:

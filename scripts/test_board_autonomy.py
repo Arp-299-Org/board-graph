@@ -269,9 +269,28 @@ class BoardAutonomyTests(unittest.TestCase):
         self.assertEqual(rc, 0)
         cli_board = json.loads((init_dir / "board" / "board.json").read_text(encoding="utf-8"))
         self.assertEqual(cli_board["project"], "RJ45 Breakout (Codex)")
+        gitignore = (init_dir / ".gitignore").read_text(encoding="utf-8")
+        self.assertIn("tools/board_graph_view/view.json", gitignore)
         cli_graph = bg.Graph(init_dir / "tools" / "board_graph.json")
         self.assertFalse(any("stale starter path" in p for p in cli_graph.reading_problems()))
         self.assertEqual(board_graph_cli.main(["--project", str(init_dir), "check"]), 0)
+
+    def test_keep_pull_request_skips_gh_on_local_bare_origin(self) -> None:
+        import subprocess
+        bare = self.root / "origin.git"
+        bare.mkdir()
+        subprocess.run(["git", "-C", str(bare), "init", "--bare"], check=True, capture_output=True)
+        work = self.root / "work"
+        work.mkdir()
+        subprocess.run(["git", "-C", str(work), "init", "-b", "feat/test"], check=True, capture_output=True)
+        subprocess.run(["git", "-C", str(work), "remote", "add", "origin", str(bare)], check=True, capture_output=True)
+        _, graph = _write_project(self.root)
+        state = bg.State(self.root / "state.sqlite3", self.root / "records")
+        item = {"node": "decisions", "outcome": "pass", "actor": "agent:bot", "note": "ok", "inputs": {}}
+        with mock.patch.object(bg, "gh", side_effect=AssertionError("gh must not run on local origin")):
+            said = bg.keep_pull_request(graph, state, item, work, "feat/test")
+        self.assertIn("origin is a local repository", said)
+        self.assertIn("pushed to origin", said)
 
 
 if __name__ == "__main__":
