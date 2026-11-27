@@ -1,7 +1,7 @@
 {
   "name": "board-graph",
   "repository": "Arp-299-Org/board-graph",
-  "version": "0.37.1",
+  "version": "0.37.2",
   "files": {
     "docs/BOARD_APPROVALS.md": "0f95089a0522654ff995ca99e4a104c61632fc15fe93ee8bb42aa6ee1f1244d3",
     "docs/BOARD_EVIDENCE.md": "386390a77d7905f7aff82c3402694cc0fcc45660110c9da5a51d8e692858fbd1",
@@ -17,7 +17,7 @@
     "scripts/board_graph_cli.py": "18162fae55b2f4b9f70800429633d8431553d970ea5629a6dd0aed74284ac9d5",
     "scripts/board_graph_codex.py": "a876c1a9b8a782463745b56447c73cc3a70546616db1dbf104049dd1f787e622",
     "scripts/board_graph_git.py": "e84b080e707e46de56a2ac9eab2bce353c94dbc4e9e88f3de73686987911deea",
-    "scripts/board_graph_hub.py": "8b50f48d4c8866c6d969914a852e1ab1ea43d5bb17f6373a40fbc62a1502f695",
+    "scripts/board_graph_hub.py": "97e4caad83de90ac810643b222169ac886945eada0a8d4e61953ceee2362f4e9",
     "scripts/board_graph_model.py": "1840d319c415c0ace40f18da20002a2353b0874213f09a0d2c9a0dcedf033168",
     "scripts/board_graph_serve.py": "99589e927f7cf2ed5f7c14e836ff8d15abe0e4a9760e44b6a833de7c2d868a54",
     "scripts/board_graph_state.py": "abc4d2f69da21d660a0411af8358380f15ac70ae7455bfca06784bd0a44ca29c",

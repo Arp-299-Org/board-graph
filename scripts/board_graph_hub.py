@@ -87,9 +87,13 @@ HUB_HTML = """<!doctype html>
   @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.35; } }
   .chip-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--copper-soft); animation: pulse 1.4s infinite; }
   .later-note { font-size: 11px; color: var(--ink-3); font-family: var(--mono); padding: 0 4px; }
-  .last-line { width: 100%; text-align: left; font-size: 11.5px; color: var(--ink-2); background: #101014; border: 1px solid var(--hair);
-               border-radius: 5px; padding: 4px 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; }
-  .last-line.expanded { white-space: pre-wrap; word-break: break-word; overflow: visible; }
+  .thumbs { display: flex; flex-wrap: nowrap; overflow-x: auto; gap: 8px; padding-top: 2px; }
+  .thumb-btn { flex: none; display: flex; flex-direction: column; gap: 3px; padding: 4px; border-radius: 6px;
+               border: 1px solid var(--hair); background: #0d0d11; }
+  .thumb-btn:hover { border-color: var(--copper); }
+  .thumb-btn img { height: 76px; width: auto; max-width: 150px; object-fit: contain; border-radius: 4px; background: #070709; display: block; }
+  .thumb-btn span { font-size: 10px; color: var(--ink-3); font-family: var(--mono); max-width: 145px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: left; }
+  .err-line { font-size: 11.5px; color: var(--red); background: var(--red-bg); border: 1px solid rgba(244,63,94,0.45); border-radius: 5px; padding: 5px 8px; }
   .tool-note { font-size: 11px; color: var(--ink-3); font-family: var(--mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .drawer-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.58); z-index: 30; display: none; }
   .drawer-backdrop.open { display: block; }
@@ -439,9 +443,7 @@ HUB_HTML = """<!doctype html>
     if (!stopId) return { visible: cards, hidden: 0 };
     const stopIdx = cards.findIndex((c) => c.id === stopId);
     if (stopIdx < 0) return { visible: cards, hidden: 0 };
-    const curIdx = cards.findIndex((c) => c.status === 'current');
-    const cutIdx = Math.max(stopIdx, curIdx);
-    return { visible: cards.slice(0, cutIdx + 1), hidden: Math.max(0, cards.length - (cutIdx + 1)) };
+    return { visible: cards.slice(0, stopIdx + 1), hidden: Math.max(0, cards.length - (stopIdx + 1)) };
   }
 
   function render(data) {
@@ -481,10 +483,11 @@ HUB_HTML = """<!doctype html>
         const dot = pulsing ? '<span class="chip-dot"></span>' : '';
         return `<button class="chip ${cls}" type="button" title="${esc(c.label + ': ' + stText)}" data-src="${esc(src.name)}" data-node="${esc(c.id)}">${dot}<span>${esc(c.label)}</span></button>`;
       }).join('') + (hidden ? `<span class="later-note">+${hidden} later</span>` : '');
-      const last = src.last;
-      const lastHtml = last
-        ? `<button class="last-line" type="button" title="Click to expand"><strong>${esc(last.node)}</strong> <code>${esc(last.outcome)}</code> &rarr; <code>${esc(last.target)}</code> (${esc(last.actor)}): ${esc(last.note || '')}</button>`
-        : (src.error ? `<div class="last-line" style="border-color:var(--red-strong)">${esc(src.error)}</div>` : '');
+      const previews = (src.preview_images || []).slice(0, 5);
+      const thumbsHtml = previews.length
+        ? `<div class="thumbs">${previews.map((p, idx) => `<button class="thumb-btn" type="button" data-pcb-src="${esc(src.name)}" data-pcb-idx="${idx + 1}"><img src="${esc(p.url)}" alt="${esc(p.label)}"><span>${esc(p.label)}</span></button>`).join('')}</div>`
+        : '';
+      const errHtml = (!src.online && src.error) ? `<div class="err-line">${esc(src.error)}</div>` : '';
       card.innerHTML = `
         <div class="run-top">
           <div class="run-title">
@@ -502,12 +505,11 @@ HUB_HTML = """<!doctype html>
         </div>
         <div class="prog-track"><div class="prog-fill" style="width:${pct}%"></div></div>
         <div class="strip">${chips}</div>
-        ${lastHtml}
+        ${thumbsHtml}
+        ${errHtml}
       `;
       card.querySelectorAll('.chip').forEach((el) => el.addEventListener('click', () => inspectCard(el.dataset.src, el.dataset.node)));
       card.querySelectorAll('[data-pcb-src]').forEach((el) => el.addEventListener('click', () => openModal(el.dataset.pcbSrc, Number(el.dataset.pcbIdx || 0))));
-      const ll = card.querySelector('button.last-line');
-      if (ll) ll.addEventListener('click', () => ll.classList.toggle('expanded'));
       wrap.appendChild(card);
     });
     tickTimers();
