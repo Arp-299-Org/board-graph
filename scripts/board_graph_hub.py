@@ -199,18 +199,28 @@ HUB_HTML = """<!doctype html>
   function renderMd(md) {
     const lines = String(md || '').split(/\\r?\\n/);
     const out = [];
+    let para = [];
+    let code = null;
     let inList = false;
     let inTable = false;
+    const flushPara = () => { if (para.length) { out.push(`<p>${inlineMd(para.join(' '))}</p>`); para = []; } };
     const closeList = () => { if (inList) { out.push('</ul>'); inList = false; } };
-    const closeTable = () => { if (inTable) { out.push('</table>'); inTable = false; } };
+    const closeTable = () => { if (inTable) { out.push('</tbody></table>'); inTable = false; } };
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
+      if (/^```/.test(line.trim())) {
+        flushPara(); closeList(); closeTable();
+        if (code === null) { code = []; }
+        else { out.push(`<pre class="box">${esc(code.join('\n'))}</pre>`); code = null; }
+        continue;
+      }
+      if (code !== null) { code.push(line); continue; }
       if (/^#{1,4}\\s+/.test(line)) {
-        closeList(); closeTable();
+        flushPara(); closeList(); closeTable();
         const lvl = Math.min(3, line.match(/^#+/)[0].length);
         out.push(`<h${lvl}>${inlineMd(line.replace(/^#+\\s+/, ''))}</h${lvl}>`);
       } else if (/^\\|.*\\|$/.test(line.trim())) {
-        closeList();
+        flushPara(); closeList();
         const cells = line.trim().slice(1, -1).split('|').map((c) => c.trim());
         if (cells.every((c) => /^[-: ]+$/.test(c))) continue;
         if (!inTable) {
@@ -220,18 +230,18 @@ HUB_HTML = """<!doctype html>
           out.push(`<tr>${cells.map((c) => `<td>${inlineMd(c)}</td>`).join('')}</tr>`);
         }
       } else if (/^[-*]\\s+/.test(line.trim())) {
-        closeTable();
+        flushPara(); closeTable();
         if (!inList) { out.push('<ul>'); inList = true; }
         out.push(`<li>${inlineMd(line.trim().replace(/^[-*]\\s+/, ''))}</li>`);
       } else if (!line.trim()) {
-        closeList(); closeTable();
+        flushPara(); closeList(); closeTable();
       } else {
         closeList(); closeTable();
-        out.push(`<p>${inlineMd(line)}</p>`);
+        para.push(line.trim());
       }
     }
-    closeList();
-    if (inTable) out.push('</tbody></table>');
+    flushPara(); closeList(); closeTable();
+    if (code !== null) out.push(`<pre class="box">${esc(code.join('\n'))}</pre>`);
     return out.join('');
   }
 
