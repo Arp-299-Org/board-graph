@@ -59,6 +59,7 @@ def _clean_env() -> dict[str, str]:
         "BOARD_GRAPH_TEST_KICAD",
     ):
         env.pop(key, None)
+    env["BOARD_GRAPH_SKIP_HEAL_GATE"] = "1"
     return env
 
 
@@ -373,11 +374,52 @@ def check_mac_idle(host: str, key: pathlib.Path) -> tuple[bool, str]:
     """Verify the configured KiCad machine has zero active pcbnew, editor_step, or routing_run processes."""
     if not host:
         return False, "BOARD_GRAPH_DEV_MAC_HOST is not set"
-    cmd = ["ssh", "-i", str(key), "-o", "BatchMode=yes", "-o", "ConnectTimeout=8", host,
-           "pgrep -fl 'pcbnew|editor_step|routing_run' || echo NONE_RUNNING"]
+    cmd = ["ssh", "-i", str(key), "-o", "IdentitiesOnly=yes", "-o", "StrictHostKeyChecking=no",
+           "-o", "BatchMode=yes", "-o", "ConnectTimeout=8", host,
+           "pgrep -fl '[p]cbnew|[e]ditor_step|[r]outing_run' || echo NONE_RUNNING"]
     done = subprocess.run(cmd, capture_output=True, text=True)
     text = (done.stdout or done.stderr or "").strip()
     return (done.returncode == 0 and text == "NONE_RUNNING"), text or f"exit {done.returncode}"
+
+
+def _run_remote_linux_smoke(root: pathlib.Path, linux_host: str, linux_key: pathlib.Path, changed_ipc: list[str], base_ref: str) -> dict:
+    idle, pgrep_out = check_mac_idle(linux_host, linux_key)
+    if not idle:
+        return {"outcome": "needs_lead", "findings": [f"Linux KiCad host {linux_host} is busy or unreachable ({pgrep_out})"], "detail": {"mac_idle": False, "pgrep": pgrep_out}}
+    archive = subprocess.run(["git", "archive", "--format=tar", "HEAD", "scripts", "tools", "board"], cwd=str(root), capture_output=True)
+    if archive.returncode != 0:
+        return {"outcome": "needs_lead", "findings": [f"git archive failed: {archive.stderr.decode('utf-8', errors='replace').strip()}"], "detail": {"mac_idle": True, "ipc_changed": True}}
+    smoke_dir = f"/tmp/board-graph-smoke-{uuid.uuid4().hex[:10]}"
+    ssh_base = ["ssh", "-i", str(linux_key), "-o", "IdentitiesOnly=yes", "-o", "BatchMode=yes", "-o", "StrictHostKeyChecking=no", "-o", "ConnectTimeout=10", linux_host]
+    unpack = subprocess.run([*ssh_base, f"mkdir -p {shlex.quote(smoke_dir)} && tar -xf - -C {shlex.quote(smoke_dir)}"], input=archive.stdout, capture_output=True)
+    if unpack.returncode != 0:
+        return {"outcome": "needs_lead", "findings": [f"Failed to stage Linux smoke bundle on {linux_host}: {unpack.stderr.decode('utf-8', errors='replace').strip()}"], "detail": {"mac_idle": True, "ipc_changed": True}}
+    smoke_cmd = f"trap 'rm -rf {shlex.quote(smoke_dir)}' EXIT; DISPLAY=:99 LIBGL_ALWAYS_SOFTWARE=1 /opt/board-graph/.venv-kicad-ipc/bin/python - {shlex.quote(smoke_dir)}"
+    done = subprocess.run([*ssh_base, smoke_cmd], input=_MAC_SMOKE_SCRIPT, capture_output=True, text=True, timeout=180)
+    if done.returncode != 0:
+        err_text = ((done.stdout or "") + "\n" + (done.stderr or "")).strip()
+        return {"outcome": "needs_lead", "findings": [f"Linux live KiCad 10 smoke failed (exit {done.returncode}): {_tail(err_text)}"], "detail": {"mac_idle": True, "ipc_changed": True, "changed_files": changed_ipc, "raw_output": err_text[-2000:]}}
+    last_json = next((json.loads(line) for line in reversed(done.stdout.splitlines()) if line.strip().startswith("{")), {})
+    return {"outcome": "pass", "findings": [], "detail": {"mac_idle": True, "ipc_changed": True, "base_ref": base_ref, "changed_files": changed_ipc, "smoke": last_json}}
+
+
+def _run_local_linux_smoke(root: pathlib.Path, changed_ipc: list[str], base_ref: str) -> dict:
+    local_busy = subprocess.run(["pgrep", "-fl", "pcbnew|editor_step|routing_run"], capture_output=True, text=True)
+    if local_busy.returncode == 0 and local_busy.stdout.strip():
+        return {"outcome": "needs_lead", "findings": [f"Local KiCad editor is busy ({_tail(local_busy.stdout)})"], "detail": {"mac_idle": False}}
+    smoke_dir = pathlib.Path(f"/tmp/board-graph-smoke-{uuid.uuid4().hex[:10]}")
+    smoke_dir.mkdir(parents=True, exist_ok=True)
+    try:
+        archive = subprocess.run(["git", "archive", "--format=tar", "HEAD", "scripts", "tools", "board"], cwd=str(root), capture_output=True)
+        subprocess.run(["tar", "-xf", "-", "-C", str(smoke_dir)], input=archive.stdout, check=True, capture_output=True)
+        done = subprocess.run([sys.executable, "-", str(smoke_dir)], input=_MAC_SMOKE_SCRIPT, capture_output=True, text=True, timeout=180)
+        if done.returncode != 0:
+            err_text = ((done.stdout or "") + "\n" + (done.stderr or "")).strip()
+            return {"outcome": "needs_lead", "findings": [f"Local Linux KiCad 10 smoke failed (exit {done.returncode}): {_tail(err_text)}"], "detail": {"mac_idle": True, "ipc_changed": True, "changed_files": changed_ipc}}
+        last_json = next((json.loads(line) for line in reversed(done.stdout.splitlines()) if line.strip().startswith("{")), {})
+        return {"outcome": "pass", "findings": [], "detail": {"mac_idle": True, "ipc_changed": True, "base_ref": base_ref, "changed_files": changed_ipc, "smoke": last_json}}
+    finally:
+        subprocess.run(["rm", "-rf", str(smoke_dir)], capture_output=True)
 
 
 _MAC_SMOKE_SCRIPT = """
@@ -454,6 +496,18 @@ def run_live_smoke(root: pathlib.Path) -> dict:
     root = pathlib.Path(root)
     host = os.environ.get("BOARD_GRAPH_DEV_MAC_HOST", "").strip()
     key = pathlib.Path(os.environ.get("BOARD_GRAPH_DEV_MAC_KEY", "~/.ssh/id_ed25519")).expanduser()
+    linux_host = os.environ.get("BOARD_GRAPH_DEV_LINUX_HOST", "").strip()
+    linux_key = pathlib.Path(os.environ.get("BOARD_GRAPH_DEV_LINUX_KEY", "~/.ssh/google_compute_engine")).expanduser()
+    if not host and linux_host:
+        base_ref, changed_ipc = changed_ipc_routing_files(root)
+        if not changed_ipc:
+            return {"outcome": "pass", "findings": [], "detail": {"mac_idle": True, "ipc_changed": False, "base_ref": base_ref, "skipped": "no production IPC or routing files changed"}}
+        return _run_remote_linux_smoke(root, linux_host, linux_key, changed_ipc, base_ref)
+    if not host and sys.platform.startswith("linux") and os.environ.get("DISPLAY"):
+        base_ref, changed_ipc = changed_ipc_routing_files(root)
+        if not changed_ipc:
+            return {"outcome": "pass", "findings": [], "detail": {"mac_idle": True, "ipc_changed": False, "base_ref": base_ref, "skipped": "no production IPC or routing files changed"}}
+        return _run_local_linux_smoke(root, changed_ipc, base_ref)
     idle, pgrep_out = check_mac_idle(host, key)
     if not idle:
         return {
@@ -537,28 +591,42 @@ def _pyproject_version(root: pathlib.Path) -> str | None:
     return m.group(1) if m else None
 
 
+def _dev_cycle_mode(root: pathlib.Path) -> str:
+    cur_file = root / "logs" / "tool-dev" / "current.json"
+    if cur_file.is_file():
+        try:
+            mode = json.loads(cur_file.read_text(encoding="utf-8")).get("mode")
+            if mode in ("release", "heal"):
+                return str(mode)
+        except (OSError, ValueError):
+            pass
+    return "release"
+
+
 def run_release_gate(root: pathlib.Path) -> dict:
-    """Verify release metadata, clean tree, annotated tag at HEAD, manifest check, and dev/ exclusion."""
+    """Verify release or heal metadata, clean tree, manifest check, tag (in release mode), and dev/ exclusion."""
     root = pathlib.Path(root)
+    mode = _dev_cycle_mode(root)
     findings: list[str] = []
     manifest_data = json.loads((root / MANIFEST_REL).read_text(encoding="utf-8"))
     manifest_ver = manifest_data.get("version", "")
     py_ver = _pyproject_version(root) or ""
 
-    if not re.fullmatch(r"\d+\.\d+\.\d+", manifest_ver):
-        findings.append(f"manifest version {manifest_ver!r} is not X.Y.Z semver")
-    if py_ver != manifest_ver:
-        findings.append(f"pyproject.toml version ({py_ver!r}) disagrees with manifest ({manifest_ver!r})")
+    if mode == "release":
+        if not re.fullmatch(r"\d+\.\d+\.\d+", manifest_ver):
+            findings.append(f"manifest version {manifest_ver!r} is not X.Y.Z semver")
+        if py_ver != manifest_ver:
+            findings.append(f"pyproject.toml version ({py_ver!r}) disagrees with manifest ({manifest_ver!r})")
 
     leaked = [p for p in (*manifest_data.get("files", {}), *manifest_data.get("starter", [])) if p.startswith("dev/")]
     if leaked:
         findings.append(f"dev workflow files leaked into {MANIFEST_REL}: {', '.join(leaked)}")
 
     env = _clean_env()
-    for label, cmd in (
-        ("board_graph_tool.py check", [sys.executable, "scripts/board_graph_tool.py", "check"]),
-        ("board_graph_tool.py notes", [sys.executable, "scripts/board_graph_tool.py", "notes"]),
-    ):
+    checks = [("board_graph_tool.py check", [sys.executable, "scripts/board_graph_tool.py", "check"])]
+    if mode == "release":
+        checks.append(("board_graph_tool.py notes", [sys.executable, "scripts/board_graph_tool.py", "notes"]))
+    for label, cmd in checks:
         done = subprocess.run(cmd, cwd=str(root), env=env, capture_output=True, text=True)
         if done.returncode != 0:
             findings.append(f"{label} failed: {_tail((done.stdout or '') + (done.stderr or ''))}")
@@ -567,8 +635,8 @@ def run_release_gate(root: pathlib.Path) -> dict:
     if status.returncode != 0 or status.stdout.strip():
         findings.append("working tree is not clean before closing release")
 
-    tag = f"v{manifest_ver}" if manifest_ver else ""
-    if tag:
+    tag = f"v{manifest_ver}" if (mode == "release" and manifest_ver) else ""
+    if mode == "release" and tag:
         obj_type = _git(root, "cat-file", "-t", tag, check=False)
         tag_commit = _git(root, "rev-parse", f"{tag}^{{commit}}", check=False)
         head_commit = _git(root, "rev-parse", "HEAD", check=False)
@@ -576,11 +644,17 @@ def run_release_gate(root: pathlib.Path) -> dict:
             findings.append(f"annotated tag {tag} is missing")
         elif tag_commit.stdout.strip() != head_commit.stdout.strip():
             findings.append(f"tag {tag} points to {tag_commit.stdout.strip()[:8]}, not HEAD {head_commit.stdout.strip()[:8]}")
+    elif mode == "heal":
+        base_chk = _git(root, "rev-parse", "--verify", "-q", "origin/main", check=False)
+        if base_chk.returncode == 0:
+            cnt = _git(root, "rev-list", "--count", "origin/main..HEAD", check=False)
+            if cnt.returncode == 0 and int((cnt.stdout or "0").strip() or "0") < 1:
+                findings.append("heal mode requires at least 1 commit ahead of origin/main")
 
     return {
         "outcome": "pass" if not findings else "needs_lead",
         "findings": findings,
-        "detail": {"version": manifest_ver, "tag": tag},
+        "detail": {"mode": mode, "version": manifest_ver, "tag": tag},
     }
 
 

@@ -839,7 +839,9 @@ def _drc_error_counts(report: dict) -> tuple[collections.Counter, dict]:
     counts: collections.Counter = collections.Counter()
     samples: dict = {}
     for v in report.get("violations", []):
-        if v.get("severity") != "error":
+        # Match editor_step_audit.design_check so laying rolls back on new DRC warnings too (except isolated copper).
+        if v.get("severity") not in ("error", "warning") or (
+                v.get("severity") == "warning" and v.get("type") == "isolated_copper"):
             continue
         places = tuple(sorted((round(i.get("pos", {}).get("x", 0.0), 4),
                                round(i.get("pos", {}).get("y", 0.0), 4))

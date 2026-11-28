@@ -18,17 +18,21 @@ downstream PCB repositories never receive it.
    toy-only fixtures, and documentation drift in `README.md`, `AGENTS.md`, `docs/ROUTING_NOTES.md`, or `UPGRADING.md`.
 5. **`live_smoke`** (`agent` with connected script `live_smoke`, `approval_source: "tool_code"`,
    requires `tool_checks` current): First checks `pgrep -fl 'pcbnew|editor_step|routing_run'`
-   on `BOARD_GRAPH_DEV_MAC_HOST` and refuses immediately if active work is running. When idle and IPC or
-   routing files changed, runs a disposable KiCad 10 CLI + live IPC smoke in `/tmp`.
+   on `BOARD_GRAPH_DEV_MAC_HOST` (or `BOARD_GRAPH_DEV_LINUX_HOST` / local Linux Xvfb) and
+   refuses immediately if active work is running. When idle and IPC or routing files changed,
+   runs a disposable KiCad 10 CLI + live IPC smoke in `/tmp`.
 6. **`release`** (`agent`, `pass_check: "release_gate"`, requires current `tool_checks`,
-   `cold_review`, `live_smoke`): Bump `pyproject.toml`, prepend `UPGRADING.md` section, run
-   `scripts/board_graph_tool.py manifest --version <ver>`, commit, create annotated tag
-   `v<ver>`, push `origin main v<ver>`, and sync the configured KiCad Mac checkout only when idle.
+   `cold_review`, `live_smoke`): In release mode, bump `pyproject.toml`, prepend
+   `UPGRADING.md` section, run `scripts/board_graph_tool.py manifest --version <ver>`,
+   commit, create annotated tag `v<ver>`, push `origin main v<ver>`. In `--mode heal`
+   (`board-graph heal start <slug>`), verify clean commit ahead of `origin/main` and passing
+   `board_graph_tool.py check` without requiring an upstream tag.
 
-## Release Cycling
+## Release & Self-Heal Cycling
 
-Start a new release cycle with `python dev/tool_dev.py cycle v0.33.2` (creates isolated state
-and records under `logs/tool-dev/releases/v0.33.2/`). Check status with `python dev/tool_dev.py where`.
+Start a release cycle with `python dev/tool_dev.py cycle v0.42.0`, or start a self-heal cycle
+from an editable checkout with `board-graph heal start <slug> --from-card <node>`.
+Check status with `python dev/tool_dev.py where` or `board-graph heal status`.
 
 ## Friction and Slow-Check Signal
 

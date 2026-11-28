@@ -30,13 +30,17 @@ flowchart LR
 2. **Fork and install editable:** Clone your fork of `Arp-299-Org/board-graph`
    and install it with `pip install --no-build-isolation -e .` (and set
    `kicad_machine.tool_checkout` if driving a remote KiCad host).
-3. **Fix at the invariant layer:** Inspect the live KiCad file format, IPC call,
-   or CLI output (`docs/KICAD_10_INVARIANTS.md`), add a shared fix plus realistic
-   contract tests, and verify with `dev/test_tool_dev.py` and `check_hygiene.py`.
-4. **Ship to your board, then upstream:** Push to your fork so your board
-   continues immediately on the repaired engine, then open a PR back to
-   `Arp-299-Org/board-graph` so GitHub Actions (Python 3.9/3.12 + Linux `Xvfb`
-   KiCad 10 live IPC smoke) locks the fix in for every project.
+3. **Walk the enforced 6-card self-healing board (`board-graph heal start <slug>`):**
+   `board-graph next`, `record`, and `route` mechanically block PCB work if the
+   tool checkout has uncommitted or unverified tool edits outside the 6-card
+   workflow (`triage -> implement -> tool_checks -> cold_review -> live_smoke -> release`),
+   and `board-graph hub` shows all 6 cards live. Inspect real KiCad files, IPC
+   calls, or CLI output (`docs/KICAD_10_INVARIANTS.md`), add shared invariants plus
+   contract tests, and walk all 6 cards cleanly.
+4. **Resume your board, then upstream:** Once card 6 passes and unlocks the gate,
+   resume the PCB cleanly and open an upstream PR back to `Arp-299-Org/board-graph`
+   so GitHub Actions (Python 3.9/3.12 + Linux `Xvfb` KiCad 10 live IPC smoke)
+   locks the fix in for every project.
 
 Recent bugs from real boards that became permanent engine invariants:
 

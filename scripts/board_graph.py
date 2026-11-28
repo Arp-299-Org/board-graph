@@ -289,6 +289,7 @@ from board_graph_model import (  # noqa: E402
 from board_graph_state import (  # noqa: E402
     Remote, State, UnconfirmedWrite, open_state, remote_call, serve, unreached,
 )
+import board_heal  # noqa: E402
 from board_graph_workspace import (  # noqa: E402
     _is_stale_mac_read, _keep_pace_is_newer, _merge_live_mac, _parse_time_or_none,
     _upkeep_synced_mac_after, ago, branches_here, brief, card_lines, card_view,
@@ -468,6 +469,15 @@ def main(argv=None):
 
 def run(args, graph, where_from):
     """main() once the graph has loaded: the commands that open the state."""
+    if args.command in ("next", "record"):
+        heal_err = board_heal.check_tool_heal_gate(
+            graph_path=graph.path,
+            command=args.command,
+            outcome=getattr(args, "outcome", None),
+        )
+        if heal_err:
+            print(heal_err, file=sys.stderr)
+            return 1
     state = open_state(where_from, args.records or graph.root / RECORDS_IN)
     if where_from["view"]:
         follow(graph, state, where_from["view"])
@@ -546,6 +556,9 @@ def run(args, graph, where_from):
         print(json.dumps(view, indent=2))
     else:
         sys.stdout.write(render(view))
+        hint = board_heal.needs_lead_hint(view)
+        if hint:
+            sys.stdout.write(hint + "\n")
     return 0
 
 

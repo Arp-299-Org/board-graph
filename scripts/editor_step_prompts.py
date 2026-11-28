@@ -63,7 +63,7 @@ The design and route-quality checks allowed this review. {electrical} {read} the
 What moved, from the board files:
 {table}
 
-Look for what those scripts cannot see: a needless detour or corner, tracks bunched or kinked where another route would be plainly better, and a sensitive net{nets} pushed somewhere worse. You read only: never change anything.
+Look for what those scripts cannot see: a needless detour or corner, tracks bunched or kinked where another route would be plainly better, and a sensitive net{nets} pushed somewhere worse. Deterministic `kicad_route_quality` already catches real dangling track stubs, so before calling any short segment an open stub or tail, check the pad coordinates in the table and task: a segment that ends at a verified same-net pad center (even 0.3-0.6 mm from a branch junction) is that pad's connection and MUST NOT be flagged as an open stub. You read only: never change anything.
 {earlier}
 After any lines for earlier findings, give at most five new findings, most serious first:
 MUST FIX: what, which net and where, what to do instead. Use this only if the board or the player would really be hurt, or a plainly better route exists.

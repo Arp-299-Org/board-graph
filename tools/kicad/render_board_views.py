@@ -74,15 +74,19 @@ def has_pymupdf() -> bool:
 
 def pdf_to_png(pdf: pathlib.Path, png: pathlib.Path, dpi: int = 900) -> None:
     import fitz  # pymupdf
-    doc = fitz.open(str(pdf)); page = doc[0]
-    drawings = page.get_drawings()
-    if drawings:
-        x0 = min(d["rect"].x0 for d in drawings); y0 = min(d["rect"].y0 for d in drawings)
-        x1 = max(d["rect"].x1 for d in drawings); y1 = max(d["rect"].y1 for d in drawings)
-        clip = fitz.Rect(x0 - 4, y0 - 4, x1 + 4, y1 + 4)
-    else:
+    with fitz.open(str(pdf)) as doc:
+        page = doc[0]
+        drawings = page.get_drawings()
         clip = page.rect
-    page.get_pixmap(dpi=dpi, clip=clip).save(str(png))
+        if drawings:
+            x0 = min(d["rect"].x0 for d in drawings)
+            y0 = min(d["rect"].y0 for d in drawings)
+            x1 = max(d["rect"].x1 for d in drawings)
+            y1 = max(d["rect"].y1 for d in drawings)
+            visible = fitz.Rect(x0 - 4, y0 - 4, x1 + 4, y1 + 4) & page.rect
+            if not visible.is_empty:
+                clip = visible
+        page.get_pixmap(dpi=dpi, clip=clip).save(str(png))
 
 
 def svg_to_png(svg: pathlib.Path, png: pathlib.Path, max_px: int = 1800) -> None:
@@ -113,7 +117,7 @@ def svg_to_png(svg: pathlib.Path, png: pathlib.Path, max_px: int = 1800) -> None
 def export_layer_view(board: pathlib.Path, layers: str, png: pathlib.Path) -> None:
     if has_pymupdf():
         pdf = png.with_suffix(".pdf")
-        cli("pcb", "export", "pdf", "--layers", layers, "--mode-single", "--output", str(pdf), str(board))
+        cli("pcb", "export", "pdf", "--layers", layers, "--mode-single", "--scale", "0", "--output", str(pdf), str(board))
         pdf_to_png(pdf, png)
         pdf.unlink()
     else:

@@ -57,6 +57,7 @@ if __name__ == "__main__":
 
 import graph_pack  # noqa: E402
 import board_autonomy  # noqa: E402
+import board_heal  # noqa: E402
 import mac  # noqa: E402
 from board_graph import (ACTIONS, AGENT, CHOSEN, DONE, DROPPED, GRAPH, ONE, PACK, RECORDS, REPORTS, LATER, ROOT, VIEW_IN, Graph, carried_workspace,  # noqa: E402
                          checks,
@@ -782,6 +783,7 @@ def build(graph, state, section, root=ROOT):
             "graph_sha256": hashlib.sha256(graph_path.read_bytes()).hexdigest(),
         },
         "tool": tool_paths.tool_status(),
+        "tool_heal": board_heal.tool_heal_summary(),
         "model": graph.data.get("model") or (graph.data.get("autonomy") or {}).get("model") or os.environ.get("BOARD_GRAPH_MODEL") or None,
         "timing": run_timing(graph, state),
         "graph": graph.data,

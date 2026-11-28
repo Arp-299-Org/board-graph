@@ -205,25 +205,32 @@ for idx, comp in enumerate(spec['components']):
     ref, nick, fp_name = comp['ref'], comp['lib_nick'], comp['fp_name']
     lib_dir = lib_dirs.get(nick) or (next(iter(lib_dirs.values()), '') if not nick else '')
     existing = board.FindFootprintByReference(ref)
-    if existing is None or spec['replace_footprints'] or existing.GetFPID().GetLibItemName() != fp_name:
+    # GetLibItemName() is a pcbnew UTF8, which never equals a Python str.
+    if existing is None or spec['replace_footprints'] or str(existing.GetFPID().GetLibItemName()) != fp_name:
         if not lib_dir:
             raise RuntimeError(f"{ref}: footprint library {nick!r} not in fp-lib-table")
         fp = pcbnew.FootprintLoad(lib_dir, fp_name)
         if fp is None:
             raise RuntimeError(f"{ref}: footprint {comp['footprint']!r} not found in {lib_dir}")
         if existing is not None:
+            # Flip() on a footprint with no board segfaults in KiCad 10: add it first. Flipping mirrors the
+            # orientation, so position and orientation are set after it.
+            board.Add(fp)
+            if existing.IsFlipped():
+                fp.Flip(fp.GetPosition(), getattr(pcbnew, 'FLIP_DIRECTION_LEFT_RIGHT', False))
             fp.SetPosition(existing.GetPosition())
             fp.SetOrientation(existing.GetOrientation())
-            if existing.IsFlipped():
-                fp.Flip(existing.GetPosition(), False)
-            for m in existing.Models():
-                cm = pcbnew.FP_3DMODEL(); cm.m_Filename = m.m_Filename; fp.Add3DModel(cm)
+            if len(existing.Models()):
+                # The board's own models replace the library copy's, never add to them.
+                fp.Models().clear()
+                for m in existing.Models():
+                    cm = pcbnew.FP_3DMODEL(); cm.m_Filename = m.m_Filename; fp.Add3DModel(cm)
             board.Remove(existing)
             updated += 1
         else:
             fp.SetPosition(pcbnew.VECTOR2I(pcbnew.FromMM(100.0 + (idx % 4) * 25.0), pcbnew.FromMM(100.0 + (idx // 4) * 25.0)))
             added += 1
-        board.Add(fp)
+            board.Add(fp)
     else:
         fp = existing
         updated += 1
@@ -233,6 +240,21 @@ for idx, comp in enumerate(spec['components']):
     fp.SetValue(comp['value'])
     for k, v in comp['fields'].items():
         fp.SetField(k, v)
+        if k in ('Reference', 'Value'):
+            continue
+        # pcbnew's SetField creates a missing field visible on F.SilkS; data fields must never print.
+        for fld in fp.GetFields():
+            if fld.GetName() == k:
+                fld.SetVisible(False)
+                fld.SetLayer(pcbnew.B_Fab if fp.IsFlipped() else pcbnew.F_Fab)
+    # A footprint loaded from the library can carry another part's LCSC Part #; keep this part's Supplier Part.
+    supplier = comp['fields'].get('Supplier Part')
+    for fld in list(fp.GetFields()):
+        if fld.GetName() == 'LCSC Part #' and 'LCSC Part #' not in comp['fields']:
+            if supplier:
+                fld.SetText(supplier)
+            else:
+                fp.Remove(fld)
     if hasattr(fp, 'SetDNP'):
         fp.SetDNP(bool(comp['dnp']))
     if hasattr(fp, 'SetExcludedFromBOM'):

@@ -34,6 +34,7 @@ JS_REDIRECT = re.compile(rb"""location\.href\s*=\s*['"]([^'"]+)['"]""")
 LCSC_PDF_RE = re.compile(rb"https://datasheet\.lcsc\.com/datasheet/pdf/[0-9A-Za-z._/-]+\.pdf")
 MAX_REDIRECT_HOPS = 3
 HEADERS = {"User-Agent": "board-graph/1.0", "Accept": "application/json, */*"}
+REPORT_LINE_LIMIT = 2000  # board-graph check report limit
 
 
 def _class_name(raw: object) -> str:
@@ -257,6 +258,7 @@ def render_datasheet(
     stem = pdf_path.stem
     out_dir.mkdir(parents=True, exist_ok=True)
     text_out: str | None = None
+    text_continuations: list[str] = []
     pages: list[str] = []
 
     pdftotext = which("pdftotext")
@@ -265,6 +267,17 @@ def render_datasheet(
         done = run([pdftotext, "-layout", str(pdf_path), str(txt_file)], capture_output=True, text=True, check=False, **NO_WINDOW)
         if done.returncode == 0 and txt_file.is_file():
             text_out = txt_file.name
+            for old in out_dir.glob(f"{stem}.text-part-*.txt"):
+                old.unlink()
+            with txt_file.open("rb") as extracted:
+                lines = extracted.readlines()
+            if len(lines) > REPORT_LINE_LIMIT:
+                txt_file.write_bytes(b"".join(lines[:REPORT_LINE_LIMIT]))
+                for offset in range(REPORT_LINE_LIMIT, len(lines), REPORT_LINE_LIMIT):
+                    part_number = offset // REPORT_LINE_LIMIT + 1
+                    continuation = out_dir / f"{stem}.text-part-{part_number:03}.txt"
+                    continuation.write_bytes(b"".join(lines[offset:offset + REPORT_LINE_LIMIT]))
+                    text_continuations.append(continuation.name)
 
     pdftoppm = which("pdftoppm")
     if pdftoppm:
@@ -278,7 +291,10 @@ def render_datasheet(
 
     if text_out is None and not pages:
         return {"pdf": pdf_path.name, "text": None, "pages": [], "note": "no pdftotext/pdftoppm installed"}
-    return {"pdf": pdf_path.name, "text": text_out, "pages": pages}
+    result: dict[str, object] = {"pdf": pdf_path.name, "text": text_out, "pages": pages}
+    if text_continuations:
+        result["text_continuations"] = text_continuations
+    return result
 
 
 def main(argv: list[str] | None = None) -> int:

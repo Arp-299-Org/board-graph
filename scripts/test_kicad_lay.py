@@ -1244,5 +1244,19 @@ class V281IpcCachingTests(unittest.TestCase):
                 self.assertEqual(len(r4["violations"]), 1)
 
 
+class NewDrcFindings(unittest.TestCase):
+    def test_new_non_isolated_warnings_count_like_the_step_check(self):
+        import kicad_lay_plan as plan
+
+        def item(kind, severity, x):
+            return {"type": kind, "severity": severity, "description": kind, "items": [{"pos": {"x": x, "y": 0}}]}
+
+        before = {"violations": [item("hole_to_hole", "warning", 1)]}
+        after = {"violations": [item("hole_to_hole", "warning", 1), item("hole_to_hole", "warning", 2),
+                                item("isolated_copper", "warning", 3), item("clearance", "error", 4)]}
+        found = sorted(v["type"] for v in plan.new_drc_errors(before, after))
+        self.assertEqual(found, ["clearance", "hole_to_hole"])
+
+
 if __name__ == "__main__":
     unittest.main()

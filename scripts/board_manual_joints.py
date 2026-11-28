@@ -107,6 +107,20 @@ def least_ring(pad, hole: dict) -> float:
     return min((sx - hole["x"] - grow) / 2 - hole["offset"][0], (sy - hole["y"] - grow) / 2 - hole["offset"][1])
 
 
+def in_own_smd_pad(pad, fp) -> bool:
+    """A plated hole whose centre lies inside a surface pad of the same number on the same footprint: a via in that
+    pad (a QFN's thermal vias), soldered with the surface pad and never by hand."""
+    at = child(pad, "at")
+    x, y = mm(at[1]), mm(at[2])
+    for other in children(fp, "pad"):
+        if len(other) < 3 or other[2] != "smd" or str(other[1]) != str(pad[1]):
+            continue
+        o_at, size = child(other, "at"), child(other, "size")
+        if abs(x - mm(o_at[1])) <= mm(size[1]) / 2 and abs(y - mm(o_at[2])) <= mm(size[2]) / 2:
+            return True
+    return False
+
+
 def mask_faces(pad) -> list[str]:
     layers = set(child(pad, "layers")[1:])
     return [face for face in ("F", "B") if "*.Mask" in layers or f"{face}.Mask" in layers]
@@ -306,7 +320,7 @@ def report(board_path: pathlib.Path = BOARD, parts_path: pathlib.Path = PARTS,
     rows = []
     for fp in children(board, "footprint"):
         ref = str(prop(fp, "Reference"))
-        pads = [p for p in children(fp, "pad") if len(p) > 2 and p[2] == "thru_hole"]
+        pads = [p for p in children(fp, "pad") if len(p) > 2 and p[2] == "thru_hole" and not in_own_smd_pad(p, fp)]
         if not pads:
             continue
         mpn = prop(fp, ("Manufacturer Part", "MPN"))

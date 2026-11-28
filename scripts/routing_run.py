@@ -64,12 +64,7 @@ import routing_delivery  # noqa: E402
 if __name__ == "__main__":
     boards.take_argument()  # --board <name> chooses the board before the modules below read its description
 
-import board_description  # noqa: E402
-import board_graph  # noqa: E402
-import board_graph_tool  # noqa: E402
-import mac  # noqa: E402
-import pad_exits  # noqa: E402
-import routing_codex  # noqa: E402
+import board_description, board_graph, board_graph_tool, board_heal, mac, pad_exits, routing_codex  # noqa: E402
 from kicad_sexp import child, normalize_angles, parse, prop  # noqa: E402
 from no_window import KWARGS as NO_WINDOW  # noqa: E402
 from routing_guard import (  # noqa: E402
@@ -222,6 +217,8 @@ def engine(args):
     graph = board_graph.Graph(args.graph)
     where_from = board_graph.place(args.state, args.records, None, root=ROOT)
     state = board_graph.open_state(where_from, args.records or ROOT / board_graph.RECORDS_IN)
+    if where_from["view"]:
+        board_graph.follow(graph, state, where_from["view"], root=ROOT)
     return graph, state, where_from
 
 
@@ -900,6 +897,9 @@ def run(args) -> int:
         return 0
     profile, adopt_from = _validate_run_args(args)
     graph, state, where_from = engine(args)
+    heal_err = board_heal.check_tool_heal_gate(graph_path=getattr(graph, "path", args.graph), command="next")
+    if heal_err:
+        raise Refused(heal_err)
     marker = routing_delivery.journal(ROOT)
     pending = json.loads(marker.read_bytes()) if marker.exists() else None
     if pending:

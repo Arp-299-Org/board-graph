@@ -50,6 +50,7 @@ SUBCOMMANDS = {
     "placement-snapshot": "scripts/board_placement_snapshot.py",
     "verify-prepare": "scripts/board_verify_prepare.py",
     "quote-package": "scripts/board_quote_package.py",
+    "heal": "scripts/board_heal.py",
 }
 TOOL_ROOT_COMMANDS = frozenset({"check", "update", "starter", "unvendor"})
 BOARD_HOIST_COMMANDS = frozenset({"route", "run-checks", "track-craft", "view"})
@@ -67,6 +68,7 @@ VALUE_FLAGS = frozenset({
     "--mac-tool-checkout", "--mac-tree", "--mac-steps", "--ref", "--version", "--root", "--skip",
     "--track", "--node", "--output", "--json", "--timeout", "--exclusions", "--production", "--base-name", "--name",
     "--fab", "--spec", "--size", "--offset", "--color", "--sch", "--board",
+    "--from-card", "--mode", "--tool-dev",
 })
 
 
@@ -109,6 +111,7 @@ def usage(out=None) -> None:
         "  placement-snapshot ... scripts/board_placement_snapshot.py (normalize, check silkscreen, snapshot & render)\n"
         "  verify-prepare ...     scripts/board_verify_prepare.py (run checks & stamp reports + exclusions)\n"
         "  quote-package ...      scripts/board_quote_package.py (Gerbers, IPC netlist, BOM/CPL, checksums)\n"
+        "  heal ...               scripts/board_heal.py (6-card tool self-healing workflow & gate)\n"
         "  help                   show this message\n"
     )
 

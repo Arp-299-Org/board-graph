@@ -17,17 +17,24 @@ STATE_BASE = ROOT / "logs" / "tool-dev"
 RELEASES_DIR = STATE_BASE / "releases"
 CURRENT_FILE = STATE_BASE / "current.json"
 VERSION_RE = re.compile(r"^v?(\d+\.\d+\.\d+)$")
+HEAL_SLUG_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
 
 
-def normalize_version(raw: str) -> str:
+def normalize_version(raw: str, mode: str = "release") -> str:
+    if mode == "heal":
+        slug = raw.strip()
+        if not HEAL_SLUG_RE.fullmatch(slug):
+            raise SystemExit(f"invalid heal slug {raw!r}: expected [A-Za-z0-9._-]+")
+        return slug
     match = VERSION_RE.fullmatch(raw.strip())
     if not match:
         raise SystemExit(f"invalid release version {raw!r}: expected X.Y.Z or vX.Y.Z")
     return f"v{match.group(1)}"
 
 
-def cycle_paths(version: str) -> tuple[pathlib.Path, pathlib.Path, pathlib.Path]:
-    folder = RELEASES_DIR / normalize_version(version)
+def cycle_paths(version: str, mode: str | None = None) -> tuple[pathlib.Path, pathlib.Path, pathlib.Path]:
+    slug = normalize_version(version, mode=mode or ("release" if VERSION_RE.fullmatch(version.strip()) else "heal"))
+    folder = RELEASES_DIR / slug
     return folder, folder / "state.sqlite3", folder / "records"
 
 
@@ -74,9 +81,19 @@ def active_version() -> str:
     return ver
 
 
-def cmd_cycle(raw_version: str, *, resume: bool = False, force: bool = False) -> int:
-    version = normalize_version(raw_version)
-    folder, state_path, records_path = cycle_paths(version)
+def cmd_cycle(
+    raw_version: str,
+    *,
+    mode: str = "release",
+    from_card: str | None = None,
+    board_project: str | None = None,
+    resume: bool = False,
+    force: bool = False,
+) -> int:
+    if mode not in ("release", "heal"):
+        raise SystemExit(f"invalid mode {mode!r}: expected release or heal")
+    version = normalize_version(raw_version, mode=mode)
+    folder, state_path, records_path = cycle_paths(version, mode=mode)
     if state_path.exists() and not resume:
         raise SystemExit(
             f"release cycle {version} already exists at {folder}; pass --resume to switch to it"
@@ -91,7 +108,12 @@ def cmd_cycle(raw_version: str, *, resume: bool = False, force: bool = False) ->
                 )
     records_path.mkdir(parents=True, exist_ok=True)
     CURRENT_FILE.parent.mkdir(parents=True, exist_ok=True)
-    CURRENT_FILE.write_text(json.dumps({"version": version}, indent=2) + "\n", encoding="utf-8")
+    meta: dict[str, object] = {"version": version, "mode": mode}
+    if from_card:
+        meta["from_card"] = from_card
+    if board_project:
+        meta["board_project"] = board_project
+    CURRENT_FILE.write_text(json.dumps(meta, indent=2) + "\n", encoding="utf-8")
     done = _run_bg(["where"], state_path=state_path, records_path=records_path)
     return done.returncode
 
@@ -121,12 +143,28 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     if args[0] == "cycle":
         if len(args) < 2:
-            raise SystemExit("usage: python dev/tool_dev.py cycle vX.Y.Z [--resume] [--force]")
-        rest = set(args[2:])
-        unknown = rest - {"--resume", "--force"}
-        if unknown:
-            raise SystemExit(f"unknown flags for cycle: {', '.join(sorted(unknown))}")
-        return cmd_cycle(args[1], resume="--resume" in rest, force="--force" in rest)
+            raise SystemExit("usage: python dev/tool_dev.py cycle <vX.Y.Z|slug> [--mode release|heal] [--from-card CARD] [--board-project DIR] [--resume] [--force]")
+        mode, from_card, board_project, resume, force = "release", None, None, False, False
+        i = 2
+        while i < len(args):
+            tok = args[i]
+            if tok == "--resume":
+                resume = True
+                i += 1
+            elif tok == "--force":
+                force = True
+                i += 1
+            elif tok in ("--mode", "--from-card", "--board-project") and i + 1 < len(args):
+                if tok == "--mode":
+                    mode = args[i + 1]
+                elif tok == "--from-card":
+                    from_card = args[i + 1]
+                else:
+                    board_project = args[i + 1]
+                i += 2
+            else:
+                raise SystemExit(f"unknown argument for cycle: {tok}")
+        return cmd_cycle(args[1], mode=mode, from_card=from_card, board_project=board_project, resume=resume, force=force)
     if args[0] == "cycles":
         return cmd_cycles()
 

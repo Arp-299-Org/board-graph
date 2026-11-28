@@ -299,6 +299,31 @@ class ToolDevWorkflowTests(unittest.TestCase):
             self.assertIn("scripts/test_aaa_fail.py", res["detail"]["failed"])
             self.assertLess(elapsed, 15.0)
 
+    def test_heal_mode_release_gate_passes_clean_commit_without_tag(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = _init_temp_repo(pathlib.Path(td), trim_tests=True)
+            subprocess.run(["git", "-C", str(root), "update-ref", "refs/remotes/origin/main", "HEAD"], check=True, capture_output=True)
+            subprocess.run(["git", "-C", str(root), "checkout", "-q", "-b", "exp/heal-test"], check=True, capture_output=True)
+            done = subprocess.run(
+                [sys.executable, str(root / "dev" / "tool_dev.py"), "cycle", "fix-r4", "--mode", "heal"],
+                cwd=str(root), capture_output=True, text=True, check=False,
+            )
+            self.assertEqual(done.returncode, 0, done.stderr + done.stdout)
+            cur = json.loads((root / "logs" / "tool-dev" / "current.json").read_text(encoding="utf-8"))
+            self.assertEqual((cur["version"], cur["mode"]), ("fix-r4", "heal"))
+            # Before any commit ahead of origin/main, heal gate rejects 0 commits ahead.
+            res0 = tool_actions.run_release_gate(root)
+            self.assertEqual(res0["outcome"], "needs_lead")
+            # Commit a clean change with refreshed manifest -> heal release_gate passes without bumping tag/pyproject.
+            p = root / "scripts" / "site_settings.py"
+            p.write_text(p.read_text(encoding="utf-8") + "\n", encoding="utf-8")
+            board_graph_tool.manifest(root, "0.41.2")
+            subprocess.run(["git", "-C", str(root), "add", "-A"], check=True, capture_output=True)
+            subprocess.run(["git", "-C", str(root), "commit", "-q", "-m", "Heal fix"], check=True, capture_output=True)
+            res1 = tool_actions.run_release_gate(root)
+            self.assertEqual(res1["outcome"], "pass", res1["findings"])
+            self.assertEqual(res1["detail"]["mode"], "heal")
+
 
 if __name__ == "__main__":
     unittest.main()

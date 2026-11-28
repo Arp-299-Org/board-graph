@@ -10,6 +10,7 @@ import tempfile
 import threading
 import unittest
 import urllib.request
+from unittest import mock
 
 SCRIPTS_DIR = pathlib.Path(__file__).resolve().parent
 REPO_ROOT = SCRIPTS_DIR.parent
@@ -320,6 +321,31 @@ class BoardGraphHubTests(unittest.TestCase):
             [i["path"] for i in board_graph_hub._collect_preview_images("src", pre_routing)],
             ["board/reports/placement/render/3d_top.png", "board/reports/placement/render/front_copper.png"],
         )
+
+    def test_hub_summary_exposes_tool_heal_and_local_tool_dev(self) -> None:
+        fake_heal = {
+            "available": True, "version": "fix-demo", "mode": "heal", "from_card": "routing_batch",
+            "active": True, "position": "implement", "done": False, "passed_count": 1, "total_count": 6,
+            "working": "agent:neon", "blocked_outcome": None, "blocked_node": None,
+            "dirty": True, "ahead": 0, "commits_ahead": [], "tool_code_current": False,
+            "gate_ok": False, "gate_reason": "uncommitted edits",
+            "cards": [{"id": "triage", "label": "Triage", "who": "agent", "status": "passed"}],
+        }
+        view_dir = self.root / "proj" / "tools" / "board_graph_view"
+        view_dir.mkdir(parents=True)
+        v = self._make_sample_view("Beta", "routing_batch")
+        v["tool_heal"] = fake_heal
+        (view_dir / "view.json").write_text(json.dumps(v), encoding="utf-8")
+        src = board_graph_hub.parse_source_spec(f"beta={self.root / 'proj'}", is_project=True)
+        with mock.patch.object(board_graph_hub.board_heal, "tool_heal_summary", return_value=fake_heal):
+            hub = board_graph_hub.HubServer(("127.0.0.1", 0), [src], board_graph_hub.HubListeners(), tool_dev_dir=REPO_ROOT)
+            threading.Thread(target=hub.serve_forever, daemon=True).start()
+            self.addCleanup(hub.server_close)
+            self.addCleanup(hub.shutdown)
+            with urllib.request.urlopen(f"http://127.0.0.1:{hub.server_port}/api/summary", timeout=5) as resp:
+                summary = json.loads(resp.read().decode("utf-8"))
+        self.assertEqual(summary["local_tool_heal"]["version"], "fix-demo")
+        self.assertEqual(summary["sources"][0]["tool_heal"]["passed_count"], 1)
 
 
 if __name__ == "__main__":

@@ -8,6 +8,31 @@ between your old version and the new one before upgrading to see whether any
 project-owned files need updates. A release that asks nothing of a project
 still has a section saying so.
 
+## 0.42.0
+
+Nothing has to change in existing projects already initialized with
+`board-graph init` (though pulling `AGENTS.md` updates enables the new
+`board-graph heal` rule text). Engine changes:
+
+- **Enforced 6-card self-healing (`board-graph heal`):** When running from an
+  editable `board-graph` git checkout, `board-graph next`, `record`, and
+  `route` block advancing a PCB if the tool repo has uncommitted or unverified
+  tool edits outside `dev/tool_dev.py` (`Triage -> Implement -> Tool Checks ->
+  Cold Review -> Live KiCad Smoke -> Release`).
+- **6-card Self-Heal strip on Hub (`board-graph hub`):** Displays active tool
+  self-healing / release cycles directly on the Hub with clickable cards instead
+  of raw git SHA badges.
+- **Immediate `needs_lead` view refresh:** `scripts/routing_run.py` now attaches
+  `board_graph.follow(...)` so routing `needs_lead` / `more_work` transitions
+  immediately update `tools/board_graph_view/view.json` and the Hub.
+- **Routing reviewer + 4-layer fixes:** Prevents false open-stub rejections on
+  verified same-net pad-center connections, hides synced BOM fields on
+  `F.Fab`/`B.Fab`, fixes DNP `LCSC Part #` and back-face `Flip()` reload
+  crashes in `board-graph sync-pcb`, ignores QFN thermal vias inside
+  same-numbered SMD pads in `manual_joints`, matches DRC warning severity in
+  `kicad_lay_plan`, splits >2,000-line datasheet text files, and fixes off-page
+  PDF render clipping in `render_board_views`.
+
 ## 0.41.2
 
 Nothing has to change in existing projects already initialized with

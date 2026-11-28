@@ -29,6 +29,24 @@ class ExportLayerViewTests(unittest.TestCase):
             self.assertTrue(png.is_file())
             self.assertFalse(png.with_suffix(".pdf").exists())
             self.assertEqual(calls[0][:3], ("pcb", "export", "pdf"))
+            self.assertEqual(calls[0][calls[0].index("--scale") + 1], "0")
+
+    @unittest.skipUnless(render_board_views.has_pymupdf(), "PyMuPDF is unavailable")
+    def test_paths_entirely_off_page_do_not_create_zero_height_clip(self):
+        import fitz
+
+        with tempfile.TemporaryDirectory() as tmp:
+            pdf = pathlib.Path(tmp) / "off-page.pdf"
+            png = pdf.with_suffix(".png")
+            with fitz.open() as doc:
+                page = doc.new_page(width=100, height=100)
+                page.draw_rect(fitz.Rect(20, 140, 40, 160))
+                self.assertEqual(len(page.get_drawings()), 1)
+                doc.save(str(pdf))
+
+            render_board_views.pdf_to_png(pdf, png, dpi=72)
+            pixmap = fitz.Pixmap(str(png))
+            self.assertEqual((pixmap.width, pixmap.height), (100, 100))
 
     def test_falls_back_to_svg_wx_when_pymupdf_missing(self):
         with tempfile.TemporaryDirectory() as tmp:

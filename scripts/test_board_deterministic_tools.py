@@ -7,6 +7,7 @@ import io
 import json
 import os
 import pathlib
+import subprocess
 import sys
 import tempfile
 import types
@@ -387,6 +388,85 @@ class DeterministicToolsTests(unittest.TestCase):
         libs = board_sync_pcb.parse_fp_lib_table(tbl, tbl.parent)
         self.assertEqual(libs["rj45_breakout"], (tbl.parent / "rj45_breakout.pretty").resolve())
 
+    def test_sync_pcb_worker_fab_fields_dnp_lcsc_models_and_back_face_flip(self) -> None:
+        kicad_py = board_sync_pcb.board_sync_models._kicad_python()
+        if kicad_py is None:
+            self.skipTest("KiCad Python with pcbnew not installed")
+        lib = self.root / "lib.pretty"
+        lib.mkdir()
+        (lib / "R1x1.kicad_mod").write_text(
+            '(footprint "R1x1" (version 20240108) (generator "pcbnew") (layer "F.Cu")\n'
+            '  (property "Reference" "REF**" (at 0 -1 0) (layer "F.SilkS") (effects (font (size 1 1) (thickness 0.15))))\n'
+            '  (property "Value" "R1x1" (at 0 1 0) (layer "F.Fab") (effects (font (size 1 1) (thickness 0.15))))\n'
+            '  (attr smd)\n'
+            '  (pad "1" smd rect (at -0.5 0) (size 0.5 0.5) (layers "F.Cu" "F.Mask" "F.Paste"))\n'
+            '  (pad "2" smd rect (at 0.5 0) (size 0.5 0.5) (layers "F.Cu" "F.Mask" "F.Paste")))\n',
+            encoding="utf-8",
+        )
+        pcb = self.root / "out.kicad_pcb"
+        spec = {
+            "pcb_path": str(pcb), "copper_layers": 2, "lib_dirs": {"lib": str(lib)},
+            "replace_footprints": False, "prune": False, "nets": {"/N1": [["R1", "1"]]},
+            "components": [{
+                "ref": "R1", "value": "1k", "footprint": "lib:R1x1", "lib_nick": "lib",
+                "fp_name": "R1x1", "dnp": False, "exclude_from_bom": False,
+                "fields": {"Value": "1k", "Manufacturer": "Acme", "Supplier Part": "C1", "LCSC Part #": "C1"},
+            }],
+        }
+        spec_file = self.root / "spec.json"
+        spec_file.write_text(json.dumps(spec), encoding="utf-8")
+        done = subprocess.run([str(kicad_py), "-B", "-c", board_sync_pcb.PCB_SYNC_WORKER, str(spec_file)],
+                              capture_output=True, text=True, check=False)
+        self.assertEqual(done.returncode, 0, done.stderr)
+        text = pcb.read_text(encoding="utf-8")
+        for name in ("Manufacturer", "Supplier Part", "LCSC Part #"):
+            block = text[text.index(f'(property "{name}"'):]
+            block = block[:block.index("(effects")]
+            self.assertIn("(hide yes)", block, name)
+            self.assertIn('(layer "F.Fab")', block, name)
+
+        stale = (lib / "R1x1.kicad_mod").read_text(encoding="utf-8").replace(
+            "  (attr smd)",
+            '  (property "LCSC Part #" "C999" (at 0 0 0) (layer "F.Fab") (hide yes))\n  (attr smd)\n  (model "lib.step")',
+        )
+        (lib / "R1x1.kicad_mod").write_text(stale, encoding="utf-8")
+        pcb.write_text(pcb.read_text(encoding="utf-8").replace("(attr smd", '(model "own.step")\n\t\t(attr smd', 1), encoding="utf-8")
+        dnp = dict(spec, replace_footprints=True)
+        dnp["components"] = [dict(spec["components"][0], dnp=True,
+                                  fields={"Value": "1k", "Manufacturer": "Acme", "Supplier Part": "C1"})]
+        for replace in (True, False):
+            spec_file.write_text(json.dumps(dict(dnp, replace_footprints=replace)), encoding="utf-8")
+            done = subprocess.run([str(kicad_py), "-B", "-c", board_sync_pcb.PCB_SYNC_WORKER, str(spec_file)],
+                                  capture_output=True, text=True, check=False)
+            self.assertEqual(done.returncode, 0, done.stderr)
+            text = pcb.read_text(encoding="utf-8")
+            self.assertEqual(text.count("(model "), 1, replace)
+            self.assertIn('"own.step"', text)
+            self.assertIn('(property "LCSC Part #" "C1"', text)
+            self.assertNotIn("C999", text)
+
+        flip = subprocess.run(
+            [str(kicad_py), "-B", "-c",
+             "import pcbnew,sys; b=pcbnew.LoadBoard(sys.argv[1]); f=b.FindFootprintByReference('R1');"
+             "f.Flip(f.GetPosition(), getattr(pcbnew,'FLIP_DIRECTION_LEFT_RIGHT',False));"
+             "f.SetOrientationDegrees(90); f.SetPosition(pcbnew.VECTOR2I(pcbnew.FromMM(5),pcbnew.FromMM(7)));"
+             "pcbnew.SaveBoard(sys.argv[1], b)", str(pcb)],
+            capture_output=True, text=True, check=False,
+        )
+        self.assertEqual(flip.returncode, 0, flip.stderr)
+        spec_file.write_text(json.dumps(dict(dnp, replace_footprints=True)), encoding="utf-8")
+        done = subprocess.run([str(kicad_py), "-B", "-c", board_sync_pcb.PCB_SYNC_WORKER, str(spec_file)],
+                              capture_output=True, text=True, check=False)
+        self.assertEqual(done.returncode, 0, done.stderr)
+        check = subprocess.run(
+            [str(kicad_py), "-B", "-c",
+             "import pcbnew,sys; f=pcbnew.LoadBoard(sys.argv[1]).FindFootprintByReference('R1');"
+             "print(f.IsFlipped(), round(f.GetOrientationDegrees()), pcbnew.ToMM(f.GetPosition().x),"
+             " pcbnew.ToMM(f.GetPosition().y))", str(pcb)],
+            capture_output=True, text=True, check=False,
+        )
+        self.assertEqual(check.stdout.split()[-4:], ["True", "90", "5.0", "7.0"], check.stderr)
+
     def test_verify_prepare_stamps_checks_and_exclusions_fresh(self) -> None:
         board = self.root / "board" / "b.kicad_pcb"
         board.parent.mkdir(parents=True)
@@ -442,6 +522,18 @@ class DeterministicToolsTests(unittest.TestCase):
         with_tools = board_part_fetch.render_datasheet(pdf, out_dir, which=lambda n: f"/usr/bin/{n}", run=fake_run)
         self.assertEqual(with_tools["text"], "part.txt")
         self.assertEqual(with_tools["pages"], ["part_p-1.png"])
+
+        big_pdf = self.root / "big.pdf"
+        big_pdf.write_bytes(b"%PDF-1.4\n")
+        big_lines = [f"Line {idx}\n".encode() for idx in range(4001)]
+        big_res = board_part_fetch.render_datasheet(
+            big_pdf, out_dir,
+            which=lambda n: n if n == "pdftotext" else None,
+            run=lambda cmd, **kw: (pathlib.Path(cmd[-1]).write_bytes(b"".join(big_lines)), types.SimpleNamespace(returncode=0))[1],
+        )
+        chunks = [(out_dir / name).read_bytes() for name in (big_res["text"], *big_res["text_continuations"])]
+        self.assertEqual([c.count(b"\n") for c in chunks], [2000, 2000, 1])
+        self.assertEqual(b"".join(chunks), b"".join(big_lines))
 
 
 if __name__ == "__main__":

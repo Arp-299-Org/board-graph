@@ -54,6 +54,15 @@ class Joints(unittest.TestCase):
         self.assertEqual(len(rep["rows"]), 1)
         return rep["rows"][0]
 
+    def test_vias_inside_an_smd_pad_of_the_same_number_are_not_joints(self):
+        ep = '\t\t(pad "49" smd rect\n\t\t\t(at 0 0)\n\t\t\t(size 4.6 4.6)\n\t\t\t(layers "F.Cu" "F.Mask")\n\t\t)\n'
+        via = pad("49", 0.2, size=(0.5, 0.5), layers='"*.Cu"')
+        rep = self.run_on(footprint("U1", "QFN", ep, via), {"QFN": {}})
+        self.assertEqual(rep["rows"], [])
+        self.assertTrue(rep["pass"])
+        lone = self.run_on(footprint("U2", "QFN", pad("50", 0.2, size=(0.5, 0.5), layers='"*.Cu"')), {"QFN": {}})
+        self.assertEqual(len(lone["rows"]), 1)
+
     def test_an_ordinary_square_pin_fits_a_1_1_mm_hole(self):
         row = self.one(self.run_on(footprint("J6", "HDR", pad("1", 1.1)), {"HDR": {"pins": [SQUARE_PIN]}}))
         self.assertEqual(row["verdict"], joints.FITS)
