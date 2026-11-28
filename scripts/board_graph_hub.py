@@ -91,8 +91,8 @@ HUB_HTML = """<!doctype html>
   .thumb-btn { flex: none; display: flex; flex-direction: column; gap: 4px; padding: 6px; border-radius: 7px;
                border: 1px solid var(--hair); background: #0d0d11; }
   .thumb-btn:hover { border-color: var(--copper); }
-  .thumb-btn img { height: 156px; width: auto; max-width: 280px; object-fit: contain; border-radius: 5px; background: #070709; display: block; }
-  .thumb-btn span { font-size: 11px; color: var(--ink-2); font-family: var(--mono); max-width: 268px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: left; }
+  .thumb-btn img { height: 210px; width: auto; max-width: 380px; object-fit: contain; border-radius: 5px; background: #070709; display: block; }
+  .thumb-btn span { font-size: 11px; color: var(--ink-2); font-family: var(--mono); max-width: 368px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: left; }
   .err-line { font-size: 11.5px; color: var(--red); background: var(--red-bg); border: 1px solid rgba(244,63,94,0.45); border-radius: 5px; padding: 5px 8px; }
   .tool-note { font-size: 11px; color: var(--ink-3); font-family: var(--mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .drawer-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.58); z-index: 30; display: none; }
@@ -483,9 +483,11 @@ HUB_HTML = """<!doctype html>
         const dot = pulsing ? '<span class="chip-dot"></span>' : '';
         return `<button class="chip ${cls}" type="button" title="${esc(c.label + ': ' + stText)}" data-src="${esc(src.name)}" data-node="${esc(c.id)}">${dot}<span>${esc(c.label)}</span></button>`;
       }).join('') + (hidden ? `<span class="later-note">+${hidden} later</span>` : '');
-      const previews = (src.preview_images || []).slice(0, 6);
+      const allPreviews = src.preview_images || [];
+      const greenViews = allPreviews.filter((p) => /(?:^|\/)3d_(top|bottom)\.png$/i.test(p.path || ''));
+      const previews = greenViews.length ? greenViews : allPreviews.slice(0, 2);
       const thumbsHtml = previews.length
-        ? `<div class="thumbs">${previews.map((p, idx) => `<button class="thumb-btn" type="button" data-pcb-src="${esc(src.name)}" data-pcb-idx="${idx + 1}"><img src="${esc(p.url)}" alt="${esc(p.label)}"><span>${esc(p.label)}</span></button>`).join('')}</div>`
+        ? `<div class="thumbs">${previews.map((p) => `<button class="thumb-btn" type="button" data-pcb-src="${esc(src.name)}" data-pcb-idx="${allPreviews.indexOf(p) + 1}"><img src="${esc(p.url)}" alt="${esc(p.label)}"><span>${esc(p.label)}</span></button>`).join('')}</div>`
         : '';
       const errHtml = (!src.online && src.error) ? `<div class="err-line">${esc(src.error)}</div>` : '';
       card.innerHTML = `
@@ -641,8 +643,8 @@ def fetch_source_view(src: dict, timeout: float = 3.0) -> dict:
 
 ROUTED_PREVIEW_CARDS = ("visual_review", "routing_batch", "verification", "quote_files")
 HERO_VIEW_ORDER = {
-    "front_copper.png": 0, "3d_top.png": 1, "3d_bottom.png": 2,
-    "all_copper_stack.png": 3, "front_silk_and_mask.png": 4, "back_copper.png": 5, "back_silk_and_mask.png": 6,
+    "3d_top.png": 0, "3d_bottom.png": 1, "front_copper.png": 2,
+    "front_silk_and_mask.png": 3, "back_copper.png": 4, "back_silk_and_mask.png": 5, "all_copper_stack.png": 6,
 }
 
 

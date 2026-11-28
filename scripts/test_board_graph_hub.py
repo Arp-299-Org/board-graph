@@ -297,10 +297,12 @@ class BoardGraphHubTests(unittest.TestCase):
                     ]},
                     "routing_batch": {"items": [
                         {"path": "board/reports/routing_batch/back_copper_only.png", "exists": True, "label": "Back only"},
-                        {"path": "board/reports/routing_batch/3d_top.png", "exists": True, "label": "Routed 3d"},
+                        {"path": "board/reports/routing_batch/3d_top.png", "exists": True, "label": "Old routed 3d"},
                     ]},
                     "visual_review": {"items": [
                         {"path": "board/reports/visual_review/front_copper.png", "exists": True, "label": "Final front"},
+                        {"path": "board/reports/visual_review/3d_bottom.png", "exists": True, "label": "Final 3d bottom"},
+                        {"path": "board/reports/visual_review/3d_top.png", "exists": True, "label": "Final 3d top"},
                     ]},
                 }
             }
@@ -308,14 +310,15 @@ class BoardGraphHubTests(unittest.TestCase):
         items = board_graph_hub._collect_preview_images("src", view)
         paths = [i["path"] for i in items]
         self.assertEqual(paths, [
+            "board/reports/visual_review/3d_top.png",
+            "board/reports/visual_review/3d_bottom.png",
             "board/reports/visual_review/front_copper.png",
-            "board/reports/routing_batch/3d_top.png",
             "board/reports/routing_batch/back_copper_only.png",
         ])
         pre_routing = {"artifacts": {"cards": {"placement": view["artifacts"]["cards"]["placement"]}}}
         self.assertEqual(
             [i["path"] for i in board_graph_hub._collect_preview_images("src", pre_routing)],
-            ["board/reports/placement/render/front_copper.png", "board/reports/placement/render/3d_top.png"],
+            ["board/reports/placement/render/3d_top.png", "board/reports/placement/render/front_copper.png"],
         )
 
 
