@@ -1052,7 +1052,7 @@ def node_lines(node):
     return out
 
 
-def card_lines(track, node, at=None):
+def card_lines(track, node, at=None, autonomy=None):
     """The lines of where for an ordered track's position: the head (on, between or before the card, its stage,
     whom it waits on), how the track got here, who is on it or since when nobody is, then node_lines."""
     out = []
@@ -1083,7 +1083,7 @@ def card_lines(track, node, at=None):
     out.extend(f"  attempt ID: {item['run_id']}" for item in node["working"] if item.get("run_id"))
     if node["waiting_since"]:
         moves = ("a launch still owns the track" if track.get("launches") else
-                 f"it waits on {node['waiting_on']['who']}; the record that answers moves it"
+                 _bg().board_autonomy.wait_guidance({"autonomy": autonomy}, node["waiting_on"])
                  if node.get("waiting_on") else "next starts it")
         out.append(f"  nothing on it since {_bg().stamp(node['waiting_since'])} ({_bg().ago(node['waiting_since'], at)}): "
                    f"{moves}")
@@ -1121,7 +1121,7 @@ def render(view, at=None):
             out.append("")
             continue
         node = track["node"]
-        out.extend(_bg().card_lines(track, node, at))
+        out.extend(_bg().card_lines(track, node, at, autonomy=view.get("autonomy")))
         if track["transitions"]:
             out.append("  Last transitions:")
             for row in track["transitions"]:
@@ -1207,7 +1207,7 @@ def brief(graph, state, key, root=_bg().ROOT, at=None, starting=None):
                     waiting_since=None, on=True)
     out = _bg().board_autonomy.brief_header(graph, key, node["label"], node["who"], track["label"])
     if at_position:
-        out += _bg().card_lines(view, card, at)
+        out += _bg().card_lines(view, card, at, autonomy=_bg().board_autonomy.summary(graph))
         rows = view["transitions"]
     else:
         if track["ordered"]:

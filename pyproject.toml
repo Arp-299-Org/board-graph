@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "board-graph"
-version = "0.42.0"
+version = "0.42.1"
 description = "Shared board workflow engine and KiCad routing/validation CLI"
 license = {text = "MIT"}
 requires-python = ">=3.9"

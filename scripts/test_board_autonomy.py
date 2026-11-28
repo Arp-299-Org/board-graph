@@ -292,6 +292,32 @@ class BoardAutonomyTests(unittest.TestCase):
         self.assertIn("origin is a local repository", said)
         self.assertIn("pushed to origin", said)
 
+    def test_delegated_needs_lead_wait_guidance_render_and_brief_note(self) -> None:
+        _, sup_graph = _write_project(self.root / "sup")
+        sup_state = bg.State(self.root / "sup" / "state.sqlite3", self.root / "sup" / "records")
+        bg.record(sup_graph, sup_state, "decisions", "pass", "owner", "ok", evidence=["board/DECISIONS.md"], root=self.root / "sup")
+        bg.record(sup_graph, sup_state, "placement", "needs_lead", "agent:bot", "blocked", root=self.root / "sup")
+        # In supervised mode, needs_lead keeps the external-lead wait wording end to end through where/render.
+        sup_msg = board_autonomy.wait_guidance({"autonomy": None}, {"outcome": "needs_lead", "who": "the lead"})
+        self.assertEqual(sup_msg, "it waits on the lead; the record that answers moves it")
+        self.assertIn("it waits on the lead; the record that answers moves it", bg.render(bg.where(sup_graph, sup_state)))
+
+        # In delegated autonomous mode, wait_guidance, render(), and brief_note() identify the agent as delegated lead.
+        _, aut_graph = _write_project(
+            self.root / "aut",
+            autonomy={"mode": "delegated", "until": "quote_files", "authorized_by": "owner", "reason": "bench test"},
+        )
+        aut_owner_note = board_autonomy.brief_note(aut_graph, "placement")
+        self.assertIn("agent may pass this card", aut_owner_note)
+        aut_note = board_autonomy.brief_note(aut_graph, "quote_files")
+        self.assertIn("agent acts as delegated lead", aut_note)
+        aut_state = bg.State(self.root / "aut" / "state.sqlite3", self.root / "aut" / "records")
+        bg.record(aut_graph, aut_state, "decisions", "pass", "agent:codex", "ok", evidence=["board/DECISIONS.md"], root=self.root / "aut")
+        bg.record(aut_graph, aut_state, "placement", "needs_lead", "agent:codex", "collision", root=self.root / "aut")
+        rendered = bg.render(bg.where(aut_graph, aut_state))
+        self.assertIn("autonomous mode: you are the delegated lead", rendered)
+        self.assertNotIn("it waits on the lead; the record that answers moves it", rendered)
+
 
 if __name__ == "__main__":
     unittest.main()

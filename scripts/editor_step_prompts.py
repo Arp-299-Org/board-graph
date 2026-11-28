@@ -182,7 +182,9 @@ def mode_guidance(mode: str, python: str, scripts_prefix: str, pid: int, *, cent
             "`mac.py type`, `mac.py mouse`, editing menus, or routing/editing hotkeys in `ipc` mode, never call `create_items` directly, "
             "never write temporary Python wrapper scripts, and never edit `.kicad_pcb` directly. For visual framing you may use "
             "`mac.py look`, `mac.py windows`, `mac.py menu \"PCB Editor\" \"View\" \"Zoom to Fit\"`, or view-only keys (`Home`, `pageup`, `pagedown`). "
-            "If a wire cannot pass `kicad_lay.py` cleanly, stop so the runner records `needs_lead`.\n"
+            "If `kicad_lay.py` refuses a batch (`obstacle_collision`, `route_quality`, or DRC), read the exact collision/coordinates, "
+            "adjust your `\"steps\"` waypoints, layer, or via positions, and retry within your time window; "
+            "only stop for `needs_lead` if no legal path exists after adjusting geometry or if the tool itself crashes.\n"
             f"{_ipc_cheat_sheet(python, scripts_prefix, pid, centered=centered)}\n"
             f"  {ROUTE_QUALITY_SUMMARY}"
         )
@@ -194,7 +196,8 @@ def mode_guidance(mode: str, python: str, scripts_prefix: str, pid: int, *, cent
             f"`--mode shove` as needed), or GUI `X` via `{scripts_prefix}/mac.py` / `{scripts_prefix}/kicad_hover_key.py`. "
             "NEVER invoke `kicad_lay.py`, raw `create_items`, temporary Python wrapper scripts, or direct `.kicad_pcb` "
             "edits, and never change KiCad's global Preferences (such as grid snap). If "
-            f"`{scripts_prefix}/kicad_route.py` cannot lay a connection, stop so the runner records `needs_lead`.\n"
+            f"`{scripts_prefix}/kicad_route.py` refuses a route, adjust your waypoints, layer, or mode and retry within "
+            "your time window; only stop for `needs_lead` if no legal path exists after adjusting geometry or if the tool itself crashes.\n"
             f"  {ROUTE_QUALITY_SUMMARY}"
         )
     return (

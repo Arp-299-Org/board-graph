@@ -131,11 +131,31 @@ def banner(view: dict) -> str | None:
 
 
 def brief_note(graph, key: str) -> str | None:
-    """Explain delegation status on `brief` for a delegated owner card."""
-    if graph.nodes[key]["who"] == "owner" and is_delegated(graph, key):
-        until = config(graph)["until"]
+    """Explain delegation status on `brief` for a delegated owner or agent card."""
+    if not is_delegated(graph, key):
+        return None
+    until = config(graph)["until"]
+    if graph.nodes[key]["who"] == "owner":
         return f"  Autonomy: delegated through {until} (agent may pass this card; order always requires owner)"
+    if graph.nodes[key]["who"] == "agent":
+        return (
+            f"  Autonomy: delegated through {until} "
+            "(agent acts as delegated lead: self-heal genuine tool bugs via board-graph heal "
+            "and iterate routing retries without exiting)"
+        )
     return None
+
+
+def wait_guidance(view: dict, waiting_on: dict) -> str:
+    """Return status guidance when a card waits on an owner, skill, or lead."""
+    mode = (view.get("autonomy") or {}).get("mode")
+    if mode == "delegated" and waiting_on.get("outcome") == "needs_lead":
+        return (
+            "autonomous mode: you are the delegated lead; inspect the evidence, "
+            "self-heal any tool bug via board-graph heal, or revise the task and retry "
+            "(do not exit waiting on an external lead)"
+        )
+    return f"it waits on {waiting_on['who']}; the record that answers moves it"
 
 
 def render_header(view: dict, db_line: str | None) -> list[str]:

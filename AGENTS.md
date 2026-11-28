@@ -24,7 +24,12 @@ agent to choose in-stock parts, placement, and board tradeoffs up through that
 stop card without stopping for `needs_owner` (recording each delegated choice
 and its basis in the card's own files and card records rather than rewriting
 `board/DECISIONS.md` mid-run); `order` and anything beyond `autonomy.until`
-always require the owner.
+always require the owner. In `Mode: AUTONOMOUS`, the agent also acts as the
+delegated lead for `needs_lead`: never exit waiting on an external lead for
+routine routing retries (inspect the receipt, revise the task/geometry, and run
+the next batch) or genuine `board-graph` tool bugs (run the 6-card
+`board-graph heal` loop and resume the board); stop only at `order` or an
+unrecoverable hardware/infrastructure blocker.
 
 ## Honesty
 
@@ -44,14 +49,17 @@ wrong while doing something else, say so with the file and line.
   other command names its board: `--board <name>`.
   Work the graph has no card for is first a change to the graph, brought to
   the owner. `docs/BOARD_PIPELINE_CONTRACT.md` says how the graph runs.
-- **A card that does not work (and enforced self-healing).** When a card's script or
-  tool crashes or breaks, stop. Record `needs_lead` with what it said, word for
-  word, and tell the owner in plain words what failed. Never do the card's work
-  another way, with another tool or by hand, and never record it as done. Never
-  propose a replacement for a tool the owner chose (another router, a script
-  in its place). Say what was done by its true name: copper a script wrote
-  is not "routed by hand". Never write a note or a memory that tells a later
-  session to avoid a card or its tool.
+- **A card that does not work (and enforced self-healing).** In supervised mode,
+  when a card's script or tool crashes or breaks, stop, record `needs_lead` with
+  what it said word for word, and tell the owner in plain words what failed. In
+  `Mode: AUTONOMOUS` (`autonomy.mode == "delegated"`), act as the delegated lead
+  instead of exiting: self-heal genuine `board-graph` tool bugs through
+  `board-graph heal` and iterate routing retries cleanly. Never do a broken
+  card's work another way, with another tool or by hand, and never record it as
+  done. Never propose a replacement for a tool the owner chose (another router,
+  a script in its place). Say what was done by its true name: copper a script
+  wrote is not "routed by hand". Never write a note or a memory that tells a
+  later session to avoid a card or its tool.
   When fixing a genuine tool or Linux/macOS bug in an editable `board-graph`
   checkout (`dev/tool_dev.py` present), **self-healing goes through the 6-card
   tool workflow** (`board-graph heal start <slug> --from-card <node>`, walking

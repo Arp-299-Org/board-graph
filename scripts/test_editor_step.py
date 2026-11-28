@@ -2322,6 +2322,15 @@ class ReviewAnswerFormat(unittest.TestCase):
         self.assertEqual(routing_evidence.review_findings([], "MUST FIX: none.\n" + body, pads=pads),
                          ["MUST FIX: none."])
 
+    def test_mode_guidance_instructs_worker_to_retry_with_adjusted_geometry_before_needs_lead(self):
+        import editor_step_prompts
+        ipc = editor_step_prompts.mode_guidance("ipc", "python", "/opt/bg/scripts", 123)
+        self.assertIn("adjust your `\"steps\"` waypoints", ipc)
+        self.assertIn("only stop for `needs_lead`", ipc)
+        inter = editor_step_prompts.mode_guidance("interactive", "python", "/opt/bg/scripts", 123)
+        self.assertIn("adjust your waypoints, layer, or mode and retry", inter)
+        self.assertIn("only stop for `needs_lead`", inter)
+
 
 if __name__ == "__main__":
     unittest.main()

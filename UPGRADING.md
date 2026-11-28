@@ -8,6 +8,25 @@ between your old version and the new one before upgrading to see whether any
 project-owned files need updates. A release that asks nothing of a project
 still has a section saying so.
 
+## 0.42.1
+
+Nothing has to change in existing projects already initialized with
+`board-graph init` (pulling `AGENTS.md` and `tools/board_graph.json` brings in
+updated autonomous lead-loop text). Engine changes:
+
+- **IPC/interactive worker retry on obstacle/quality refusal:**
+  `scripts/editor_step_prompts.py` now instructs routing workers in both `ipc`
+  and `interactive` modes to read `obstacle_collision` / `route_quality` / DRC
+  refusals, adjust waypoints, layer, or vias, and retry within their window
+  before stopping for `needs_lead`.
+- **Autonomous `needs_lead` delegated lead guidance:**
+  `scripts/board_autonomy.py` (`wait_guidance`, `brief_note`),
+  `scripts/board_graph_workspace.py`, `scripts/board_graph.py`,
+  `scripts/board_heal.py`, `AGENTS.md`, and `tools/board_graph.json` now clarify
+  that in `Mode: AUTONOMOUS` (`autonomy.mode == "delegated"`), the agent acts
+  as the delegated lead to self-heal genuine tool bugs via `board-graph heal`
+  and iterate routing retries rather than exiting.
+
 ## 0.42.0
 
 Nothing has to change in existing projects already initialized with

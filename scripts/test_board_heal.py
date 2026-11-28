@@ -95,6 +95,13 @@ class BoardHealTests(unittest.TestCase):
         self.assertIsNotNone(hint)
         self.assertIn("board-graph heal start fix-routing_batch --from-card routing_batch", hint)
 
+        aut_hint = board_heal.needs_lead_hint({
+            "autonomy": {"mode": "delegated"},
+            "tracks": [{"node": {"id": "routing_batch", "last": {"outcome": "needs_lead"}}}],
+        })
+        self.assertIsNotNone(aut_hint)
+        self.assertIn("do not exit waiting on an external lead", aut_hint)
+
         fake_state = mock.MagicMock()
         fake_where = {"path": pathlib.Path("state.sqlite3"), "how": "local", "view": pathlib.Path("tools/board_graph_view")}
         with mock.patch.object(routing_run.board_graph, "Graph", return_value="G"), \

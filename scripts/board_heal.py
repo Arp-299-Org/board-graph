@@ -279,17 +279,26 @@ def check_tool_heal_gate(
 
 
 def needs_lead_hint(where_view: dict, tool_root: pathlib.Path | None = None) -> str | None:
-    """Return a clear self-healing instruction line when a track stands on `needs_lead`."""
-    if not tool_dev_available(tool_root):
+    """Return a clear self-healing or delegated-lead hint when a track stands on `needs_lead`."""
+    delegated = (where_view.get("autonomy") or {}).get("mode") == "delegated"
+    has_dev = tool_dev_available(tool_root)
+    if not delegated and not has_dev:
         return None
     for tr in where_view.get("tracks") or []:
         node = tr.get("node") or {}
         last = node.get("last") or {}
         if last.get("outcome") == "needs_lead":
             nid = node.get("id") or "card"
+            heal_cmd = f"'board-graph heal start fix-{nid} --from-card {nid}'"
+            if delegated:
+                tool_part = f"If it is a board-graph tool bug, run {heal_cmd}; otherwise" if has_dev else "Otherwise"
+                return (
+                    f"Autonomous lead: {nid} recorded needs_lead (do not exit waiting on an external lead). "
+                    f"{tool_part} inspect the receipt, adjust the task, and run the next batch as the delegated lead."
+                )
             return (
                 f"Self-heal: {nid} stopped on needs_lead. If this is a board-graph tool bug, run "
-                f"'board-graph heal start fix-{nid} --from-card {nid}' to walk the 6-card fixing board."
+                f"{heal_cmd} to walk the 6-card fixing board."
             )
     return None
 
