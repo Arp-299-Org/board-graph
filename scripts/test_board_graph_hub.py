@@ -287,6 +287,37 @@ class BoardGraphHubTests(unittest.TestCase):
             done = subprocess.run([node, "--check", str(js_file)], capture_output=True, text=True, check=False)
             self.assertEqual(done.returncode, 0, f"{label} JS syntax error:\n{done.stderr}")
 
+    def test_preview_images_prioritize_routed_views_and_dedupe_basenames(self) -> None:
+        view = {
+            "artifacts": {
+                "cards": {
+                    "placement": {"items": [
+                        {"path": "board/reports/placement/render/front_copper.png", "exists": True, "label": "Unrouted front"},
+                        {"path": "board/reports/placement/render/3d_top.png", "exists": True, "label": "Unrouted 3d"},
+                    ]},
+                    "routing_batch": {"items": [
+                        {"path": "board/reports/routing_batch/back_copper_only.png", "exists": True, "label": "Back only"},
+                        {"path": "board/reports/routing_batch/3d_top.png", "exists": True, "label": "Routed 3d"},
+                    ]},
+                    "visual_review": {"items": [
+                        {"path": "board/reports/visual_review/front_copper.png", "exists": True, "label": "Final front"},
+                    ]},
+                }
+            }
+        }
+        items = board_graph_hub._collect_preview_images("src", view)
+        paths = [i["path"] for i in items]
+        self.assertEqual(paths, [
+            "board/reports/visual_review/front_copper.png",
+            "board/reports/routing_batch/3d_top.png",
+            "board/reports/routing_batch/back_copper_only.png",
+        ])
+        pre_routing = {"artifacts": {"cards": {"placement": view["artifacts"]["cards"]["placement"]}}}
+        self.assertEqual(
+            [i["path"] for i in board_graph_hub._collect_preview_images("src", pre_routing)],
+            ["board/reports/placement/render/front_copper.png", "board/reports/placement/render/3d_top.png"],
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

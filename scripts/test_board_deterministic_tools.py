@@ -26,12 +26,17 @@ import board_bom_export  # noqa: E402
 import board_graph  # noqa: E402
 import board_graph_actions  # noqa: E402
 import board_graph_cli  # noqa: E402
+import board_kicad_preset  # noqa: E402
+import board_make_step  # noqa: E402
 import board_part_fetch  # noqa: E402
 import board_part_search  # noqa: E402
 import board_placement_snapshot  # noqa: E402
 import board_pre_schematic  # noqa: E402
 import board_quote_package  # noqa: E402
 import board_sync_models  # noqa: E402
+import board_sync_pcb  # noqa: E402
+import board_verify_prepare  # noqa: E402
+import kicad_report_freshness  # noqa: E402
 import run_board_checks  # noqa: E402
 
 
@@ -48,8 +53,11 @@ class DeterministicToolsTests(unittest.TestCase):
             ("part-search", "scripts/board_part_search.py"),
             ("part-fetch", "scripts/board_part_fetch.py"),
             ("export-bom", "scripts/board_bom_export.py"),
+            ("sync-pcb", "scripts/board_sync_pcb.py"),
+            ("make-step", "scripts/board_make_step.py"),
             ("sync-models", "scripts/board_sync_models.py"),
             ("placement-snapshot", "scripts/board_placement_snapshot.py"),
+            ("verify-prepare", "scripts/board_verify_prepare.py"),
             ("quote-package", "scripts/board_quote_package.py"),
         ):
             self.assertEqual(board_graph_cli.SUBCOMMANDS[cmd], script)
@@ -349,6 +357,82 @@ class DeterministicToolsTests(unittest.TestCase):
         self.assertEqual(len(findings), 2)
         self.assertIn("silk_overlap", findings[0])
         self.assertIn("silk_over_copper", findings[1])
+
+    def test_sync_pcb_netlist_and_fp_lib_table_parsing(self) -> None:
+        netlist = """(export (version "E")
+  (components
+    (comp (ref "J1") (value "MJ56881") (footprint "rj45_breakout:RJ45_SMD")
+      (fields (field (name "Manufacturer") "Heling") (field (name "Supplier Part") "C501473")))
+    (comp (ref "H1") (value "M3") (footprint "rj45_breakout:M3") (property (name "Description") (value "hole"))))
+  (nets
+    (net (code "1") (name "/PIN1") (node (ref "J1") (pin "1")))
+    (net (code "2") (name "unconnected-(H1-Pad1)") (node (ref "H1") (pin "1")))))"""
+        sch = """(kicad_sch (version 20250114)
+  (symbol (lib_id "Conn:J") (at 10 10 0)
+    (property "Reference" "J1") (property "Value" "MJ56881-B011")
+    (property "Manufacturer Part" "MJ56881-B011-HLRN1-C") (property "Supplier" "LCSC"))
+  (symbol (lib_id "Mech:M3") (at 20 10 0) (in_bom no)
+    (property "Reference" "H1") (property "Value" "M3")))"""
+        parsed = board_sync_pcb.parse_netlist(netlist, sch)
+        by_ref = {c["ref"]: c for c in parsed["components"]}
+        self.assertEqual(by_ref["J1"]["value"], "MJ56881-B011")
+        self.assertEqual(by_ref["J1"]["fields"]["LCSC Part #"], "C501473")
+        self.assertEqual(by_ref["J1"]["fields"]["Manufacturer Part"], "MJ56881-B011-HLRN1-C")
+        self.assertTrue(by_ref["H1"]["exclude_from_bom"])
+        self.assertEqual(parsed["nets"]["/PIN1"], [["J1", "1"]])
+
+        tbl = self.root / "board" / "fp-lib-table"
+        tbl.parent.mkdir(parents=True)
+        tbl.write_text('(fp_lib_table (lib (name "rj45_breakout") (type "KiCad") (uri "${KIPRJMOD}/rj45_breakout.pretty")))')
+        libs = board_sync_pcb.parse_fp_lib_table(tbl, tbl.parent)
+        self.assertEqual(libs["rj45_breakout"], (tbl.parent / "rj45_breakout.pretty").resolve())
+
+    def test_verify_prepare_stamps_checks_and_exclusions_fresh(self) -> None:
+        board = self.root / "board" / "b.kicad_pcb"
+        board.parent.mkdir(parents=True)
+        board.write_text("(kicad_pcb (version 20260306))\n", encoding="utf-8")
+        checks_dir = self.root / "board" / "reports" / "verification" / "checks"
+        checks_dir.mkdir(parents=True)
+        (checks_dir / "summary.json").write_text('{"pass": true}\n', encoding="utf-8")
+        (checks_dir / "summary.md").write_text("# Summary\n", encoding="utf-8")
+        excl = self.root / "board" / "reports" / "documented-drc-exclusions.json"
+        res = board_verify_prepare.stamp_verification_outputs(checks_dir, excl, board)
+        self.assertEqual(res["stamped_checks"], ["summary.json", "summary.md"])
+        self.assertEqual(kicad_report_freshness.classify(checks_dir, board), {"summary.json": "fresh", "summary.md": "fresh"})
+        self.assertEqual(kicad_report_freshness.classify(excl.parent, board)[excl.name], "fresh")
+
+    def test_kicad_preset_make_step_and_datasheet_render(self) -> None:
+        written = board_kicad_preset.write_kicad_presets(self.root, "demo", "jlcpcb-2layer")
+        self.assertEqual(len(written), 3)
+        pro = json.loads((self.root / "board" / "demo.kicad_pro").read_text(encoding="utf-8"))
+        self.assertEqual(pro["board"]["design_settings"]["rules"]["min_text_height"], 1.0)
+        self.assertIn("(version 1)", (self.root / "board" / "demo.kicad_dru").read_text(encoding="utf-8"))
+        self.assertEqual(board_kicad_preset.write_kicad_presets(self.root, "demo", "jlcpcb-2layer"), [])
+
+        step_txt = board_make_step.build_step_from_spec(
+            "TEST_PART",
+            [{"type": "box", "size": [10.0, 8.0, 5.0], "color": "black"}],
+            project_name="Demo",
+        )
+        self.assertTrue(step_txt.startswith("ISO-10303-21;"))
+        self.assertIn("PRODUCT('TEST_PART'", step_txt)
+
+        pdf = self.root / "part.pdf"
+        pdf.write_bytes(b"%PDF-1.4\n")
+        out_dir = self.root / "views"
+        no_tools = board_part_fetch.render_datasheet(pdf, out_dir, which=lambda _: None)
+        self.assertEqual(no_tools["pages"], [])
+
+        def fake_run(cmd, **kwargs):
+            if "pdftotext" in cmd[0]:
+                pathlib.Path(cmd[-1]).write_text("HEIGHT 12.5mm\n", encoding="utf-8")
+            elif "pdftoppm" in cmd[0]:
+                pathlib.Path(f"{cmd[-1]}-1.png").write_bytes(b"PNG")
+            return types.SimpleNamespace(returncode=0)
+
+        with_tools = board_part_fetch.render_datasheet(pdf, out_dir, which=lambda n: f"/usr/bin/{n}", run=fake_run)
+        self.assertEqual(with_tools["text"], "part.txt")
+        self.assertEqual(with_tools["pages"], ["part_p-1.png"])
 
 
 if __name__ == "__main__":

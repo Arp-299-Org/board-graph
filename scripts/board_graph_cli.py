@@ -44,8 +44,11 @@ SUBCOMMANDS = {
     "part-search": "scripts/board_part_search.py",
     "part-fetch": "scripts/board_part_fetch.py",
     "export-bom": "scripts/board_bom_export.py",
+    "sync-pcb": "scripts/board_sync_pcb.py",
+    "make-step": "scripts/board_make_step.py",
     "sync-models": "scripts/board_sync_models.py",
     "placement-snapshot": "scripts/board_placement_snapshot.py",
+    "verify-prepare": "scripts/board_verify_prepare.py",
     "quote-package": "scripts/board_quote_package.py",
 }
 TOOL_ROOT_COMMANDS = frozenset({"check", "update", "starter", "unvendor"})
@@ -59,10 +62,11 @@ VALUE_FLAGS = frozenset({
     "--review-model", "--provider", "--review-provider", "--effort", "--agent",
     "--branch", "--tokens", "--reason", "--prompt", "--after", "--board-description",
     "--board-name", "--project-title", "--source", "--config", "--bind", "--port", "--started-at",
-    "--lcsc", "--planning-qty", "--render-dir", "--quality", "--listings", "--parts", "--datasheets-dir",
+    "--lcsc", "--planning-qty", "--render-dir", "--quality", "--listings", "--parts", "--datasheets-dir", "--dpi",
     "--query", "--limit", "--min-stock", "--models-dir", "--min-silk-height", "--min-silk-thickness",
     "--mac-tool-checkout", "--mac-tree", "--mac-steps", "--ref", "--version", "--root", "--skip",
     "--track", "--node", "--output", "--json", "--timeout", "--exclusions", "--production", "--base-name", "--name",
+    "--fab", "--spec", "--size", "--offset", "--color", "--sch", "--board",
 })
 
 
@@ -73,7 +77,7 @@ def usage(out=None) -> None:
         "For multi-board repos, --board NAME works before or after the command\n"
         "(where, next, record, check, route, validate, run-checks, view, board-description).\n\n"
         "Commands (run against the active project):\n"
-        "  init [--skip PATH ...] [--board-name SLUG] [--project-title TITLE] [--model NAME] [--autonomous [--until CARD] [--reason TEXT]]\n"
+        "  init [--skip PATH ...] [--board-name SLUG] [--project-title TITLE] [--model NAME] [--fab PRESET] [--autonomous [--until CARD] [--reason TEXT]]\n"
         "                         copy starter files, .gitattributes, and .gitignore into this folder\n"
         "  version                print installed board-graph version and location\n"
         "  where, next, record, brief, settle, check, graph, approvals, checks\n"
@@ -99,8 +103,11 @@ def usage(out=None) -> None:
         "  part-search ...        scripts/board_part_search.py (search in-stock JLCPCB SMT parts)\n"
         "  part-fetch ...         scripts/board_part_fetch.py (JLCPCB stock & datasheets)\n"
         "  export-bom ...         scripts/board_bom_export.py (export & validate schematic BOM CSV)\n"
+        "  sync-pcb ...           scripts/board_sync_pcb.py (sync schematic netlist/fields into PCB offline)\n"
+        "  make-step ...          scripts/board_make_step.py (parametric STEP 3D model generator)\n"
         "  sync-models ...        scripts/board_sync_models.py (attach STEP models & sync .pretty/ offline)\n"
         "  placement-snapshot ... scripts/board_placement_snapshot.py (normalize, check silkscreen, snapshot & render)\n"
+        "  verify-prepare ...     scripts/board_verify_prepare.py (run checks & stamp reports + exclusions)\n"
         "  quote-package ...      scripts/board_quote_package.py (Gerbers, IPC netlist, BOM/CPL, checksums)\n"
         "  help                   show this message\n"
     )
@@ -228,14 +235,15 @@ def _run_version() -> int:
     return 0
 
 
-def _split_init_args(tail: list[str]) -> tuple[bool, str, str, str | None, str | None, str | None, list[str]]:
-    """Extract init options (--autonomous/--until/--reason/--board-name/--project-title/--model) and forward rest."""
+def _split_init_args(tail: list[str]) -> tuple[bool, str, str, str | None, str | None, str | None, str | None, list[str]]:
+    """Extract init options (--autonomous/--until/--reason/--board-name/--project-title/--model/--fab) and rest."""
     autonomous = False
     until = "quote_files"
     reason = "Autonomous run authorized via board-graph init --autonomous"
     board_name: str | None = None
     project_title: str | None = None
     model_name: str | None = None
+    fab_preset: str | None = None
     forwarded: list[str] = []
     i = 0
     while i < len(tail):
@@ -243,7 +251,7 @@ def _split_init_args(tail: list[str]) -> tuple[bool, str, str, str | None, str |
         if word == "--autonomous":
             autonomous = True
             i += 1
-        elif word in ("--until", "--reason", "--board-name", "--project-title", "--model"):
+        elif word in ("--until", "--reason", "--board-name", "--project-title", "--model", "--fab"):
             if i + 1 >= len(tail) or not tail[i + 1].strip():
                 raise ValueError(f"{word} requires a value")
             val = tail[i + 1]
@@ -255,10 +263,12 @@ def _split_init_args(tail: list[str]) -> tuple[bool, str, str, str | None, str |
                 board_name = val
             elif word == "--project-title":
                 project_title = val
-            else:
+            elif word == "--model":
                 model_name = val
+            else:
+                fab_preset = val
             i += 2
-        elif word.startswith(("--until=", "--reason=", "--board-name=", "--project-title=", "--model=")):
+        elif word.startswith(("--until=", "--reason=", "--board-name=", "--project-title=", "--model=", "--fab=")):
             flag, val = word.split("=", 1)
             if not val.strip():
                 raise ValueError(f"{flag} requires a value")
@@ -270,13 +280,15 @@ def _split_init_args(tail: list[str]) -> tuple[bool, str, str, str | None, str |
                 board_name = val
             elif flag == "--project-title":
                 project_title = val
-            else:
+            elif flag == "--model":
                 model_name = val
+            else:
+                fab_preset = val
             i += 1
         else:
             forwarded.append(word)
             i += 1
-    return autonomous, until, reason, board_name, project_title, model_name, forwarded
+    return autonomous, until, reason, board_name, project_title, model_name, fab_preset, forwarded
 
 
 def _rewrite_example_value(value, board_name: str):
@@ -386,10 +398,15 @@ def _seed_exclusions_file(target: pathlib.Path) -> None:
 def _run_init(explicit_project: pathlib.Path | None, tail: list[str]) -> int:
     """Scaffold starter project files, .gitattributes, and .gitignore into target directory."""
     try:
-        autonomous, until, reason, board_name, project_title, model_name, starter_args = _split_init_args(tail)
+        autonomous, until, reason, board_name, project_title, model_name, fab_preset, starter_args = _split_init_args(tail)
     except ValueError as error:
         print(f"board-graph: {error}", file=sys.stderr)
         return 2
+    if fab_preset is not None:
+        import board_kicad_preset
+        if fab_preset not in board_kicad_preset.FAB_PRESETS:
+            print(f"board-graph: unsupported --fab {fab_preset!r}; choose {', '.join(board_kicad_preset.FAB_PRESETS)}", file=sys.stderr)
+            return 2
     if autonomous:
         import board_autonomy
         if until in board_autonomy.NEVER_DELEGATED:
@@ -404,6 +421,10 @@ def _run_init(explicit_project: pathlib.Path | None, tail: list[str]) -> int:
     if identity_err:
         print(f"board-graph: {identity_err}", file=sys.stderr)
         return 2
+    if fab_preset is not None:
+        import board_kicad_preset
+        for written in board_kicad_preset.write_kicad_presets(target, board_name or "example", fab_preset):
+            print(f"  wrote {written} ({fab_preset} preset)")
     _seed_exclusions_file(target)
     if autonomous:
         err = _enable_autonomous(target, until, reason)

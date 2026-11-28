@@ -148,7 +148,7 @@
       "stage": "requirements",
       "label": "Parts & stock",
       "who": "agent",
-      "task": "Choose exact in-stock factory parts for the design and verify supply before schematic work. Use `board-graph part-search --query \"<terms>\"` to find in-stock SMT candidates, then run `board-graph part-fetch --lcsc <ID>` for each chosen part to record dated listings (`board/reports/stock/listings.json`) and datasheet metadata (`hardware/reference/parts.json`); record delegated part selections in those files rather than rewriting `board/DECISIONS.md` mid-run. When recording `stock` pass, cite `board/reports/stock/listings.json` (do NOT cite `hardware/reference/parts.json` on `stock`, because `datasheets` updates `parts.json` with heights). For a shortage or preorder, record the owner's accepted plan in the owner's words; a plan is not confirmed fulfillment.",
+      "task": "Choose exact in-stock factory parts for the design and verify supply before schematic work. Use `board-graph part-search --query \"<terms>\"` to find in-stock SMT candidates, then run `board-graph part-fetch --lcsc <ID> --render` for each chosen part to record dated listings (`board/reports/stock/listings.json`), download datasheets, and render page PNGs/text; record delegated part selections in those files rather than rewriting `board/DECISIONS.md` mid-run. When recording `stock` pass, cite `board/reports/stock/listings.json` (do NOT cite `hardware/reference/parts.json` on `stock`, because `datasheets` updates `parts.json` with heights). For a shortage or preorder, record the owner's accepted plan in the owner's words; a plan is not confirmed fulfillment.",
       "pass_when": "Every intended factory part has a dated in-stock listing at most 30 days old in board/reports/stock/listings.json; any shortage has an owner-accepted plan.",
       "docs": [
         "board/DECISIONS.md"
@@ -196,7 +196,7 @@
       "stage": "schematic",
       "label": "Schematic",
       "who": "agent",
-      "task": "The parts and connections, built from the selected in-stock parts and datasheets. Keep the schematic the source: the board is updated from it. Every fitted symbol and board footprint must set `Reference`, `Value`, `Manufacturer`, `Manufacturer Part` (or `MPN`), `Supplier`, `Supplier Part` (plus `LCSC Part #` on factory SMD footprints matching `Supplier Part`). Run `board-graph export-bom` to write and validate the grouped BOM CSV (`Refs,Qty,Value,Manufacturer,MPN,Supplier,Supplier Part`). As the card starts, its script runs KiCad's ERC on the saved schematic and reports every error and warning. Render the pages and run the schematic critic; resolve each finding or decline it with a reason. Cite only immutable schematic artifacts in approval evidence (not mutable `.kicad_pcb` files). On a new board, this card ends with the files the next cards read: the rules file, the board made by the first update from the schematic, and the first BOM and schematic exports.",
+      "task": "The parts and connections, built from selected in-stock parts and datasheets. Keep the schematic the source and set every fitted symbol's `Reference`, `Value`, `Manufacturer`, `Manufacturer Part`/`MPN`, `Supplier`, and `Supplier Part`. Use `board-graph sync-pcb --export-bom` to push the netlist, footprints, fields (`LCSC Part #`), and nets cleanly into `.kicad_pcb` offline (never click KiCad GUI menus with xdotool) and write the grouped BOM CSV (`Refs,Qty,Value,Manufacturer,MPN,Supplier,Supplier Part`). Next's script runs KiCad's ERC. Render pages and run the schematic critic; resolve or decline each finding with a reason. Cite only immutable schematic artifacts in approval evidence. On a new board, end with the rules file, synced PCB, BOM, and schematic exports.",
       "pass_when": "ERC reports 0 errors and 0 warnings; schematic critic findings are resolved; the pages read cleanly: signal left to right, power up, ground down, net labels instead of long crossing wires.",
       "docs": [
         "board/DECISIONS.md",
@@ -262,7 +262,7 @@
       "stage": "footprints",
       "label": "Models",
       "who": "agent",
-      "task": "Every part's 3D model loads, and its top matches the datasheet height. Make or check the model against the datasheet, attach the STEP file cleanly via `board-graph sync-models` (offline pcbnew + library sync, avoiding KiCad GUI 'Loading Footprint Libraries' races), and verify with the models check.",
+      "task": "Every part's 3D model loads, and its top matches the datasheet height. Make or check the model against the datasheet (use `board-graph make-step --spec <spec.json> --sync` or `board-graph sync-models` to build AP214 STEP prisms and attach + sync `.pretty/` offline, avoiding KiCad GUI 'Loading Footprint Libraries' races), and verify with the models check.",
       "pass_when": "Every part's 3D model loads and its top is within 0.3 mm of the datasheet height.",
       "owns": [
         "board/models"
@@ -429,7 +429,7 @@
       "label": "Verification",
       "pass_check": "freshness",
       "who": "agent",
-      "task": "Reconcile active contracts, scripts and critic rubrics against the finished design. Close every open issue that names this node. Run fresh checks into <reports>/verification/checks (scripts/validate_board.py --out) and stamp every report there against this board's hash (scripts/kicad_report_freshness.py stamp). Before recording pass, the graph checks the stamps and the independent review receipt. An independent review reproduces the checks from the files, not the reports. Cite the independent-review receipt for the current schematic and board and the reproduced reports.",
+      "task": "Reconcile active contracts, scripts and critic rubrics against the finished design. Close every open issue naming this node. Run `board-graph verify-prepare` to execute fresh `validate_board.py --out <reports>/verification/checks` checks, refresh `documented-drc-exclusions.json`, and stamp every report against this board's hash. Before recording pass, the graph checks the stamps and the independent review receipt, which reproduces the checks from the source files (not reports). Cite the independent-review receipt for the current schematic and board and the reproduced reports.",
       "pass_when": "Every open issue naming verification is closed; all reports are fresh against this board's hash; the independent review reproduces the checks.",
       "docs": [
         "board/ELECTRICAL_AUDIT_CONTRACT.md",

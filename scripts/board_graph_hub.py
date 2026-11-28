@@ -87,12 +87,12 @@ HUB_HTML = """<!doctype html>
   @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.35; } }
   .chip-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--copper-soft); animation: pulse 1.4s infinite; }
   .later-note { font-size: 11px; color: var(--ink-3); font-family: var(--mono); padding: 0 4px; }
-  .thumbs { display: flex; flex-wrap: nowrap; overflow-x: auto; gap: 8px; padding-top: 2px; }
-  .thumb-btn { flex: none; display: flex; flex-direction: column; gap: 3px; padding: 4px; border-radius: 6px;
+  .thumbs { display: flex; flex-wrap: nowrap; overflow-x: auto; gap: 10px; padding-top: 4px; }
+  .thumb-btn { flex: none; display: flex; flex-direction: column; gap: 4px; padding: 6px; border-radius: 7px;
                border: 1px solid var(--hair); background: #0d0d11; }
   .thumb-btn:hover { border-color: var(--copper); }
-  .thumb-btn img { height: 76px; width: auto; max-width: 150px; object-fit: contain; border-radius: 4px; background: #070709; display: block; }
-  .thumb-btn span { font-size: 10px; color: var(--ink-3); font-family: var(--mono); max-width: 145px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: left; }
+  .thumb-btn img { height: 156px; width: auto; max-width: 280px; object-fit: contain; border-radius: 5px; background: #070709; display: block; }
+  .thumb-btn span { font-size: 11px; color: var(--ink-2); font-family: var(--mono); max-width: 268px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: left; }
   .err-line { font-size: 11.5px; color: var(--red); background: var(--red-bg); border: 1px solid rgba(244,63,94,0.45); border-radius: 5px; padding: 5px 8px; }
   .tool-note { font-size: 11px; color: var(--ink-3); font-family: var(--mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .drawer-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.58); z-index: 30; display: none; }
@@ -483,7 +483,7 @@ HUB_HTML = """<!doctype html>
         const dot = pulsing ? '<span class="chip-dot"></span>' : '';
         return `<button class="chip ${cls}" type="button" title="${esc(c.label + ': ' + stText)}" data-src="${esc(src.name)}" data-node="${esc(c.id)}">${dot}<span>${esc(c.label)}</span></button>`;
       }).join('') + (hidden ? `<span class="later-note">+${hidden} later</span>` : '');
-      const previews = (src.preview_images || []).slice(0, 5);
+      const previews = (src.preview_images || []).slice(0, 6);
       const thumbsHtml = previews.length
         ? `<div class="thumbs">${previews.map((p, idx) => `<button class="thumb-btn" type="button" data-pcb-src="${esc(src.name)}" data-pcb-idx="${idx + 1}"><img src="${esc(p.url)}" alt="${esc(p.label)}"><span>${esc(p.label)}</span></button>`).join('')}</div>`
         : '';
@@ -639,28 +639,38 @@ def fetch_source_view(src: dict, timeout: float = 3.0) -> dict:
         return json.loads(resp.read().decode("utf-8"))
 
 
+ROUTED_PREVIEW_CARDS = ("visual_review", "routing_batch", "verification", "quote_files")
+HERO_VIEW_ORDER = {
+    "front_copper.png": 0, "3d_top.png": 1, "3d_bottom.png": 2,
+    "all_copper_stack.png": 3, "front_silk_and_mask.png": 4, "back_copper.png": 5, "back_silk_and_mask.png": 6,
+}
+
+
 def _collect_preview_images(src_name: str, view: dict) -> list[dict]:
-    """Extract existing PNG artifacts from view.json, prioritizing routing_batch then placement."""
+    """Return routed PCB PNGs first (preferring final visual_review/routing_batch over unrouted placement)."""
     cards = ((view.get("artifacts") or {}).get("cards") or {})
-    priority = {"routing_batch": 0, "placement": 1}
-    ordered_ids = sorted(cards.keys(), key=lambda cid: (priority.get(cid, 2), cid))
+    routed_sets = [cid for cid in ROUTED_PREVIEW_CARDS if any(
+        str(i.get("path") or "").lower().endswith(".png") and i.get("exists")
+        for i in ((cards.get(cid) or {}).get("items") or [])
+    )]
+    ordered_ids = routed_sets or [cid for cid in ("placement", *sorted(cards.keys())) if cid in cards]
     encoded_src = urllib.parse.quote(src_name, safe="")
-    out: list[dict] = []
-    seen_paths: set[str] = set()
+    out, seen_names = [], set()
     for cid in ordered_ids:
-        items = (cards.get(cid) or {}).get("items") or []
+        items = sorted(
+            (i for i in ((cards.get(cid) or {}).get("items") or [])
+             if str(i.get("path") or "").lower().endswith(".png") and i.get("exists")),
+            key=lambda i: (HERO_VIEW_ORDER.get(pathlib.PurePosixPath(i["path"]).name.lower(), 50), i["path"].lower()),
+        )
         for item in items:
-            rel = str(item.get("path") or "").lstrip("/")
-            if not rel or not rel.lower().endswith(".png") or not item.get("exists") or rel in seen_paths:
+            rel = str(item["path"]).lstrip("/")
+            base = pathlib.PurePosixPath(rel).name.lower()
+            if base in seen_names:
                 continue
-            seen_paths.add(rel)
+            seen_names.add(base)
             encoded_rel = "/".join(urllib.parse.quote(part, safe="") for part in rel.split("/"))
-            out.append({
-                "card": cid,
-                "label": item.get("label") or pathlib.PurePosixPath(rel).name,
-                "path": rel,
-                "url": f"/api/source/{encoded_src}/files/{encoded_rel}",
-            })
+            out.append({"card": cid, "label": item.get("label") or base, "path": rel,
+                        "url": f"/api/source/{encoded_src}/files/{encoded_rel}"})
     return out
 
 

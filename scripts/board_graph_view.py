@@ -641,16 +641,16 @@ def artifacts(graph, state, root=ROOT):
 
         def add_folder_files(dir_rel, exts=VIEWABLE_REPORT_EXTS, primary_first=False):
             clean_dir = _safe_rel(dir_rel)
-            if not clean_dir or not (root_path / clean_dir).is_dir():
+            base_dir = root_path / clean_dir if clean_dir else None
+            if not base_dir or not base_dir.is_dir():
                 return 0
+            entries = list(base_dir.iterdir()) + [sub for d in base_dir.iterdir() if d.is_dir() and not d.name.startswith(".") for sub in d.iterdir()]
             found = 0
-            children = sorted((root_path / clean_dir).iterdir(),
-                              key=lambda p: (p.suffix.lower() not in (".pdf", ".png", ".jpg", ".zip", ".md", ".csv"),
-                                             p.name.lower()))
+            children = sorted((p for p in entries if p.is_file() and not p.name.startswith(".") and p.suffix.lower() in exts),
+                              key=lambda p: (p.parent != base_dir, p.suffix.lower() not in (".pdf", ".png", ".jpg", ".zip", ".md", ".csv"), p.relative_to(base_dir).as_posix().lower()))
             for child in children:
-                if child.is_file() and not child.name.startswith(".") and child.suffix.lower() in exts:
-                    add(f"{clean_dir}/{child.name}", primary=(primary_first and found == 0))
-                    found += 1
+                add(f"{clean_dir}/{child.relative_to(base_dir).as_posix()}", primary=(primary_first and found == 0))
+                found += 1
             return found
 
         if desc is None:

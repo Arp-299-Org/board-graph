@@ -7,6 +7,8 @@ import datetime
 import json
 import pathlib
 import re
+import shutil
+import subprocess
 import sys
 import time
 import urllib.error
@@ -19,6 +21,7 @@ if str(HERE) not in sys.path:
 
 import board_description  # noqa: E402
 import tool_paths  # noqa: E402
+from no_window import KWARGS as NO_WINDOW  # noqa: E402
 
 if __name__ == "__main__":
     tool_paths.take_argument()
@@ -239,6 +242,45 @@ def update_parts_json(path: pathlib.Path, records: list[dict], pdf_map: dict[str
     return out
 
 
+def render_datasheet(
+    pdf_path: pathlib.Path,
+    out_dir: pathlib.Path,
+    *,
+    dpi: int = 200,
+    max_pages: int = 4,
+    which=shutil.which,
+    run=subprocess.run,
+) -> dict:
+    """Extract layout text and render first pages of `pdf_path` to PNGs when PDF tools exist."""
+    if not pdf_path.is_file():
+        return {"pdf": pdf_path.name, "text": None, "pages": [], "note": "PDF file missing"}
+    stem = pdf_path.stem
+    out_dir.mkdir(parents=True, exist_ok=True)
+    text_out: str | None = None
+    pages: list[str] = []
+
+    pdftotext = which("pdftotext")
+    if pdftotext:
+        txt_file = out_dir / f"{stem}.txt"
+        done = run([pdftotext, "-layout", str(pdf_path), str(txt_file)], capture_output=True, text=True, check=False, **NO_WINDOW)
+        if done.returncode == 0 and txt_file.is_file():
+            text_out = txt_file.name
+
+    pdftoppm = which("pdftoppm")
+    if pdftoppm:
+        prefix = out_dir / f"{stem}_p"
+        done = run(
+            [pdftoppm, "-png", "-r", str(int(dpi)), "-f", "1", "-l", str(int(max_pages)), str(pdf_path), str(prefix)],
+            capture_output=True, text=True, check=False, **NO_WINDOW,
+        )
+        if done.returncode == 0:
+            pages = [p.name for p in sorted(out_dir.glob(f"{stem}_p-*.png"))]
+
+    if text_out is None and not pages:
+        return {"pdf": pdf_path.name, "text": None, "pages": [], "note": "no pdftotext/pdftoppm installed"}
+    return {"pdf": pdf_path.name, "text": text_out, "pages": pages}
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--lcsc", action="append", required=True, help="LCSC part code (repeatable)")
@@ -247,6 +289,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--parts", type=pathlib.Path, help="Output parts.json path")
     parser.add_argument("--datasheets-dir", type=pathlib.Path, help="Datasheets folder")
     parser.add_argument("--skip-pdf", action="store_true", help="Do not download datasheet PDFs")
+    parser.add_argument("--render", action="store_true", help="Render datasheet text and page PNGs via pdftotext/pdftoppm")
+    parser.add_argument("--render-dir", type=pathlib.Path, help="Output folder for rendered datasheet views")
+    parser.add_argument("--dpi", type=int, default=200, help="PNG render DPI (default 200)")
     parser.add_argument("--json", action="store_true", help="Print JSON summary")
     board_description.add_argument(parser)
     args = parser.parse_args(argv)
@@ -266,11 +311,18 @@ def main(argv: list[str] | None = None) -> int:
             pdf_map[rec["part"]] = fetch_datasheet(rec, sheets_dir)
     listings_out = update_listings(listings_path, args.planning_qty, records, read_at)
     parts_out = update_parts_json(parts_path, records, pdf_map)
+    renders: dict[str, dict] = {}
+    if args.render and not args.skip_pdf:
+        render_dir = (args.render_dir or (desc.path("reports") / "datasheets" / "views")).resolve()
+        for part, pdf_name in pdf_map.items():
+            if pdf_name:
+                renders[part] = render_datasheet(sheets_dir / pdf_name, render_dir, dpi=args.dpi)
     if args.json:
-        print(json.dumps({"listings": listings_out, "parts": parts_out, "pdfs": pdf_map}, indent=2))
+        print(json.dumps({"listings": listings_out, "parts": parts_out, "pdfs": pdf_map, "renders": renders}, indent=2))
     else:
         for rec in records:
-            print(f"{rec['part']}: {rec['listed_manufacturer']} {rec['listed_mpn']} stock={rec['stock']} price=${rec['unit_price_usd']} pdf={pdf_map[rec['part']]}")
+            extra = f" rendered={len(renders.get(rec['part'], {}).get('pages', []))}p" if rec["part"] in renders else ""
+            print(f"{rec['part']}: {rec['listed_manufacturer']} {rec['listed_mpn']} stock={rec['stock']} price=${rec['unit_price_usd']} pdf={pdf_map[rec['part']]}{extra}")
     return 0
 
 
