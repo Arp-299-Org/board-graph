@@ -168,11 +168,29 @@ def parse_fp_lib_table(
     return libs
 
 
+def _project_copper_layers(pcb_path: pathlib.Path) -> int | None:
+    """Return stackup copper_layer_count from sibling `.kicad_pro` when >= 2, else None."""
+    pro_path = pcb_path.with_suffix(".kicad_pro")
+    if not pro_path.is_file():
+        return None
+    try:
+        data = json.loads(pro_path.read_text(encoding="utf-8"))
+        count = int(data["board"]["design_settings"]["stackup"]["copper_layer_count"])
+    except (OSError, ValueError, TypeError, KeyError):
+        return None
+    return count if count >= 2 else None
+
+
 PCB_SYNC_WORKER = """
 import json, pathlib, sys, pcbnew
 spec = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding='utf-8'))
 pcb_file = pathlib.Path(spec['pcb_path'])
-board = pcbnew.LoadBoard(str(pcb_file)) if pcb_file.is_file() else pcbnew.CreateEmptyBoard()
+if pcb_file.is_file():
+    board = pcbnew.LoadBoard(str(pcb_file))
+else:
+    board = pcbnew.CreateEmptyBoard()
+    if spec.get('copper_layers') and hasattr(board, 'SetCopperLayerCount'):
+        board.SetCopperLayerCount(int(spec['copper_layers']))
 net_map = {}
 for net_name in spec['nets']:
     net = board.FindNet(net_name)
@@ -269,6 +287,7 @@ def sync_pcb(
         libs = parse_fp_lib_table(table, pcb.parent, default_lib=(fp_lib.stem, fp_lib))
         spec = {
             "pcb_path": str(pcb),
+            "copper_layers": _project_copper_layers(pcb),
             "components": parsed["components"],
             "nets": parsed["nets"],
             "lib_dirs": {k: str(v) for k, v in libs.items()},

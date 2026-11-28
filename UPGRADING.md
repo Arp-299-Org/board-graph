@@ -8,6 +8,13 @@ between your old version and the new one before upgrading to see whether any
 project-owned files need updates. A release that asks nothing of a project
 still has a section saying so.
 
+## 0.41.2
+
+Nothing has to change in existing projects already initialized with
+`board-graph init`. New projects using `--fab jlcpcb-4layer` get 4-layer
+baseline design rules and `board-graph sync-pcb` initializes new `.kicad_pcb`
+files with the copper layer count configured in `.kicad_pro`.
+
 ## 0.33.1
 
 Initial public release of `board-graph` (MIT license, KiCad 10, Python 3.9+).

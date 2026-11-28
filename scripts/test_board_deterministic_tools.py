@@ -409,6 +409,15 @@ class DeterministicToolsTests(unittest.TestCase):
         self.assertIn("(version 1)", (self.root / "board" / "demo.kicad_dru").read_text(encoding="utf-8"))
         self.assertEqual(board_kicad_preset.write_kicad_presets(self.root, "demo", "jlcpcb-2layer"), [])
 
+        four = self.root / "four"
+        self.assertEqual(len(board_kicad_preset.write_kicad_presets(four, "demo4", "jlcpcb-4layer")), 3)
+        pro4 = json.loads((four / "board" / "demo4.kicad_pro").read_text(encoding="utf-8"))
+        self.assertEqual(pro4["board"]["design_settings"]["stackup"]["copper_layer_count"], 4)
+        self.assertEqual(pro4["board"]["design_settings"]["rules"]["min_clearance"], 0.1)
+        self.assertEqual(pro4["net_settings"]["classes"][0]["clearance"], 0.127)
+        self.assertEqual(pro4["net_settings"]["classes"][0]["track_width"], 0.15)
+        self.assertEqual(board_sync_pcb._project_copper_layers(four / "board" / "demo4.kicad_pcb"), 4)
+
         step_txt = board_make_step.build_step_from_spec(
             "TEST_PART",
             [{"type": "box", "size": [10.0, 8.0, 5.0], "color": "black"}],

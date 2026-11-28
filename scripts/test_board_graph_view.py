@@ -156,11 +156,11 @@ class WhatRunsTests(Base):
                           "source": "scripts/board_graph_actions.py",
                           "line": inspect.getsourcelines(board_graph_actions.models)[1]})
         self.assertIn("within LIBRARY_HEIGHT_MM (0.3) of the datasheet height", runs["doc"])
-        self.assertEqual(runs["uses"], ["scripts/board_space.py", "scripts/graph_pack.py", "scripts/kicad_sexp.py"])
+        self.assertEqual(runs["uses"], ["scripts/board_bom_export.py", "scripts/board_space.py", "scripts/graph_pack.py", "scripts/kicad_sexp.py"])
         self.assertEqual(runs["reads"], list(board_graph_actions.LIBRARY_READS))
         self.assertNotIn("last", runs)
         # Datasheets uses board_pre_schematic and builds Project without reaching model code.
-        self.assertEqual(nodes["datasheets"]["runs"]["uses"], ["scripts/board_pre_schematic.py", "scripts/kicad_sexp.py"])
+        self.assertEqual(nodes["datasheets"]["runs"]["uses"], ["scripts/board_bom_export.py", "scripts/board_pre_schematic.py", "scripts/kicad_sexp.py"])
         package = nodes["package"]["runs"]
         if self.graph.nodes["package"].get("pass_check"):
             self.assertEqual(package["when"], "pass")

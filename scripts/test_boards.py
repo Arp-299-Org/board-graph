@@ -492,8 +492,9 @@ class TwoBoardsTests(unittest.TestCase):
 
     def test_the_page_reads_the_board_its_address_names(self):
         page = (SCRIPTS.parent / "tools/board_graph_view/index.html").read_text(encoding="utf-8")
-        for words in ("new URLSearchParams(location.search).get('board')", "`boards/${BOARD}/`",
-                      "fetch(DATA + 'view.json'", "s.src = DATA + 'snapshot.js'", 'id="boards"', "renderBoards()"):
+        for words in ("new URLSearchParams(location.search)", "params.get('board')",
+                      "boards/${encodeURIComponent(b.name)}/view.json", "fetch(viewJsonUrl()",
+                      'id="board-select"'):
             self.assertIn(words, page)
         self.assertNotIn("fetch('view.json'", page)
 

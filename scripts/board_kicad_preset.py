@@ -12,7 +12,8 @@ def kicad_pro_data(board_name: str, fab: str = "jlcpcb-2layer") -> dict:
     """Return a clean KiCad 10 `.kicad_pro` dict with JLCPCB design rule minimums."""
     if fab not in FAB_PRESETS:
         raise ValueError(f"Unsupported fab preset {fab!r}; choose from {', '.join(FAB_PRESETS)}")
-    copper_layers = 4 if fab == "jlcpcb-4layer" else 2
+    is_4layer = fab == "jlcpcb-4layer"
+    copper_layers = 4 if is_4layer else 2
     return {
         "board": {
             "3dviewsettings": {},
@@ -33,7 +34,7 @@ def kicad_pro_data(board_name: str, fab: str = "jlcpcb-2layer") -> dict:
                     "silk_text_thickness": 0.15,
                 },
                 "rules": {
-                    "min_clearance": 0.15,
+                    "min_clearance": 0.1 if is_4layer else 0.15,
                     "min_copper_edge_clearance": 0.3,
                     "min_hole_clearance": 0.25,
                     "min_hole_to_hole": 0.5,
@@ -42,9 +43,9 @@ def kicad_pro_data(board_name: str, fab: str = "jlcpcb-2layer") -> dict:
                     "min_silk_clearance": 0.15,
                     "min_text_height": 1.0,
                     "min_text_thickness": 0.15,
-                    "min_through_hole_diameter": 0.3,
-                    "min_track_width": 0.15,
-                    "min_via_annular_width": 0.13,
+                    "min_through_hole_diameter": 0.2 if is_4layer else 0.3,
+                    "min_track_width": 0.1 if is_4layer else 0.15,
+                    "min_via_annular_width": 0.1 if is_4layer else 0.13,
                     "min_via_diameter": 0.45,
                     "solder_mask_to_copper_clearance": 0.0,
                 },
@@ -55,10 +56,10 @@ def kicad_pro_data(board_name: str, fab: str = "jlcpcb-2layer") -> dict:
         "net_settings": {
             "classes": [
                 {
-                    "clearance": 0.2,
+                    "clearance": 0.127 if is_4layer else 0.2,
                     "name": "Default",
-                    "track_width": 0.25,
-                    "via_diameter": 0.6,
+                    "track_width": 0.15 if is_4layer else 0.25,
+                    "via_diameter": 0.5 if is_4layer else 0.6,
                     "via_drill": 0.3,
                 }
             ]
