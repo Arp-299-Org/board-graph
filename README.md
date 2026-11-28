@@ -377,11 +377,28 @@ pip install --upgrade git+https://github.com/Arp-299-Org/board-graph.git@v<versi
 Before bumping a minor version (`0.33.x` -> `0.34.0`), read `UPGRADING.md` (or
 `git tag -n99 v<version>`) to see if any project-owned files or task headers
 need updates, and run `board-graph init` in your project if you want any newly
-added starter files (existing files are never overwritten).
+added starter files (existing files are never overwritten). Run
+`board-graph tool sync-agents` inside an initialized project to refresh the
+shared `board-graph` rules in `AGENTS.md` while keeping the project's
+`## Product` section intact.
 
 If you installed editable from a local git clone (`pip install -e .`),
 `git pull` updates your PC immediately and `kicad_machine.tool_checkout` syncs
-your KiCad machine to the matching commit SHA automatically.
+your KiCad machine to the matching commit SHA automatically. Finishing a
+`board-graph heal` cycle also runs `sync-agents` for the linked board project.
+
+### Event-driven multi-VM benchmark watching
+
+Supervise live single- or multi-VM benchmark runs with the SSE watcher instead
+of polling or cron timers:
+
+```sh
+python3 docker/watch_benchmark_events.py --target vm1=http://127.0.0.1:8001 --target vm2=http://127.0.0.1:8002 --wait-all
+```
+
+It exits immediately when any target hits `needs_owner`/`needs_lead`/`needs_skill`
+(exit 10), when an active `tool_heal` cycle blocks on `needs_lead` (exit 12), or
+once all targets pass `--until` (exit 0).
 
 ## The tool's tests
 

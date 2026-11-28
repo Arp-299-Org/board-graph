@@ -35,6 +35,7 @@ def _board_state(view: dict) -> dict:
     board_track = next((t for t in tracks if t.get("id") == "board"), None) or {}
     transitions = board_track.get("transitions") or []
     last = transitions[-1] if transitions else {}
+    heal = view.get("tool_heal") or {}
     return {
         "project": view.get("project"),
         "position": board_track.get("position"),
@@ -44,6 +45,13 @@ def _board_state(view: dict) -> dict:
         "target": last.get("target"),
         "actor": last.get("actor"),
         "note": last.get("note") or "",
+        "heal_version": heal.get("version"),
+        "heal_position": heal.get("position"),
+        "heal_done": bool(heal.get("done")) if heal else False,
+        "heal_blocked_outcome": heal.get("blocked_outcome"),
+        "heal_blocked_node": heal.get("blocked_node"),
+        "heal_gate_ok": heal.get("gate_ok"),
+        "heal_gate_reason": heal.get("gate_reason"),
     }
 
 
@@ -57,6 +65,58 @@ def _snapshot_all(targets: dict[str, str]) -> dict[str, dict]:
     return out
 
 
+def _inspect_target_state(
+    name: str,
+    base_url: str,
+    until_node: str,
+    stop_outcomes: set[str],
+    min_stop_seq: int,
+    wait_all: bool,
+    events_q: queue.Queue,
+    state_lock: threading.Lock,
+    reached: set[str],
+    last_seq: dict[str, int],
+    last_heal: dict[str, tuple],
+) -> bool:
+    st = _board_state(_fetch_view(base_url))
+    seq = st["seq"]
+    emit = False
+    emit_heal = False
+    heal_key = (st["heal_version"], st["heal_position"], st["heal_blocked_outcome"], st["heal_blocked_node"], st["heal_gate_ok"])
+    trigger_kind: str | None = None
+    trigger_code = 0
+    with state_lock:
+        if seq != last_seq.get(name, -1):
+            last_seq[name] = seq
+            emit = True
+        if heal_key != last_heal.get(name):
+            last_heal[name] = heal_key
+            if st["heal_version"] or st["heal_gate_ok"] is False:
+                emit_heal = True
+        if st["heal_blocked_outcome"] in stop_outcomes:
+            trigger_kind, trigger_code = "heal_blocked", 12
+        elif st["outcome"] in stop_outcomes and seq > min_stop_seq:
+            trigger_kind, trigger_code = "blocked", 10
+        elif st["node"] == until_node and st["outcome"] == "pass":
+            reached.add(name)
+            if not wait_all or len(reached) >= len(targets_global):
+                trigger_kind, trigger_code = "reached", 0
+    if emit:
+        summary = f"{st['node']} {st['outcome']} -> {st['target']}" if st["node"] else f"pos={st['position']}"
+        print(f"[{_now_hms()}] {name} ({st['project']}): seq={seq} {summary} ({st['actor']})", flush=True)
+    if emit_heal:
+        heal_msg = (
+            f"heal={st['heal_version'] or 'none'} pos={st['heal_position'] or 'none'} "
+            f"gate_ok={st['heal_gate_ok']}"
+            + (f" blocked={st['heal_blocked_node']}:{st['heal_blocked_outcome']}" if st["heal_blocked_outcome"] else "")
+        )
+        print(f"[{_now_hms()}] {name} ({st['project']}): {heal_msg}", flush=True)
+    if trigger_kind is not None:
+        events_q.put((trigger_kind, trigger_code, name, st))
+        return True
+    return False
+
+
 def _watch_target(
     name: str,
     base_url: str,
@@ -68,50 +128,45 @@ def _watch_target(
     state_lock: threading.Lock,
     reached: set[str],
     last_seq: dict[str, int],
+    max_retries: int = 10,
+    last_heal: dict[str, tuple] | None = None,
 ) -> None:
-    def inspect_once() -> None:
-        st = _board_state(_fetch_view(base_url))
-        seq = st["seq"]
-        emit = False
-        trigger_kind: str | None = None
-        trigger_code = 0
-        with state_lock:
-            if seq != last_seq.get(name, -1):
-                last_seq[name] = seq
-                emit = True
-            if st["outcome"] in stop_outcomes and seq > min_stop_seq:
-                trigger_kind, trigger_code = "blocked", 10
-            elif st["node"] == until_node and st["outcome"] == "pass":
-                reached.add(name)
-                if not wait_all or len(reached) >= len(targets_global):
-                    trigger_kind, trigger_code = "reached", 0
-        if emit:
-            summary = f"{st['node']} {st['outcome']} -> {st['target']}" if st["node"] else f"pos={st['position']}"
-            print(f"[{_now_hms()}] {name} ({st['project']}): seq={seq} {summary} ({st['actor']})", flush=True)
-        if trigger_kind is not None:
-            events_q.put((trigger_kind, trigger_code, name, st))
-            return
-
+    heal_seen = last_heal if last_heal is not None else {}
     sse_url = f"{base_url.rstrip('/')}/events"
-    for attempt in range(2):
+    consecutive_errors = 0
+    while True:
         try:
             req = urllib.request.Request(sse_url, headers={"Accept": "text/event-stream"})
-            with urllib.request.urlopen(req, timeout=None) as resp:
-                inspect_once()
+            with urllib.request.urlopen(req, timeout=60) as resp:
+                if _inspect_target_state(
+                    name, base_url, until_node, stop_outcomes, min_stop_seq,
+                    wait_all, events_q, state_lock, reached, last_seq, heal_seen,
+                ):
+                    return
+                consecutive_errors = 0
                 while True:
                     raw = resp.readline()
                     if not raw:
                         raise ConnectionError(f"SSE stream closed for {name}")
                     line = raw.decode("utf-8", errors="replace").strip()
                     if line.startswith("data:"):
-                        inspect_once()
+                        if _inspect_target_state(
+                            name, base_url, until_node, stop_outcomes, min_stop_seq,
+                            wait_all, events_q, state_lock, reached, last_seq, heal_seen,
+                        ):
+                            return
         except Exception as exc:  # noqa: BLE001
-            if attempt == 0:
-                print(f"[{_now_hms()}] {name}: SSE stream interrupted ({exc}); reconnecting once...", flush=True)
-                time.sleep(2)
-                continue
-            events_q.put(("stream_error", 11, name, {"error": str(exc)}))
-            return
+            consecutive_errors += 1
+            if consecutive_errors > max_retries:
+                events_q.put(("stream_error", 11, name, {"error": str(exc), "retries": consecutive_errors - 1}))
+                return
+            backoff = min(30, 2 ** min(consecutive_errors, 4))
+            print(
+                f"[{_now_hms()}] {name}: SSE stream interrupted ({exc}); "
+                f"reconnecting in {backoff}s ({consecutive_errors}/{max_retries})...",
+                flush=True,
+            )
+            time.sleep(backoff)
 
 
 targets_global: dict[str, str] = {}
@@ -125,6 +180,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--until", default="quote_files", help="Completion node id (default: quote_files)")
     parser.add_argument("--stop-outcomes", default="needs_owner,needs_lead,needs_skill",
                         help="Comma-separated outcomes that trigger immediate exit 10")
+    parser.add_argument("--max-retries", type=int, default=10,
+                        help="Consecutive SSE reconnect errors before exit 11 (default: 10)")
     parser.add_argument("--wait-all", action="store_true", help="Exit 0 only once every target passes --until")
     return parser.parse_args(argv)
 
@@ -156,12 +213,13 @@ def main(argv: list[str] | None = None) -> int:
     state_lock = threading.Lock()
     reached: set[str] = set()
     last_seq: dict[str, int] = {}
+    last_heal: dict[str, tuple] = {}
 
     for name, url in targets.items():
         t = threading.Thread(
             target=_watch_target,
             args=(name, url, args.until, stop_outcomes, after_seq.get(name, 0),
-                  args.wait_all, events_q, state_lock, reached, last_seq),
+                  args.wait_all, events_q, state_lock, reached, last_seq, max(0, args.max_retries), last_heal),
             daemon=True,
         )
         t.start()

@@ -18,6 +18,14 @@ yes or no. "Go" or "fix" authorizes the agreed step, not a new scope, part,
 purchase or unattended run. A question, brainstorm or audit is not permission
 to edit. Record a decision only after the owner adopts it, in the owner's
 words, on main the day it is made.
+When the owner explicitly instructs you to edit `AGENTS.md` or workflow docs,
+perform the edit (inside `board-graph`, through the 6-card `dev/tool_dev.py`
+workflow; inside a board repo, preserve `## Product` and use
+`board-graph tool sync-agents` after tool updates). Never quote `AGENTS.md`
+back to refuse an explicit owner edit request.
+Self-healing through the 6-card `board-graph heal` workflow is a core invariant
+of `board-graph`: never hot-patch around it, never bypass the gate, and never
+propose removing self-healing.
 When `tools/board_graph.json` enables autonomous delegation (`autonomy.mode`
 is `"delegated"` through `autonomy.until`), the owner has pre-authorized the
 agent to choose in-stock parts, placement, and board tradeoffs up through that
@@ -99,6 +107,13 @@ wrong while doing something else, say so with the file and line.
   a project repository holds only project files (`board/`, `tools/board_graph.json`,
   `tools/board_graph_site.json`, records, docs, and starter config). Change tool
   code in the `board-graph` repository, never inside a board repository.
+  Run `board-graph tool sync-agents` in a board project after updating
+  `board-graph` to refresh shared tool rules in `AGENTS.md` while preserving
+  `## Product`.
+- **Benchmark & multi-VM monitoring (event-driven only).** Always supervise
+  live `board-graph` runs and multi-VM benchmarks with
+  `docker/watch_benchmark_events.py` (SSE `/events`). Never replace it with
+  cron jobs, `sleep` loops, or periodic polling.
 - **Git.** Before editing, check the checkout matches its branch on `origin`.
   Board changes go on a branch: open a pull request when `origin` is on
   GitHub; when `origin` is a local bare repository with no GitHub remote

@@ -474,6 +474,8 @@ def run(args, graph, where_from):
     if args.command in ("next", "record"):
         heal_err = board_heal.check_tool_heal_gate(
             graph_path=graph.path,
+            state_path=where_from.get("path") if where_from.get("how") != "ssh" else None,
+            records_path=getattr(args, "records", None) or (graph.root / RECORDS_IN),
             command=args.command,
             outcome=getattr(args, "outcome", None),
         )

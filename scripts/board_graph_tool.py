@@ -431,6 +431,49 @@ def unvendor(root, mac_tool_checkout=None, dry_run=False):
     return 0
 
 
+def _split_agents_sections(text):
+    """Split AGENTS.md into (before_product, product_section, after_product), or None if non-standard."""
+    norm = text.replace("\r\n", "\n")
+    m_prod = re.search(r"(?m)^## Product[ \t]*$", norm)
+    m_owner = re.search(r"(?m)^## The owner[ \t]*$", norm)
+    if not m_prod or not m_owner or m_prod.start() >= m_owner.start():
+        return None
+    return norm[:m_prod.start()], norm[m_prod.start():m_owner.start()], norm[m_owner.start():]
+
+
+def sync_agents(root, source=None, ref="HEAD", quiet=False):
+    """Refresh shared board-graph rules in project AGENTS.md while preserving its ## Product section."""
+    root = pathlib.Path(root)
+    if source is None:
+        canon_bytes = (ROOT / "AGENTS.md").read_bytes()
+    else:
+        commit = _git(source, "rev-parse", "--verify", f"{ref}^{{commit}}").decode().strip()
+        canon_bytes = _git(source, "show", f"{commit}:AGENTS.md")
+    canon_text = canon_bytes.decode("utf-8")
+    target = root / "AGENTS.md"
+    if not target.exists():
+        _write(target, canon_bytes, b"\n")
+        if not quiet:
+            print("wrote AGENTS.md")
+        return 0
+    canon_parts = _split_agents_sections(canon_text)
+    proj_parts = _split_agents_sections(target.read_text(encoding="utf-8"))
+    if canon_parts is None or proj_parts is None:
+        raise ToolError(
+            "AGENTS.md does not contain standard '## Product' and '## The owner' headings; "
+            "refusing to overwrite custom file"
+        )
+    merged = (canon_parts[0] + proj_parts[1] + canon_parts[2]).encode("utf-8")
+    if digest(target.read_bytes()) == digest(merged):
+        if not quiet:
+            print("AGENTS.md is already current")
+        return 0
+    _write(target, merged, _ending(target))
+    if not quiet:
+        print("updated AGENTS.md (preserved ## Product section)")
+    return 0
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     parser.add_argument("--root", default=str(ROOT), help="the project's root; this repository by default")
@@ -463,6 +506,10 @@ def main(argv=None):
     drop.add_argument("--mac-tool-checkout", metavar="PATH",
                       help="set kicad_machine.tool_checkout in tools/board_graph_site.json")
     drop.add_argument("--dry-run", action="store_true", help="print what would change without deleting files")
+    sync = commands.add_parser("sync-agents", help="refresh shared AGENTS.md rules while preserving ## Product")
+    sync.add_argument("--from", dest="source", default=None,
+                      help="optional git checkout of board-graph (defaults to this installed package)")
+    sync.add_argument("--ref", default="HEAD")
     args = parser.parse_args(argv)
     try:
         if args.command == "check":
@@ -477,6 +524,8 @@ def main(argv=None):
             return starter(args.root, args.source, args.ref, args.skip)
         if args.command == "unvendor":
             return unvendor(args.root, args.mac_tool_checkout, args.dry_run)
+        if args.command == "sync-agents":
+            return sync_agents(args.root, args.source, args.ref)
         return update(args.root, args.source, args.ref)
     except ToolError as error:
         print(error, file=sys.stderr)

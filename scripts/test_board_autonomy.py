@@ -318,6 +318,13 @@ class BoardAutonomyTests(unittest.TestCase):
         self.assertIn("autonomous mode: you are the delegated lead", rendered)
         self.assertNotIn("it waits on the lead; the record that answers moves it", rendered)
 
+        # brief() in autonomous mode leads with delegated-lead self-healing instead of supervised "stop."
+        aut_brief = bg.brief(aut_graph, aut_state, "quote_files", root=self.root / "aut")
+        self.assertIn("Mode: AUTONOMOUS (delegated lead):", aut_brief)
+        self.assertNotIn("When this card's script or tool crashes or breaks: stop.", aut_brief)
+        sup_brief = bg.brief(sup_graph, sup_state, "quote_files", root=self.root / "sup")
+        self.assertIn(bg.BROKEN_CARD, sup_brief)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -52,7 +52,7 @@ SUBCOMMANDS = {
     "quote-package": "scripts/board_quote_package.py",
     "heal": "scripts/board_heal.py",
 }
-TOOL_ROOT_COMMANDS = frozenset({"check", "update", "starter", "unvendor"})
+TOOL_ROOT_COMMANDS = frozenset({"check", "update", "starter", "unvendor", "sync-agents"})
 BOARD_HOIST_COMMANDS = frozenset({"route", "run-checks", "track-craft", "view"})
 BOARD_ENV_COMMANDS = frozenset({"validate", "board-description"})
 VALUE_FLAGS = frozenset({

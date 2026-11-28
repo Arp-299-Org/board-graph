@@ -2365,7 +2365,8 @@ class OneDatabaseTests(unittest.TestCase):
         for patcher in (mock.patch.object(board_graph, "remote_call", self.fake_ssh), mock.patch.object(mac, "LOCAL", False),
                         mock.patch.object(board_graph, "land", fake_land), mock.patch.dict(os.environ),
                         mock.patch.object(board_graph, "ACTIONS", {}),  # inventory's script is not connected here
-                        mock.patch.object(board_graph, "bring_current", lambda *a, **k: True)):
+                        mock.patch.object(board_graph, "bring_current", lambda *a, **k: True),
+                        mock.patch.object(board_graph.board_heal, "check_tool_heal_gate", return_value=None)):
             patcher.start()
             self.addCleanup(patcher.stop)
         os.environ.pop(board_graph.STATE_ENV, None)

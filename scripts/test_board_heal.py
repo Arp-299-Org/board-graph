@@ -111,6 +111,76 @@ class BoardHealTests(unittest.TestCase):
             routing_run.engine(mock.MagicMock(graph=pathlib.Path("tools/board_graph.json"), state=None, records=None))
         follow_mock.assert_called_once_with("G", fake_state, fake_where["view"], root=routing_run.ROOT)
 
+    def test_heal_mode_rejects_env_bypass_guides_manifest_and_syncs_agents(self) -> None:
+        import board_graph_tool
+        sys.path.insert(0, str(REPO_ROOT / "dev"))
+        import tool_actions
+
+        with tempfile.TemporaryDirectory() as td:
+            root = pathlib.Path(td)
+            tool = _init_fake_tool_repo(root)
+            for rel in ("scripts/board_graph_tool.py", "scripts/no_window.py", ".gitignore"):
+                (tool / rel).write_text((REPO_ROOT / rel).read_text(encoding="utf-8"), encoding="utf-8")
+            (tool / "tools" / "board_graph_tool.json").unlink()
+            board_graph_tool.manifest(tool, "0.42.0", add=("scripts/board_graph.py",))
+            (tool / "AGENTS.md").write_text(
+                "# Agent instructions\n\n## Product\n\nTemplate.\n\n## The owner\n\nUpdated rule v2.\n",
+                encoding="utf-8",
+            )
+            subprocess.run(["git", "-C", str(tool), "add", "-A"], check=True, capture_output=True)
+            subprocess.run(["git", "-C", str(tool), "commit", "-q", "-m", "Non-empty manifest"], check=True, capture_output=True)
+            subprocess.run(["git", "-C", str(tool), "update-ref", "refs/remotes/origin/main", "HEAD"], check=True, capture_output=True)
+
+            proj = root / "proj"
+            (proj / "tools").mkdir(parents=True)
+            board_graph = proj / "tools" / "board_graph.json"
+            board_graph.write_text('{"nodes": []}\n', encoding="utf-8")
+            (proj / "AGENTS.md").write_text(
+                "# Agent instructions\n\n## Product\n\nBLE 6.2 sensor node.\n\n## The owner\n\nStale rule v1.\n",
+                encoding="utf-8",
+            )
+
+            # Env var must NOT bypass the self-healing gate on a real board repo.
+            self.assertFalse(hasattr(board_heal, "SKIP_GATE_ENV"))
+            (tool / "scripts" / "board_graph.py").write_text("# edited\n", encoding="utf-8")
+            with mock.patch.dict(os.environ, {"BOARD_GRAPH_SKIP_HEAL_GATE": "1"}):
+                blocked = board_heal.check_tool_heal_gate(
+                    tool, graph_path=board_graph, command="next", bypass_test_skip=True
+                )
+            self.assertIsNotNone(blocked)
+            self.assertIn("Self-healing gate blocked", blocked)
+
+            # Start heal cycle linked to proj; commit edit WITHOUT refreshing manifest -> heal hint returned.
+            (tool / "logs" / "tool-dev").mkdir(parents=True, exist_ok=True)
+            (tool / "logs" / "tool-dev" / "current.json").write_text(
+                json.dumps({"version": "fix-ble", "mode": "heal", "board_project": str(proj)}),
+                encoding="utf-8",
+            )
+            subprocess.run(["git", "-C", str(tool), "add", "scripts/board_graph.py"], check=True, capture_output=True)
+            subprocess.run(["git", "-C", str(tool), "commit", "-q", "-m", "Fix script without manifest"], check=True, capture_output=True)
+            res_bad = tool_actions.run_release_gate(tool)
+            self.assertEqual(res_bad["outcome"], "needs_lead")
+            self.assertTrue(
+                any("heal mode: run 'python scripts/board_graph_tool.py manifest --version 0.42.0'" in f for f in res_bad["findings"]),
+                res_bad["findings"],
+            )
+
+            # Refresh manifest and commit -> release_gate passes.
+            board_graph_tool.manifest(tool, "0.42.0")
+            subprocess.run(["git", "-C", str(tool), "add", "tools/board_graph_tool.json"], check=True, capture_output=True)
+            subprocess.run(["git", "-C", str(tool), "commit", "-q", "-m", "Refresh manifest"], check=True, capture_output=True)
+            res_ok = tool_actions.run_release_gate(tool)
+            self.assertEqual(res_ok["outcome"], "pass", res_ok["findings"])
+
+            # Completing heal propagates updated AGENTS.md rules to proj while preserving ## Product.
+            with mock.patch.object(board_heal, "tool_heal_summary", return_value={"done": True, "board_project": str(proj)}), \
+                    mock.patch.object(board_graph_tool, "ROOT", tool):
+                board_heal._sync_board_project_agents(tool, proj)
+            synced = (proj / "AGENTS.md").read_text(encoding="utf-8")
+            self.assertIn("BLE 6.2 sensor node.", synced)
+            self.assertIn("Updated rule v2.", synced)
+            self.assertNotIn("Stale rule v1.", synced)
+
 
 if __name__ == "__main__":
     unittest.main()

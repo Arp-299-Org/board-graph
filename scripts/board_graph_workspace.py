@@ -1236,7 +1236,7 @@ def brief(graph, state, key, root=_bg().ROOT, at=None, starting=None):
         if len(found) > 12:
             out.append(f"    and {len(found) - 12} more")
         out.append(f"    {way_out}")
-    out.append(f"  {_bg().BROKEN_CARD}")
+    out.append(f"  {_bg().board_autonomy.broken_card_note(graph, _bg().BROKEN_CARD)}")
     stop = graph.stop(key)
     if stop:
         out.append(f"  Stop: {stop['minutes']} minutes or {stop['repeat_failures']} failures of the same command "

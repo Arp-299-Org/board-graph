@@ -332,5 +332,55 @@ class ToolManifest(unittest.TestCase):
         self.assertIn("tools/board_graph.json", data.get("starter", []))
 
 
+class SyncAgents(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        base = pathlib.Path(self.temp.name)
+        self.tool, self.project = base / "tool", base / "project"
+        self.project.mkdir()
+        write(self.tool, {
+            "AGENTS.md": (
+                b"# Agent instructions\n\nHeader.\n\n## Product\n\nSkeleton.\n\n"
+                b"## The owner\n\nShared v2 rule.\n"
+            ),
+        })
+        git(self.tool, "init", "-q")
+        git(self.tool, "add", "-A")
+        git(self.tool, "commit", "-q", "-m", "v2")
+
+    def tearDown(self):
+        self.temp.cleanup()
+
+    def test_sync_agents_preserves_product_is_idempotent_creates_missing_and_refuses_custom(self):
+        # Missing AGENTS.md gets created from canonical template.
+        code, out = run(self.project, "sync-agents", "--from", str(self.tool), "--ref", "HEAD")
+        self.assertEqual(code, 0, out)
+        self.assertIn("wrote AGENTS.md", out)
+
+        # Project customizes ## Product while shared section is stale; sync-agents updates shared rules only.
+        (self.project / "AGENTS.md").write_bytes(
+            b"# Old header\r\n\r\n## Product\r\n\r\nBLE 6.2 board.\r\n\r\n## The owner\r\n\r\nStale v1 rule.\r\n"
+        )
+        code, out = run(self.project, "sync-agents", "--from", str(self.tool), "--ref", "HEAD")
+        self.assertEqual(code, 0, out)
+        self.assertIn("updated AGENTS.md (preserved ## Product section)", out)
+        text = (self.project / "AGENTS.md").read_text(encoding="utf-8")
+        self.assertIn("BLE 6.2 board.", text)
+        self.assertIn("Shared v2 rule.", text)
+        self.assertNotIn("Stale v1 rule.", text)
+        self.assertIn("Header.", text)
+
+        # Second run is idempotent.
+        code, again = run(self.project, "sync-agents", "--from", str(self.tool), "--ref", "HEAD")
+        self.assertEqual(code, 0, again)
+        self.assertIn("AGENTS.md is already current", again)
+
+        # Non-standard file without ## Product / ## The owner is refused rather than overwritten.
+        (self.project / "AGENTS.md").write_text("# Custom\nNo sections.\n", encoding="utf-8")
+        code, err = run(self.project, "sync-agents", "--from", str(self.tool), "--ref", "HEAD")
+        self.assertEqual(code, 1, err)
+        self.assertIn("refusing to overwrite custom file", err)
+
+
 if __name__ == "__main__":
     unittest.main()

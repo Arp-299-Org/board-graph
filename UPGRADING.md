@@ -8,6 +8,32 @@ between your old version and the new one before upgrading to see whether any
 project-owned files need updates. A release that asks nothing of a project
 still has a section saying so.
 
+## 0.42.2
+
+Existing projects already initialized with `board-graph init` should run
+`board-graph tool sync-agents` after upgrading to refresh the shared `AGENTS.md`
+rules (preserving each project's `## Product` section). Engine changes:
+
+- **`AGENTS.md` propagation (`board-graph tool sync-agents`):**
+  Refreshes shared `board-graph` rules in initialized projects while keeping
+  `## Product` intact, and runs automatically for the linked `board_project`
+  when a `board-graph heal` cycle finishes `release`.
+- **Mode-aware `BROKEN_CARD` & non-removable self-healing rules:**
+  `scripts/board_autonomy.py` (`broken_card_note`) puts delegated-lead
+  self-healing first in `Mode: AUTONOMOUS` briefs instead of supervised
+  stop-first text, and `AGENTS.md` clarifies that explicit owner requests to edit
+  `AGENTS.md` are direct instructions and 6-card self-healing is a core invariant.
+- **Closed env-var gate bypass & `--mode heal` alignment:**
+  Removed `BOARD_GRAPH_SKIP_HEAL_GATE` from `scripts/board_heal.py` (while
+  allowing scratch unit tests targeting temp `state_path` + `records_path`),
+  aligned `dev/tool_graph.json` + `dev/TOOL_DEV_PROCESS.md` for `--mode heal`,
+  and added the `manifest --version` hint in `dev/tool_actions.py:run_release_gate`.
+- **Resilient event-driven SSE watcher (`docker/watch_benchmark_events.py`):**
+  Added 60s stream read timeout, exponential-backoff reconnection up to
+  `--max-retries`, consecutive-error reset on connect, immediate `heal_blocked`
+  (exit 12) detection, and explicit no-cron supervision rules in `AGENTS.md` and
+  `README.md`.
+
 ## 0.42.1
 
 Nothing has to change in existing projects already initialized with

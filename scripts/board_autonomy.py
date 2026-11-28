@@ -179,6 +179,21 @@ def brief_header(graph, key: str, label: str, who: str, track_label: str) -> lis
     return lines
 
 
+def broken_card_note(graph, supervised_text: str) -> str:
+    """Return autonomous-first self-heal wording in delegated mode, else supervised BROKEN_CARD."""
+    if config(graph).get("mode") != "delegated":
+        return supervised_text
+    return (
+        "Mode: AUTONOMOUS (delegated lead): when this card's script or tool crashes or breaks, "
+        "record needs_lead with what it said word for word, then act as the delegated lead without exiting: "
+        "self-heal genuine board-graph tool bugs via the 6-card 'board-graph heal' workflow "
+        "(never hot-patch, bypass, or propose removing self-healing), and iterate routine routing retries cleanly. "
+        "Never do a broken card's work another way, with another tool or by hand, and never record it as done. "
+        "Starting baseline findings on an agent card are work to resolve on this card; "
+        "stale upstream approvals (recheck) are refreshed by walking returned through the graph."
+    )
+
+
 def _has_delegated_pass(review, key: str) -> bool:
     substantive = [
         r for r in review.rows

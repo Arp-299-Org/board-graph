@@ -59,7 +59,6 @@ def _clean_env() -> dict[str, str]:
         "BOARD_GRAPH_TEST_KICAD",
     ):
         env.pop(key, None)
-    env["BOARD_GRAPH_SKIP_HEAL_GATE"] = "1"
     return env
 
 
@@ -629,7 +628,10 @@ def run_release_gate(root: pathlib.Path) -> dict:
     for label, cmd in checks:
         done = subprocess.run(cmd, cwd=str(root), env=env, capture_output=True, text=True)
         if done.returncode != 0:
-            findings.append(f"{label} failed: {_tail((done.stdout or '') + (done.stderr or ''))}")
+            msg = f"{label} failed: {_tail((done.stdout or '') + (done.stderr or ''))}"
+            if mode == "heal" and label == "board_graph_tool.py check" and manifest_ver:
+                msg += f" (heal mode: run 'python scripts/board_graph_tool.py manifest --version {manifest_ver}' and commit it)"
+            findings.append(msg)
 
     status = _git(root, "status", "--porcelain", check=False)
     if status.returncode != 0 or status.stdout.strip():

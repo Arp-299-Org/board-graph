@@ -25,8 +25,10 @@ downstream PCB repositories never receive it.
    `cold_review`, `live_smoke`): In release mode, bump `pyproject.toml`, prepend
    `UPGRADING.md` section, run `scripts/board_graph_tool.py manifest --version <ver>`,
    commit, create annotated tag `v<ver>`, push `origin main v<ver>`. In `--mode heal`
-   (`board-graph heal start <slug>`), verify clean commit ahead of `origin/main` and passing
-   `board_graph_tool.py check` without requiring an upstream tag.
+   (`board-graph heal start <slug>`), refresh `tools/board_graph_tool.json` via
+   `scripts/board_graph_tool.py manifest --version <current>` and verify a clean commit
+   ahead of `origin/main` (no version/tag/`UPGRADING.md` bump required); recording pass
+   automatically syncs shared `AGENTS.md` rules to the target board project.
 
 ## Release & Self-Heal Cycling
 

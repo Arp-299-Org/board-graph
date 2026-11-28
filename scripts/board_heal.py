@@ -21,7 +21,6 @@ if str(HERE) not in sys.path:
 import tool_paths  # noqa: E402
 from no_window import KWARGS as NO_WINDOW  # noqa: E402
 
-SKIP_GATE_ENV = "BOARD_GRAPH_SKIP_HEAL_GATE"
 TOOL_GRAPH_REL = pathlib.PurePosixPath("dev/tool_graph.json")
 HEAL_SLUG_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
 
@@ -230,6 +229,17 @@ def tool_heal_summary(tool_root: pathlib.Path | None = None) -> dict | None:
     }
 
 
+def _is_under_tmp(path: pathlib.Path | str | None) -> bool:
+    if not path:
+        return False
+    try:
+        resolved = pathlib.Path(path).resolve()
+        tmp_root = pathlib.Path(tempfile.gettempdir()).resolve()
+        return resolved.is_relative_to(tmp_root)
+    except (OSError, ValueError):
+        return False
+
+
 def _is_temp_or_fixture_graph(graph_path: pathlib.Path, root: pathlib.Path) -> bool:
     try:
         resolved = graph_path.resolve()
@@ -244,13 +254,13 @@ def check_tool_heal_gate(
     tool_root: pathlib.Path | None = None,
     *,
     graph_path: pathlib.Path | None = None,
+    state_path: pathlib.Path | str | None = None,
+    records_path: pathlib.Path | str | None = None,
     command: str | None = None,
     outcome: str | None = None,
     bypass_test_skip: bool = False,
 ) -> str | None:
     """Return an error message if tool edits have not passed the 6-card self-healing workflow, else None."""
-    if not bypass_test_skip and os.environ.get(SKIP_GATE_ENV) == "1":
-        return None
     if command == "record" and outcome == "needs_lead":
         return None
     root = pathlib.Path(tool_root or tool_paths.TOOL_ROOT).resolve()
@@ -258,7 +268,10 @@ def check_tool_heal_gate(
         gp = pathlib.Path(graph_path).resolve()
         if gp == (root / TOOL_GRAPH_REL).resolve():
             return None
-        if not bypass_test_skip and _is_temp_or_fixture_graph(gp, root):
+        if not bypass_test_skip and (
+            _is_temp_or_fixture_graph(gp, root)
+            or (_is_under_tmp(state_path) and _is_under_tmp(records_path))
+        ):
             return None
     if not tool_paths.is_git_checkout(root):
         return None
@@ -327,6 +340,22 @@ def refresh_project_view(project_root: pathlib.Path | None = None, tool_root: pa
     )
 
 
+def _sync_board_project_agents(tool_root: pathlib.Path, project_root: pathlib.Path | None) -> None:
+    summary = tool_heal_summary(tool_root)
+    if not summary or not summary.get("done"):
+        return
+    target_raw = summary.get("board_project")
+    target_proj = pathlib.Path(target_raw).resolve() if target_raw else (project_root.resolve() if project_root else None)
+    if not target_proj or target_proj == tool_root.resolve() or not (target_proj / "AGENTS.md").is_file():
+        return
+    import board_graph_tool
+
+    try:
+        board_graph_tool.sync_agents(target_proj)
+    except board_graph_tool.ToolError as exc:
+        print(f"board-graph heal: skipped AGENTS.md sync for {target_proj}: {exc}", file=sys.stderr)
+
+
 def _run_tool_dev(args: list[str], *, tool_root: pathlib.Path, project_root: pathlib.Path | None) -> int:
     env = dict(os.environ)
     env[tool_paths.ENV] = str(tool_root)
@@ -337,6 +366,8 @@ def _run_tool_dev(args: list[str], *, tool_root: pathlib.Path, project_root: pat
         check=False,
         **NO_WINDOW,
     )
+    if done.returncode == 0 and args and args[0] == "record":
+        _sync_board_project_agents(tool_root, project_root)
     if args and args[0] in ("cycle", "next", "record", "settle"):
         refresh_project_view(project_root, tool_root)
     return done.returncode
