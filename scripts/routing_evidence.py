@@ -97,7 +97,7 @@ def effective_task_mode(text: str) -> str:
 
 
 def parse_task_connections(text: str) -> list[list[str]]:
-    """Parse consecutive Connection: FROM_REF.PAD TO_REF.PAD NET lines at the top of a routing task."""
+    """Parse consecutive Connection: FROM_REF.PAD TO_REF.PAD NET or Connection: NET FROM_REF.PAD -> TO_REF.PAD lines."""
     lines = text.strip().splitlines()
     targets: list[list[str]] = []
     seen_pairs: set[frozenset[str]] = set()
@@ -106,8 +106,11 @@ def parse_task_connections(text: str) -> list[list[str]]:
         idx += 1
     while idx < len(lines) and lines[idx].startswith("Connection:"):
         fields = lines[idx][len("Connection:"):].split()
+        if len(fields) == 4 and fields[2] == "->":
+            net, start, _, end = fields
+            fields = [start, end, net]
         if len(fields) != 3 or any("." not in pad for pad in fields[:2]) or fields[0] == fields[1]:
-            raise ValueError("Use Connection: FROM_REF.PAD TO_REF.PAD NET at the top of the task")
+            raise ValueError("Use Connection: FROM_REF.PAD TO_REF.PAD NET or Connection: NET FROM_REF.PAD -> TO_REF.PAD")
         pair_key = frozenset(fields[:2])
         if pair_key in seen_pairs:
             raise ValueError(f"Duplicate Connection: line for {' '.join(fields)}")

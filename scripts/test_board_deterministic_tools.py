@@ -336,6 +336,20 @@ class DeterministicToolsTests(unittest.TestCase):
         auto.assert_called_once_with(self.root)
         self.assertEqual((found["outcome"], found["findings"]), ("pass", []))
 
+    def test_placement_snapshot_drc_silk_filter(self) -> None:
+        report = {
+            "violations": [
+                {"type": "unconnected_items", "description": "Unconnected pad"},
+                {"type": "silk_overlap", "description": "Silkscreen clipped by solder mask", "items": [{"description": "Text J1"}]},
+                {"type": "silk_over_copper", "description": "Silkscreen over copper"},
+                {"type": "clearance", "description": "Copper clearance"},
+            ]
+        }
+        findings = board_placement_snapshot.parse_silkscreen_drc_report(report)
+        self.assertEqual(len(findings), 2)
+        self.assertIn("silk_overlap", findings[0])
+        self.assertIn("silk_over_copper", findings[1])
+
 
 if __name__ == "__main__":
     unittest.main()

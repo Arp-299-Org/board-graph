@@ -901,8 +901,14 @@ class PadExitGeometry(unittest.TestCase):
         )"""
         good_chunk = "Connection: J1.1 J2.1 /S1\nConnection: J1.1 J2.3 /S1\nPad exits: centered\nRoute chunk.\n"
         self.assertEqual(routing_evidence.parse_task_connections(good_chunk), [["J1.1", "J2.1", "/S1"], ["J1.1", "J2.3", "/S1"]])
+        graph_chunk = "Mode: ipc\nConnection: /S1 J1.1 -> J2.1\nConnection: /S1 J1.1 -> J2.3\nPad exits: centered\n"
+        self.assertEqual(
+            routing_evidence.parse_task_connections(graph_chunk),
+            routing_evidence.parse_task_connections(good_chunk),
+        )
+        self.assertEqual(pad_exits.preflight_tasks(pcb, [("graph-task.txt", graph_chunk)]), [])
         bad_second = "Connection: J1.1 J2.1 /S1\nConnection: J1.2 J2.2 /S2\nPad exits: centered\n"
-        dup = "Connection: J1.1 J2.1 /S1\nConnection: J2.1 J1.1 /S1\n"
+        dup = "Connection: J1.1 J2.1 /S1\nConnection: /S1 J2.1 -> J1.1\n"
         stray = "Connection: J1.1 J2.1 /S1\nPad exits: centered\nConnection: J1.1 J2.3 /S1\n"
         for bad_text in (dup, stray, "Connection: J1.1 J2.1 /S1\nConnection: bad\n"):
             with self.subTest(bad_text=bad_text), self.assertRaises(ValueError):

@@ -9,6 +9,7 @@ import pathlib
 import re
 import subprocess
 import sys
+import tempfile
 
 HERE = pathlib.Path(__file__).resolve().parent
 if str(HERE) not in sys.path:
@@ -125,6 +126,50 @@ def silkscreen_minimum_findings(board_text: str, min_height_mm: float = 1.0, min
     return findings
 
 
+SILK_DRC_TYPES = ("text_height", "text_thickness")
+
+
+def parse_silkscreen_drc_report(report: dict) -> list[str]:
+    """Extract silkscreen overlap/clearance/font DRC violations while ignoring pre-routing opens."""
+    findings: list[str] = []
+    for item in report.get("violations", []):
+        if not isinstance(item, dict):
+            continue
+        vtype = str(item.get("type") or "")
+        if not (vtype.startswith("silk_") or vtype in SILK_DRC_TYPES):
+            continue
+        desc = str(item.get("description") or vtype).strip()
+        where = "; ".join(
+            str(part.get("description") or "").strip()
+            for part in item.get("items", [])
+            if isinstance(part, dict) and part.get("description")
+        )
+        findings.append(f"{vtype}: {desc}" + (f" ({where})" if where else ""))
+    return findings
+
+
+def silkscreen_drc_findings(board_path: pathlib.Path) -> list[str]:
+    """Run KiCad DRC on `board_path` if available and return any silkscreen violations."""
+    invoke_cli = TOOL_ROOT / "tools" / "kicad" / "invoke_kicad_cli.py"
+    if not invoke_cli.is_file():
+        return []
+    with tempfile.TemporaryDirectory() as tmp:
+        out_json = pathlib.Path(tmp) / "drc.json"
+        cmd = [
+            sys.executable, "-B", str(invoke_cli),
+            "pcb", "drc", "--format", "json", "--severity-all",
+            "--output", str(out_json), str(board_path),
+        ]
+        done = subprocess.run(cmd, cwd=str(ROOT), capture_output=True, text=True, check=False, **NO_WINDOW)
+        if done.returncode != 0 or not out_json.is_file():
+            return []
+        try:
+            report = json.loads(out_json.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return []
+    return parse_silkscreen_drc_report(report)
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--board", type=pathlib.Path, help="Input .kicad_pcb file")
@@ -133,6 +178,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--no-render", action="store_true", help="Skip rendering 2D/3D review views")
     parser.add_argument("--no-normalize", action="store_true", help="Skip KiCad 10 load/save normalization")
     parser.add_argument("--normalize-only", action="store_true", help="Normalize PCB to KiCad 10 and exit")
+    parser.add_argument("--no-drc", action="store_true", help="Skip KiCad silkscreen DRC overlap check")
     parser.add_argument("--strict-silk", action="store_true", help="Exit 1 if any silkscreen text is undersized")
     parser.add_argument("--min-silk-height", type=float, default=1.0, help="Min silkscreen height mm (default 1.0)")
     parser.add_argument("--min-silk-thickness", type=float, default=0.15, help="Min silkscreen stroke mm (default 0.15)")
@@ -160,6 +206,8 @@ def main(argv: list[str] | None = None) -> int:
     print(f"wrote {out} ({len(placement['parts'])} part(s))")
 
     silk_warnings = silkscreen_minimum_findings(board_text, args.min_silk_height, args.min_silk_thickness)
+    if not args.no_drc:
+        silk_warnings.extend(silkscreen_drc_findings(board))
     for warning in silk_warnings:
         print(f"warning: silkscreen {warning}", file=sys.stderr)
     if args.strict_silk and silk_warnings:
